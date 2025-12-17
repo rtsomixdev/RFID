@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # 1. Database Service (PostgreSQL)
+  db:
+    image: postgres:15-alpine
+    container_name: linen_postgres_db
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=123456
+      - POSTGRES_DB=linen_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    restart: always
+
+  # 2. Database Management Tool (pgAdmin 4)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: linen_pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@linen.com
+      - PGADMIN_DEFAULT_PASSWORD=123456
+    ports:
+      - "5050:80" # เข้าผ่าน browser ด้วย port 5050
+    depends_on:
+      - db # บอกให้รัน db ให้เสร็จก่อนค่อยรันตัวนี้
+    restart: always
+
+volumes:
+  pg_data:
