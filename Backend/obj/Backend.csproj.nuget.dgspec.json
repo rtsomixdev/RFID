@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\rtsom\\OneDrive\\Desktop\\RFID\\Backend\\Backend.csproj": {}
+    "C:\\Users\\rtsom\\OneDrive\\Desktop\\RFID\\backend\\Backend.csproj": {}
   },
   "projects": {
-    "C:\\Users\\rtsom\\OneDrive\\Desktop\\RFID\\Backend\\Backend.csproj": {
+    "C:\\Users\\rtsom\\OneDrive\\Desktop\\RFID\\backend\\Backend.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\rtsom\\OneDrive\\Desktop\\RFID\\Backend\\Backend.csproj",
+        "projectUniqueName": "C:\\Users\\rtsom\\OneDrive\\Desktop\\RFID\\backend\\Backend.csproj",
         "projectName": "Backend",
-        "projectPath": "C:\\Users\\rtsom\\OneDrive\\Desktop\\RFID\\Backend\\Backend.csproj",
+        "projectPath": "C:\\Users\\rtsom\\OneDrive\\Desktop\\RFID\\backend\\Backend.csproj",
         "packagesPath": "C:\\Users\\rtsom\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\rtsom\\OneDrive\\Desktop\\RFID\\Backend\\obj\\",
+        "outputPath": "C:\\Users\\rtsom\\OneDrive\\Desktop\\RFID\\backend\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
