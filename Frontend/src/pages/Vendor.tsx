@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Box, Paper, Typography, TextField, Button, Grid, Table, 
-  TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton 
+  TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton,
+  Card, CardContent, InputAdornment, Stack, Chip
 } from '@mui/material';
-import { Delete, Add, Business } from '@mui/icons-material';
+import { 
+  Delete, AddCircle, Business, Edit, Storefront, Badge, Phone, ListAlt
+} from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
 
@@ -25,7 +28,6 @@ const Vendor: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    // ✅ 1. เพิ่ม Validation Check: ห้ามชื่อบริษัทเป็นค่าว่าง
     if (!formData.vendorName.trim()) {
         Swal.fire({
             icon: 'warning',
@@ -34,7 +36,7 @@ const Vendor: React.FC = () => {
             confirmButtonText: 'ตกลง',
             confirmButtonColor: '#f59e0b'
         });
-        return; // 🛑 หยุดทำงานทันที ไม่ส่งข้อมูลไป Server
+        return; 
     }
 
     try {
@@ -57,7 +59,6 @@ const Vendor: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
-    // ✅ 2. เพิ่ม Logic ยืนยันการลบ
     Swal.fire({
         title: 'ยืนยันการลบ?',
         text: "ข้อมูลจะถูกลบออกจากระบบถาวร",
@@ -85,93 +86,123 @@ const Vendor: React.FC = () => {
       {/* Header */}
       <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
         <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#e0f2fe', color: '#0284c7' }}>
-            <Business fontSize="large" />
+            <Storefront fontSize="large" />
         </Paper>
-        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1e293b' }}>
-            จัดการข้อมูลบริษัทคู่ค้า
-        </Typography>
+        <Box>
+            <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1e293b' }}>
+                จัดการข้อมูลบริษัทคู่ค้า
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+                บริหารจัดการรายชื่อ Supplier และข้อมูลการติดต่อ
+            </Typography>
+        </Box>
       </Box>
 
-      {/* Form Section */}
-      <Paper sx={{ p: 4, mb: 4, borderRadius: 4, boxShadow: 'none', border: '1px solid #e2e8f0' }}>
-        <Grid container spacing={3} alignItems="flex-end">
-          <Grid item xs={12} md={5}>
-            <TextField 
-                fullWidth 
-                label="ชื่อบริษัท / ร้านค้า *" 
-                placeholder="ระบุชื่อบริษัท..."
-                value={formData.vendorName} 
-                onChange={e => setFormData({...formData, vendorName: e.target.value})} 
-                size="medium"
-            />
-          </Grid>
-          <Grid item xs={12} md={5}>
-            <TextField 
-                fullWidth 
-                label="เลขทะเบียนการค้า / ข้อมูลติดต่อ" 
-                placeholder="ระบุเลขทะเบียนหรือเบอร์โทร..."
-                value={formData.registrationNumber} 
-                onChange={e => setFormData({...formData, registrationNumber: e.target.value})} 
-                size="medium"
-            />
-          </Grid>
-          <Grid item xs={12} md={2}>
-            <Button 
-                fullWidth 
-                variant="contained" 
-                startIcon={<Add />} 
-                onClick={handleSubmit} 
-                sx={{ height: 56, borderRadius: 2, bgcolor: '#0ea5e9', '&:hover': { bgcolor: '#0284c7' } }}
-            >
-                เพิ่ม
-            </Button>
-          </Grid>
-        </Grid>
-      </Paper>
+      {/* Content Card */}
+      <Card sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
+        
+        {/* Form Section */}
+        <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
+            <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: '#334155' }}>
+                <AddCircle color="primary" fontSize="small" /> เพิ่มบริษัทคู่ค้าใหม่
+            </Typography>
+            <Grid container spacing={3} alignItems="flex-start">
+              <Grid item xs={12} md={5}>
+                <TextField 
+                    fullWidth 
+                    size="small"
+                    label="ชื่อบริษัท / ร้านค้า *" 
+                    placeholder="ตัวอย่าง: บริษัท ซักอบรีด จำกัด"
+                    value={formData.vendorName} 
+                    onChange={e => setFormData({...formData, vendorName: e.target.value})} 
+                    InputProps={{
+                        startAdornment: <InputAdornment position="start"><Business fontSize="small" color="action" /></InputAdornment>,
+                    }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField 
+                    fullWidth 
+                    size="small"
+                    label="เลขทะเบียน / เบอร์โทร" 
+                    placeholder="ระบุข้อมูลติดต่อ..."
+                    value={formData.registrationNumber} 
+                    onChange={e => setFormData({...formData, registrationNumber: e.target.value})} 
+                    InputProps={{
+                        startAdornment: <InputAdornment position="start"><Badge fontSize="small" color="action" /></InputAdornment>,
+                    }}
+                />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Button 
+                    fullWidth 
+                    variant="contained" 
+                    startIcon={<AddCircle />} 
+                    onClick={handleSubmit} 
+                    sx={{ height: 40, borderRadius: 2 }}
+                >
+                    เพิ่มข้อมูล
+                </Button>
+              </Grid>
+            </Grid>
+        </Box>
 
-      {/* Table Section */}
-      <Paper sx={{ borderRadius: 4, overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
-        <TableContainer>
-          <Table>
-            <TableHead sx={{ bgcolor: '#f8fafc' }}>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 'bold', color: '#475569' }}>ชื่อบริษัท</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', color: '#475569' }}>เลขทะเบียน / ติดต่อ</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 'bold', color: '#475569' }}>จัดการ</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {vendors.length === 0 ? (
-                 <TableRow>
-                    <TableCell colSpan={3} align="center" sx={{ py: 4, color: '#94a3b8' }}>
-                        ไม่พบข้อมูล
-                    </TableCell>
-                 </TableRow>
-              ) : (
-                  vendors.map((v) => (
-                    <TableRow key={v.vendorId} hover>
-                      <TableCell sx={{ fontWeight: 500, color: '#1e293b' }}>
-                        {v.vendorName}
-                      </TableCell>
-                      <TableCell sx={{ color: '#64748b' }}>
-                        {v.registrationNumber || '-'}
-                      </TableCell>
-                      <TableCell align="right">
-                        <IconButton 
-                            onClick={() => handleDelete(v.vendorId)} 
-                            size="small"
-                            sx={{ color: '#ef4444', bgcolor: '#fef2f2', '&:hover': { bgcolor: '#fee2e2' } }}
-                        >
-                            <Delete fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+        {/* Table Section */}
+        <Box sx={{ p: 3 }}>
+            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="subtitle2" fontWeight="bold" color="textSecondary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <ListAlt fontSize="small" /> รายชื่อบริษัททั้งหมด
+                </Typography>
+                <Chip label={`${vendors.length} รายการ`} size="small" color="primary" variant="outlined" />
+            </Box>
+
+            <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
+              <Table>
+                <TableHead sx={{ bgcolor: '#f1f5f9' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold', color: '#475569' }}>ชื่อบริษัท</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', color: '#475569' }}>เลขทะเบียน / ติดต่อ</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold', color: '#475569', width: 120 }}>จัดการ</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {vendors.length === 0 ? (
+                     <TableRow>
+                        <TableCell colSpan={3} align="center" sx={{ py: 4, color: '#94a3b8' }}>
+                            ไม่พบข้อมูล
+                        </TableCell>
+                     </TableRow>
+                  ) : (
+                      vendors.map((v) => (
+                        <TableRow key={v.vendorId} hover>
+                          <TableCell sx={{ fontWeight: 500, color: '#1e293b' }}>
+                            {v.vendorName}
+                          </TableCell>
+                          <TableCell sx={{ color: '#64748b' }}>
+                            {v.registrationNumber || '-'}
+                          </TableCell>
+                          <TableCell align="center">
+                            <Stack direction="row" spacing={1} justifyContent="center">
+                                <IconButton size="small" sx={{ color: '#3b82f6', bgcolor: '#eff6ff', '&:hover': { bgcolor: '#dbeafe' } }}>
+                                    <Edit fontSize="small" />
+                                </IconButton>
+                                <IconButton 
+                                    onClick={() => handleDelete(v.vendorId)} 
+                                    size="small"
+                                    sx={{ color: '#ef4444', bgcolor: '#fef2f2', '&:hover': { bgcolor: '#fee2e2' } }}
+                                >
+                                    <Delete fontSize="small" />
+                                </IconButton>
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+        </Box>
+      </Card>
     </Box>
   );
 };
