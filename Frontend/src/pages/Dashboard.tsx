@@ -143,17 +143,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      
-      {/* Header */}
-      <Box sx={{ mb: 5 }}>
-        <Typography variant="h4" fontWeight="800" color="textPrimary" sx={{ letterSpacing: '-0.5px', mb: 1 }}>
-          Dashboard Overview
-        </Typography>
-        <Typography variant="body1" color="textSecondary">
-          ภาพรวมระบบและการเคลื่อนไหวของผ้า (Real-time Monitor)
-        </Typography>
-      </Box>
-
       {/* SECTION 1: KPI Summary */}
       <Box sx={{ mb: 5 }}>
         <Typography variant="h6" fontWeight="bold" sx={{ mb: 3, color: COLORS.textPrimary, display: 'flex', alignItems: 'center', gap: 1 }}>
