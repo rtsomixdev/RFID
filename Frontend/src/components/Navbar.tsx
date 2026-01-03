@@ -1,68 +1,101 @@
-import React from 'react';
-import { AppBar, Toolbar, IconButton, Box, Avatar, Badge, Typography } from '@mui/material';
-import { Menu as MenuIcon, NotificationsNone } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { 
+  AppBar, Toolbar, IconButton, Typography, Box, Badge, Avatar, Stack 
+} from '@mui/material';
+import { 
+  Menu as MenuIcon, Notifications, Search, AccountCircle 
+} from '@mui/icons-material';
+import { useLocation } from 'react-router-dom';
 
-const Navbar: React.FC<{ onSidebarOpen: () => void }> = ({ onSidebarOpen }) => {
-  const navigate = useNavigate();
-  // ดึงข้อมูล User (ถ้ามีรูปให้ใส่ใน src ของ Avatar)
-  const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+const drawerWidth = 280; // ต้องตรงกับใน Sidebar.tsx
 
-  const handleLogout = () => {
-    localStorage.removeItem('currentUser');
-    navigate('/login');
+interface NavbarProps {
+  onMenuClick: () => void;
+}
+
+const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
+  const location = useLocation();
+  const [time, setTime] = useState(new Date());
+
+  // นาฬิกาเดินจริง
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // ฟังก์ชันแปลง Path เป็นชื่อหน้าภาษาไทย
+  const getPageTitle = (path: string) => {
+    switch (path) {
+      case '/': return 'หน้าหลัก (Monitor)';
+      case '/stats': return 'สถิติภาพรวม (Dashboard)';
+      case '/requests': return 'รายการคำร้องเบิกผ้า';
+      case '/discard': return 'แจ้งผ้าชำรุด / สูญหาย';
+      case '/linens': return 'จัดการสต็อกผ้า (Linen Inventory)';
+      case '/hospital': return 'ข้อมูลโรงพยาบาล';
+      case '/users': return 'จัดการบุคลากร';
+      case '/rfid-connect': return 'ตั้งค่าการเชื่อมต่อ RFID';
+      default: return 'Smart RFID System';
+    }
   };
 
   return (
     <AppBar 
-        position="fixed" 
-        sx={{ 
-            width: { sm: `calc(100% - 260px)` }, // ขยับหนี Sidebar
-            ml: { sm: `260px` },
-            bgcolor: 'transparent', // พื้นหลังใส เพื่อให้เห็นสีพื้นหลังหลัก
-            boxShadow: 'none',
-            color: '#334155', // สีไอคอนเทาเข้ม
-            zIndex: (theme) => theme.zIndex.drawer + 1 
-        }}
+      position="fixed" 
+      sx={{
+        width: { sm: `calc(100% - ${drawerWidth}px)` },
+        ml: { sm: `${drawerWidth}px` },
+        bgcolor: 'rgba(255, 255, 255, 0.9)', // พื้นหลังขาวโปร่งแสง
+        backdropFilter: 'blur(8px)',       // เอฟเฟกต์เบลอข้างหลัง
+        boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
+        color: '#1e293b', // สีตัวอักษรเทาเข้ม
+        borderBottom: '1px solid #f1f5f9'
+      }}
     >
-      <Toolbar>
-        <IconButton
-          color="inherit"
-          edge="start"
-          onClick={onSidebarOpen}
-          sx={{ mr: 2, display: { sm: 'none' } }}
-        >
-          <MenuIcon />
-        </IconButton>
+      <Toolbar sx={{ justifyContent: 'space-between' }}>
         
-        {/* ชื่อหน้า หรือ Breadcrumb (ว่างไว้ก่อน) */}
-        <Box sx={{ flexGrow: 1 }} />
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            {/* ปุ่มแจ้งเตือน */}
-            <IconButton color="inherit">
-                <Badge badgeContent={4} color="error" variant="dot">
-                    <NotificationsNone />
-                </Badge>
-            </IconButton>
-
-            {/* รูปโปรไฟล์ */}
-            <Box 
-                onClick={handleLogout} 
-                sx={{ 
-                    cursor: 'pointer', 
-                    display: 'flex', 
-                    alignItems: 'center',
-                    gap: 1
-                }}
-            >
-                <Avatar 
-                    alt={user.firstName} 
-                    src="/static/images/avatar/1.jpg" // ใส่ URL รูปจริงถ้ามี
-                    sx={{ width: 40, height: 40, border: '2px solid #fff', boxShadow: 1 }} 
-                />
-            </Box>
+        {/* 1. ฝั่งซ้าย: ปุ่มเมนู (Mobile) + ชื่อหน้า */}
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <IconButton
+            color="inherit"
+            edge="start"
+            onClick={onMenuClick}
+            sx={{ mr: 2, display: { sm: 'none' }, color: '#64748b' }}
+          >
+            <MenuIcon />
+          </IconButton>
+          
+          <Box>
+             <Typography variant="h6" fontWeight="bold" sx={{ color: '#0f172a' }}>
+               {getPageTitle(location.pathname)}
+             </Typography>
+          </Box>
         </Box>
+
+        {/* 2. ฝั่งขวา: นาฬิกา + แจ้งเตือน */}
+        <Stack direction="row" alignItems="center" spacing={2}>
+           
+           {/* นาฬิกาดิจิทัล */}
+           <Box sx={{ textAlign: 'right', display: { xs: 'none', md: 'block' }, mr: 2 }}>
+              <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: 'monospace', color: '#3b82f6', lineHeight: 1 }}>
+                {time.toLocaleTimeString('th-TH')}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#64748b' }}>
+                {time.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </Typography>
+           </Box>
+
+           {/* ปุ่มแจ้งเตือน */}
+           <IconButton sx={{ bgcolor: '#f1f5f9', '&:hover':{ bgcolor: '#e2e8f0' } }}>
+              <Badge badgeContent={3} color="error">
+                <Notifications sx={{ color: '#64748b' }} />
+              </Badge>
+           </IconButton>
+
+           {/* ปุ่ม Profile (ถ้าไม่อยากใช้ใน Sidebar ก็ใช้ตรงนี้ได้) */}
+           {/* <Avatar sx={{ bgcolor: '#3b82f6', cursor: 'pointer' }}>A</Avatar> */}
+
+        </Stack>
+
       </Toolbar>
     </AppBar>
   );

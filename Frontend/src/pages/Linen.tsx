@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { 
   Box, Paper, Typography, TextField, Button, Grid, Table, 
   TableBody, TableCell, TableContainer, TableHead, TableRow, 
-  IconButton, Select, MenuItem, FormControl, InputLabel, Chip, Stack
+  IconButton, Select, MenuItem, FormControl, InputLabel, Chip, Stack,
+  InputAdornment, Card, CardContent, Divider, Tooltip
 } from '@mui/material';
 import { 
-  AddCircle, QrCodeScanner, Delete, Inventory 
+  AddCircle, QrCodeScanner, Delete, Inventory, Search, CheckCircle, Cancel
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
@@ -13,6 +14,8 @@ import axiosClient from '../api/axiosClient';
 const Linen: React.FC = () => {
   // --- States ---
   const [linens, setLinens] = useState<any[]>([]);
+  const [filteredLinens, setFilteredLinens] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Master Data (Dropdowns)
   const [products, setProducts] = useState<any[]>([]);
@@ -31,6 +34,16 @@ const Linen: React.FC = () => {
     fetchMasterData();
     fetchLinens();
   }, []);
+
+  // Search Logic
+  useEffect(() => {
+    const lowerTerm = searchTerm.toLowerCase();
+    const filtered = linens.filter(item => 
+        item.rfidCode?.toLowerCase().includes(lowerTerm) || 
+        item.product?.productName?.toLowerCase().includes(lowerTerm)
+    );
+    setFilteredLinens(filtered);
+  }, [searchTerm, linens]);
 
   const fetchMasterData = async () => {
     try {
@@ -54,6 +67,7 @@ const Linen: React.FC = () => {
     try {
       const res = await axiosClient.get('/Linen');
       setLinens(res.data);
+      setFilteredLinens(res.data);
     } catch (err) { console.error(err); }
   };
 
@@ -121,137 +135,193 @@ const Linen: React.FC = () => {
   };
 
   return (
-    <Box>
-      <Typography variant="h5" sx={{ mb: 3, fontWeight: 'bold', color: '#1e293b' }}>
-        ลงทะเบียนผ้าใหม่ (Register Linen)
-      </Typography>
-
-      {/* Form Section */}
-      <Paper sx={{ p: 4, mb: 4, borderRadius: 4 }}>
-        <Typography variant="h6" sx={{ mb: 3, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Inventory /> เพิ่มข้อมูลผ้า
-        </Typography>
-
-        <Grid container spacing={3}>
-           {/* RFID Input */}
-           <Grid item xs={12} md={6}>
-             <Box sx={{ display: 'flex', gap: 1 }}>
-                <TextField 
-                    fullWidth 
-                    label="RFID Code (สแกน หรือ กรอก)" 
-                    value={formData.rfidCode} 
-                    onChange={e => setFormData({...formData, rfidCode: e.target.value})} 
-                    placeholder="E200..."
-                    autoFocus
-                />
-                <Button variant="outlined" onClick={handleGenRFID} startIcon={<QrCodeScanner />}>
-                    สุ่ม
-                </Button>
-             </Box>
-           </Grid>
-
-           {/* Product Select */}
-           <Grid item xs={12} md={6}>
-             <FormControl fullWidth>
-                <InputLabel>ชนิดผ้า / สินค้า</InputLabel>
-                <Select 
-                    value={formData.productId} 
-                    label="ชนิดผ้า / สินค้า" 
-                    onChange={e => setFormData({...formData, productId: e.target.value})}
-                >
-                    {products.map((p) => (
-                        <MenuItem key={p.productId} value={p.productId}>
-                            {p.productName} ({p.sizeSpec || 'มาตรฐาน'})
-                        </MenuItem>
-                    ))}
-                </Select>
-             </FormControl>
-           </Grid>
-
-           {/* Hospital Select */}
-           <Grid item xs={12} md={6}>
-             <FormControl fullWidth>
-                <InputLabel>โรงพยาบาลเจ้าของ</InputLabel>
-                <Select 
-                    value={formData.hospitalId} 
-                    label="โรงพยาบาลเจ้าของ" 
-                    onChange={e => setFormData({...formData, hospitalId: e.target.value})}
-                >
-                    {hospitals.map((h) => <MenuItem key={h.hospitalId} value={h.hospitalId}>{h.hospitalName}</MenuItem>)}
-                </Select>
-             </FormControl>
-           </Grid>
-
-           {/* Vendor Select */}
-           <Grid item xs={12} md={6}>
-             <FormControl fullWidth>
-                <InputLabel>บริษัทผู้ผลิต/จำหน่าย</InputLabel>
-                <Select 
-                    value={formData.vendorId} 
-                    label="บริษัทผู้ผลิต/จำหน่าย" 
-                    onChange={e => setFormData({...formData, vendorId: e.target.value})}
-                >
-                    <MenuItem value=""><em>ไม่ระบุ</em></MenuItem>
-                    {vendors.map((v) => <MenuItem key={v.vendorId} value={v.vendorId}>{v.vendorName}</MenuItem>)}
-                </Select>
-             </FormControl>
-           </Grid>
-
-           <Grid item xs={12} sx={{ textAlign: 'right', mt: 2 }}>
-              <Button 
-                variant="contained" 
-                size="large" 
-                onClick={handleSubmit} 
-                startIcon={<AddCircle />}
-                sx={{ px: 4, borderRadius: 2 }}
-              >
-                  บันทึกเข้าระบบ
-              </Button>
-           </Grid>
-        </Grid>
-      </Paper>
-
-      {/* List Table Section */}
-      <Paper sx={{ borderRadius: 4, overflow: 'hidden' }}>
-        <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-            <Typography variant="h6" fontWeight="bold" color="#475569">
-                รายการผ้าในระบบ ({linens.length})
+    <Box sx={{ pb: 5 }}>
+      {/* Header */}
+      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#e0f2fe', color: '#0284c7' }}>
+            <Inventory fontSize="large" />
+        </Paper>
+        <Box>
+            <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
+                จัดการสต็อกผ้า (Linen Inventory)
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+                ลงทะเบียนผ้าใหม่ ตรวจสอบสถานะ และจัดการข้อมูล RFID
             </Typography>
         </Box>
-        <TableContainer sx={{ maxHeight: 500 }}>
+      </Box>
+
+      {/* Form Section */}
+      <Card sx={{ mb: 4, borderRadius: 3, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+        <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Inventory color="primary" />
+            <Typography variant="subtitle1" fontWeight="bold" color="primary.main">
+                ลงทะเบียนผ้าใหม่ (Register Linen)
+            </Typography>
+        </Box>
+        <CardContent sx={{ p: 3 }}>
+           <Grid container spacing={3}>
+               {/* 1. ข้อมูลหลัก */}
+               <Grid item xs={12}>
+                   <Typography variant="caption" fontWeight="bold" color="textSecondary" sx={{ mb: 1, display: 'block' }}>ข้อมูลสินค้า (Product Info)</Typography>
+                   <Divider sx={{ mb: 2 }} />
+               </Grid>
+
+               <Grid item xs={12} md={6}>
+                 <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField 
+                        fullWidth 
+                        size="small"
+                        label="RFID Code (สแกน หรือ กรอก)" 
+                        value={formData.rfidCode} 
+                        onChange={e => setFormData({...formData, rfidCode: e.target.value})} 
+                        placeholder="E200..."
+                        autoFocus
+                        InputProps={{
+                            startAdornment: <InputAdornment position="start"><QrCodeScanner fontSize="small" color="action"/></InputAdornment>
+                        }}
+                    />
+                    <Button variant="outlined" onClick={handleGenRFID} sx={{ minWidth: 80 }}>
+                        สุ่ม
+                    </Button>
+                 </Box>
+               </Grid>
+
+               <Grid item xs={12} md={6}>
+                 <FormControl fullWidth size="small">
+                    <InputLabel>ชนิดผ้า / สินค้า</InputLabel>
+                    <Select 
+                        value={formData.productId} 
+                        label="ชนิดผ้า / สินค้า" 
+                        onChange={e => setFormData({...formData, productId: e.target.value})}
+                    >
+                        {products.map((p) => (
+                            <MenuItem key={p.productId} value={p.productId}>
+                                {p.productName} ({p.sizeSpec || 'มาตรฐาน'})
+                            </MenuItem>
+                        ))}
+                    </Select>
+                 </FormControl>
+               </Grid>
+
+               {/* 2. ข้อมูลเจ้าของ */}
+               <Grid item xs={12} sx={{ mt: 1 }}>
+                   <Typography variant="caption" fontWeight="bold" color="textSecondary" sx={{ mb: 1, display: 'block' }}>ความเป็นเจ้าของ (Ownership)</Typography>
+                   <Divider sx={{ mb: 2 }} />
+               </Grid>
+
+               <Grid item xs={12} md={6}>
+                 <FormControl fullWidth size="small">
+                    <InputLabel>โรงพยาบาลเจ้าของ</InputLabel>
+                    <Select 
+                        value={formData.hospitalId} 
+                        label="โรงพยาบาลเจ้าของ" 
+                        onChange={e => setFormData({...formData, hospitalId: e.target.value})}
+                    >
+                        {hospitals.map((h) => <MenuItem key={h.hospitalId} value={h.hospitalId}>{h.hospitalName}</MenuItem>)}
+                    </Select>
+                 </FormControl>
+               </Grid>
+
+               <Grid item xs={12} md={6}>
+                 <FormControl fullWidth size="small">
+                    <InputLabel>บริษัทผู้ผลิต/จำหน่าย</InputLabel>
+                    <Select 
+                        value={formData.vendorId} 
+                        label="บริษัทผู้ผลิต/จำหน่าย" 
+                        onChange={e => setFormData({...formData, vendorId: e.target.value})}
+                    >
+                        <MenuItem value=""><em>ไม่ระบุ</em></MenuItem>
+                        {vendors.map((v) => <MenuItem key={v.vendorId} value={v.vendorId}>{v.vendorName}</MenuItem>)}
+                    </Select>
+                 </FormControl>
+               </Grid>
+
+               <Grid item xs={12} sx={{ textAlign: 'right', mt: 2 }}>
+                  <Button 
+                    variant="contained" 
+                    size="large" 
+                    onClick={handleSubmit} 
+                    startIcon={<AddCircle />}
+                    sx={{ px: 4, borderRadius: 2 }}
+                  >
+                      บันทึกเข้าระบบ
+                  </Button>
+               </Grid>
+           </Grid>
+        </CardContent>
+      </Card>
+
+      {/* List Table Section */}
+      <Card sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+            <Typography variant="h6" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Inventory color="primary"/> รายการผ้าในระบบ <Chip label={filteredLinens.length} size="small" color="primary" sx={{ ml: 1, borderRadius: 1 }} />
+            </Typography>
+            
+            <TextField
+                size="small"
+                placeholder="ค้นหา (RFID, ชื่อสินค้า)..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                    startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                }}
+                sx={{ width: { xs: '100%', sm: 300 } }}
+            />
+        </Box>
+        <TableContainer sx={{ maxHeight: 600 }}>
           <Table stickyHeader>
             <TableHead sx={{ bgcolor: '#f1f5f9' }}>
               <TableRow>
-                <TableCell>RFID Code</TableCell>
-                <TableCell>สินค้า</TableCell>
-                <TableCell>โรงพยาบาล</TableCell>
-                <TableCell>วันที่ลงทะเบียน</TableCell>
-                <TableCell align="center">จัดการ</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>RFID Code</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>Product Name</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>Owner (Hospital)</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>Registered Date</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#64748b' }}>Status</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#64748b' }}>Action</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {linens.map((item) => (
+              {filteredLinens.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5, color: '#94a3b8' }}>ไม่พบข้อมูล</TableCell></TableRow>
+              ) : filteredLinens.map((item) => (
                 <TableRow key={item.linenId} hover>
                   <TableCell>
-                      <Chip label={item.rfidCode} size="small" variant="outlined" sx={{ fontFamily: 'monospace' }} />
+                      <Chip 
+                        label={item.rfidCode} 
+                        size="small" 
+                        variant="outlined" 
+                        color="primary"
+                        sx={{ fontFamily: 'monospace', fontWeight: 500, bgcolor: '#eff6ff', border: 'none' }} 
+                      />
                   </TableCell>
-                  <TableCell>{item.product?.productName || '-'}</TableCell>
+                  <TableCell>
+                      <Typography variant="body2" fontWeight="bold">{item.product?.productName || '-'}</Typography>
+                      <Typography variant="caption" color="textSecondary">{item.product?.sizeSpec}</Typography>
+                  </TableCell>
                   <TableCell>{item.hospital?.hospitalName || '-'}</TableCell>
                   <TableCell>{new Date(item.registeredAt).toLocaleString('th-TH')}</TableCell>
                   <TableCell align="center">
-                      <IconButton color="error" size="small" onClick={() => handleDelete(item.linenId, item.rfidCode)}>
-                          <Delete />
-                      </IconButton>
+                      {item.isActive ? (
+                          <Chip icon={<CheckCircle />} label="Active" size="small" color="success" variant="outlined" />
+                      ) : (
+                          <Chip icon={<Cancel />} label="Inactive" size="small" color="default" variant="outlined" />
+                      )}
+                  </TableCell>
+                  <TableCell align="center">
+                      <Tooltip title="ลบข้อมูล">
+                          <IconButton color="error" size="small" onClick={() => handleDelete(item.linenId, item.rfidCode)} sx={{ bgcolor: '#fef2f2', '&:hover': { bgcolor: '#fee2e2' } }}>
+                              <Delete fontSize="small" />
+                          </IconButton>
+                      </Tooltip>
                   </TableCell>
                 </TableRow>
               ))}
-              {linens.length === 0 && (
-                  <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3 }}>ไม่มีข้อมูลผ้าในระบบ</TableCell></TableRow>
-              )}
             </TableBody>
           </Table>
         </TableContainer>
-      </Paper>
+      </Card>
     </Box>
   );
 };

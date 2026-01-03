@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations.Schema; // ✅ ต้องมีบรรทัดนี้!
-using System.Text.Json.Serialization; 
+using System.ComponentModel.DataAnnotations; // ✅ เพิ่มอันนี้เพื่อใช้ [Key]
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace Backend.Models;
 
-[Table("requests")] // ✅ บังคับชื่อตารางตรงนี้เลย
+[Table("requests")]
 public partial class Request
 {
-    [Column("request_id")] // ✅ บังคับชื่อคอลัมน์
+    [Key] // ✅ ใส่ Key เพื่อความชัวร์
+    [Column("request_id")]
     public int RequestId { get; set; }
 
     [Column("request_code")]
@@ -34,19 +36,16 @@ public partial class Request
 
     // --- Navigation Properties (ตัวเชื่อม) ---
     
-    // ✅ สั่งห้ามสร้างคอลัมน์ผี! ให้ใช้ RequestedByUserId เชื่อมเท่านั้น
+    // ❌ เอา [JsonIgnore] ออก เพื่อให้ Frontend มองเห็นชื่อคนเบิก
     [ForeignKey("RequestedByUserId")]
-    [JsonIgnore] 
     public virtual User? RequestedByUser { get; set; }
 
-    // ✅ สั่งให้ใช้ TargetWardId เชื่อมเท่านั้น
+    // ❌ เอา [JsonIgnore] ออก เพื่อให้ Frontend มองเห็นชื่อวอร์ด
     [ForeignKey("TargetWardId")]
-    [JsonIgnore]
     public virtual Ward? TargetWard { get; set; }
 
-    // ✅✅✅ ตัวปัญหาที่ทำให้ Error! สั่งให้ใช้ CurrentStatusId เชื่อมเท่านั้น
+    // ❌ เอา [JsonIgnore] ออก เพื่อให้ Frontend มองเห็นสถานะ
     [ForeignKey("CurrentStatusId")]
-    [JsonIgnore]
     public virtual RequestStatus? CurrentStatus { get; set; }
 
     public virtual ICollection<RequestItem> RequestItems { get; set; } = new List<RequestItem>();

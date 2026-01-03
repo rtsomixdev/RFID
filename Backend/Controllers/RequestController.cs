@@ -22,10 +22,11 @@ public class RequestController : ControllerBase
         return await _context.Requests
             .Include(r => r.RequestItems)
                 .ThenInclude(ri => ri.Product)
-            .Include(r => r.RequestedByUser)
-            .Include(r => r.TargetWard)
-            .Include(r => r.CurrentStatus)
-            .OrderByDescending(r => r.CreatedAt)
+                    .ThenInclude(p => p.Category) // ✅ ดึงหมวดหมู่สินค้ามาโชว์ด้วย
+            .Include(r => r.RequestedByUser)      // ✅ ดึงชื่อคนเบิก
+            .Include(r => r.TargetWard)           // ✅ ดึงชื่อวอร์ดปลายทาง
+            .Include(r => r.CurrentStatus)        // ✅ ดึงสถานะ (Pending/Approved)
+            .OrderByDescending(r => r.CreatedAt)  // เรียงเอาล่าสุดขึ้นก่อน
             .ToListAsync();
     }
 
@@ -35,6 +36,11 @@ public class RequestController : ControllerBase
     {
         var request = await _context.Requests
             .Include(r => r.RequestItems)
+                .ThenInclude(ri => ri.Product)
+                    .ThenInclude(p => p.Category)
+            .Include(r => r.RequestedByUser)
+            .Include(r => r.TargetWard)
+            .Include(r => r.CurrentStatus)
             .FirstOrDefaultAsync(r => r.RequestId == id);
 
         if (request == null) return NotFound();
@@ -42,33 +48,43 @@ public class RequestController : ControllerBase
         return request;
     }
 
-    // POST: api/Request (สร้างใบเบิก + Log)
+    // POST: api/Request (สร้างคำร้องใหม่)
     [HttpPost]
     public async Task<ActionResult<Request>> PostRequest(Request request)
     {
-        // 1. สร้างเลขที่เอกสาร
+        if (request.RequestItems == null || !request.RequestItems.Any())
+        {
+            return BadRequest(new { message = "กรุณาระบุรายการผ้าอย่างน้อย 1 รายการ" });
+        }
+
+        // 1. สร้างเลขที่เอกสาร (Running Number) เช่น REQ-20251223-001
         var todayStr = DateTime.Now.ToString("yyyyMMdd");
         var prefix = $"REQ-{todayStr}-";
         
+        // นับจำนวนของวันนี้เพื่อรันเลขต่อ
         var count = await _context.Requests
             .Where(r => r.RequestCode != null && r.RequestCode.StartsWith(prefix))
-            .CountAsync();
+            .CountAsync(); 
             
         request.RequestCode = $"{prefix}{(count + 1).ToString("D3")}"; 
         request.CreatedAt = DateTime.UtcNow;
         request.UpdatedAt = DateTime.UtcNow;
         
+        // Default Status = 1 (Pending)
         if (request.CurrentStatusId == 0) request.CurrentStatusId = 1;
 
-        // 2. เพิ่มข้อมูลลง DbContext
         _context.Requests.Add(request);
 
-        // 3. ✅✅✅ บันทึก Log: สร้างคำร้องใหม่
+        // 2. คำนวณยอดรวมจำนวนผ้า (ชิ้น)
+        // ✅✅✅ แก้ไขตรงนี้: ใช้ .Quantity ตามที่แก้ใน Model แล้ว
+        var totalQty = request.RequestItems.Sum(i => i.Quantity); 
+
+        // 3. บันทึก Log
         var log = new SystemLog
         {
             UserId = request.RequestedByUserId,
             ActionType = "CREATE_REQUEST",
-            Description = $"สร้างคำร้องใหม่ {request.RequestCode} (ประเภท: {(request.RequestType == 1 ? "เบิกผ้า" : "เปลี่ยนผ้า")})",
+            Description = $"สร้างคำร้องใหม่ {request.RequestCode} (รวม {totalQty} ชิ้น)",
             CreatedAt = DateTime.UtcNow
         };
         _context.SystemLogs.Add(log);
@@ -79,13 +95,15 @@ public class RequestController : ControllerBase
         }
         catch (Exception ex)
         {
-             return StatusCode(500, new { message = "Save Error: " + ex.InnerException?.Message ?? ex.Message });
+            // ดัก Error ให้ละเอียดขึ้น เพื่อให้ Frontend รู้เรื่อง
+            var msg = ex.InnerException?.Message ?? ex.Message;
+            return StatusCode(500, new { message = "Save Error: " + msg });
         }
 
         return CreatedAtAction("GetRequest", new { id = request.RequestId }, request);
     }
 
-    // PUT: api/Request/5 (อัปเดตสถานะ + Log)
+    // PUT: api/Request/5 (อัปเดตสถานะ อนุมัติ/ปฏิเสธ)
     [HttpPut("{id}")]
     public async Task<IActionResult> PutRequest(int id, Request request)
     {
@@ -94,20 +112,21 @@ public class RequestController : ControllerBase
         var existingRequest = await _context.Requests.FindAsync(id);
         if (existingRequest == null) return NotFound();
 
-        // เช็คก่อนว่าสถานะเปลี่ยนไหม เพื่อบันทึก Log ให้ถูกต้อง
         var oldStatusId = existingRequest.CurrentStatusId;
         var newStatusId = request.CurrentStatusId;
 
+        // อัปเดตข้อมูล
         existingRequest.CurrentStatusId = newStatusId;
         existingRequest.UpdatedAt = DateTime.UtcNow;
 
-        // ✅✅✅ บันทึก Log: อัปเดตสถานะ
+        // ถ้าสถานะเปลี่ยน ให้บันทึก Log
         if (oldStatusId != newStatusId)
         {
             var statusText = newStatusId == 2 ? "อนุมัติ" : (newStatusId == 3 ? "ปฏิเสธ" : "รออนุมัติ");
+            
             var log = new SystemLog
             {
-                UserId = null, // ถ้า Frontend ส่ง AdminId มาด้วยจะดีมาก (ตอนนี้ใส่ null ไปก่อน)
+                UserId = request.RequestedByUserId, // หรือใส่ ID ของคนกดอนุมัติ (ถ้ามีส่งมา)
                 ActionType = "UPDATE_STATUS",
                 Description = $"คำร้อง {existingRequest.RequestCode} ถูกเปลี่ยนสถานะเป็น '{statusText}'",
                 CreatedAt = DateTime.UtcNow
@@ -128,14 +147,14 @@ public class RequestController : ControllerBase
         return NoContent();
     }
 
-    // DELETE: api/Request/5 (ลบคำร้อง + Log)
+    // DELETE: api/Request/5
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteRequest(int id)
     {
         var request = await _context.Requests.FindAsync(id);
         if (request == null) return NotFound();
 
-        // ✅✅✅ บันทึก Log: ลบคำร้อง (ต้องทำก่อน Remove เพราะถ้าลบแล้วจะดึงข้อมูลมา Log ไม่ได้)
+        // Log ก่อนลบ
         var log = new SystemLog
         {
             UserId = null,

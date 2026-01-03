@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema; // ✅ ต้องมี
+using System.ComponentModel.DataAnnotations.Schema; 
 using System.Text.Json.Serialization;
 
 namespace Backend.Models;
 
-[Table("linens")] // ✅ บังคับชื่อตาราง
+[Table("linens")] 
 public partial class Linen
 {
     [Key]
@@ -28,20 +28,25 @@ public partial class Linen
     [Column("registered_at")]
     public DateTime RegisteredAt { get; set; }
 
+    // ✅ เพิ่ม Status (เพื่อให้ Controller บันทึกว่า 'Available' หรือ 'Damaged' ได้)
+    [Column("status")]
+    public string? Status { get; set; }
+
+    // ✅ เพิ่ม UpdatedAt (เพื่อบันทึกเวลาล่าสุดที่มีการแก้ไข)
+    [Column("updated_at")]
+    public DateTime? UpdatedAt { get; set; }
+
     [Column("is_active")]
     public bool IsActive { get; set; }
 
     // --- Navigation Properties (ตัวเชื่อม) ---
     
-    // ✅ สั่งให้ใช้ ProductId เชื่อมเท่านั้น
     [ForeignKey("ProductId")]
     public virtual Product? Product { get; set; }
 
-    // ✅ สั่งให้ใช้ VendorId เชื่อมเท่านั้น
     [ForeignKey("VendorId")]
     public virtual Vendor? Vendor { get; set; }
 
-    // ✅ สั่งให้ใช้ HospitalId เชื่อมเท่านั้น
     [ForeignKey("HospitalId")]
     public virtual Hospital? Hospital { get; set; }
 }

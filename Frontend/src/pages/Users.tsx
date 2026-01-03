@@ -1,15 +1,47 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  Box, Paper, Typography, TextField, Button, Grid as Grid, 
+  Box, Paper, Typography, TextField, Button, Grid, 
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
-  IconButton, Select, MenuItem, FormControl, InputLabel, Chip, Stack
+  IconButton, Select, MenuItem, FormControl, InputLabel, Chip, Stack,
+  Avatar, Card, CardContent, Divider, InputAdornment, Tooltip
 } from '@mui/material';
-import { Delete, PersonAdd, Edit, CleaningServices, Save, Mail } from '@mui/icons-material';
+import { 
+  Delete, PersonAdd, Edit, CleaningServices, Save, Mail, 
+  Search, VpnKey, Badge, AccountCircle, AdminPanelSettings, SupervisorAccount
+} from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
 
+// Helper: สร้างสี Avatar จากชื่อ
+function stringToColor(string: string) {
+  let hash = 0;
+  for (let i = 0; i < string.length; i++) {
+    hash = string.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  let color = '#';
+  for (let i = 0; i < 3; i++) {
+    const value = (hash >> (i * 8)) & 0xFF;
+    color += `00${value.toString(16)}`.slice(-2);
+  }
+  return color;
+}
+
+function stringAvatar(name: string) {
+  const nameParts = name.split(' ');
+  const first = nameParts[0]?.[0] || '';
+  const second = nameParts[1]?.[0] || '';
+  return {
+    sx: { bgcolor: stringToColor(name), width: 32, height: 32, fontSize: '0.9rem' },
+    children: `${first}${second}`.toUpperCase(),
+  };
+}
+
 const Users: React.FC = () => {
+  const [currentUser, setCurrentUser] = useState<any>(null); // ✅ เก็บข้อมูลคน Login
   const [users, setUsers] = useState<any[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  
   const [roles, setRoles] = useState<any[]>([]);
   const [titles, setTitles] = useState<any[]>([]);
   
@@ -22,14 +54,33 @@ const Users: React.FC = () => {
   });
 
   useEffect(() => {
+    // ✅ 1. ดึงข้อมูลคน Login ออกมาเพื่อเช็คว่า "ฉันคือใคร"
+    const userStr = localStorage.getItem('currentUser');
+    if (userStr) {
+        setCurrentUser(JSON.parse(userStr));
+    }
+
     fetchUsers();
     fetchMasterData();
   }, []);
+
+  // Search Logic
+  useEffect(() => {
+    const lowerTerm = searchTerm.toLowerCase();
+    const filtered = users.filter(u => 
+        u.firstName?.toLowerCase().includes(lowerTerm) || 
+        u.lastName?.toLowerCase().includes(lowerTerm) ||
+        u.username?.toLowerCase().includes(lowerTerm) ||
+        u.email?.toLowerCase().includes(lowerTerm)
+    );
+    setFilteredUsers(filtered);
+  }, [searchTerm, users]);
 
   const fetchUsers = async () => {
     try {
       const res = await axiosClient.get('/User');
       setUsers(res.data);
+      setFilteredUsers(res.data);
     } catch (err) { console.error(err); }
   };
 
@@ -54,8 +105,8 @@ const Users: React.FC = () => {
       email: user.email || '',
       roleId: user.roleId,
       titleId: user.titleId,
-      hospitalId: user.hospitalId || 1, // ป้องกัน null
-      wardId: user.wardId || 1 // ป้องกัน null
+      hospitalId: user.hospitalId || 1,
+      wardId: user.wardId || 1
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -82,18 +133,14 @@ const Users: React.FC = () => {
       };
 
       if (isEdit && editId) {
-        // ✅ ส่ง userId ไปด้วย
         payload.userId = editId;
-        
-        // ถ้าไม่แก้รหัสผ่าน ให้ส่งเป็น null หรือ empty string (Backend เราแก้ให้รองรับแล้ว)
         if (!payload.passwordHash) payload.passwordHash = null;
-
         await axiosClient.put(`/User/${editId}`, payload);
-        Swal.fire('สำเร็จ', 'แก้ไขข้อมูลเรียบร้อย', 'success');
+        Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'แก้ไขข้อมูลเรียบร้อย', timer: 1500, showConfirmButton: false });
       } else {
         if(!formData.passwordHash) return Swal.fire('แจ้งเตือน', 'กรุณากำหนดรหัสผ่าน', 'warning');
         await axiosClient.post('/User', payload);
-        Swal.fire('สำเร็จ', 'เพิ่มผู้ใช้งานเรียบร้อย', 'success');
+        Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'เพิ่มผู้ใช้งานเรียบร้อย', timer: 1500, showConfirmButton: false });
       }
 
       handleCancelEdit();
@@ -107,100 +154,209 @@ const Users: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     Swal.fire({
-      title: 'ยืนยันลบ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ลบ'
+      title: 'ยืนยันการลบ?', 
+      text: "คุณต้องการลบผู้ใช้งานนี้ใช่หรือไม่",
+      icon: 'warning', 
+      showCancelButton: true, 
+      confirmButtonText: 'ลบ',
+      confirmButtonColor: '#ef4444',
+      cancelButtonText: 'ยกเลิก'
     }).then(async (result) => {
       if (result.isConfirmed) {
-        await axiosClient.delete(`/User/${id}`);
-        fetchUsers();
+        try {
+            await axiosClient.delete(`/User/${id}`);
+            Swal.fire('ลบสำเร็จ', 'ลบผู้ใช้งานเรียบร้อย', 'success');
+            fetchUsers();
+        } catch (err) {
+            Swal.fire('Error', 'ไม่สามารถลบได้ (อาจมีข้อมูลเชื่อมโยง)', 'error');
+        }
       }
     });
   };
 
+  // Helper เลือกสี Chip ของ Role
+  const getRoleColor = (roleId: number) => {
+    switch(roleId) {
+        case 1: return 'error'; // Admin
+        case 2: return 'warning'; // Manager
+        default: return 'primary'; // Staff
+    }
+  };
+
   return (
-    <Box>
-      <Typography variant="h5" sx={{ mb: 3, fontWeight: 'bold', color: '#1e293b' }}>จัดการบุคลากร</Typography>
+    <Box sx={{ pb: 5 }}>
+      {/* Header */}
+      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#e0f2fe', color: '#0284c7' }}>
+            <AdminPanelSettings fontSize="large" />
+        </Paper>
+        <Box>
+            <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
+                จัดการบุคลากร (Users)
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+                เพิ่ม ลบ แก้ไข ข้อมูลผู้ใช้งานและกำหนดสิทธิ์การเข้าถึง
+            </Typography>
+        </Box>
+      </Box>
       
-      <Paper sx={{ p: 4, mb: 4, borderRadius: 4, boxShadow: 'none', border: '1px solid #e2e8f0', bgcolor: isEdit ? '#fffbeb' : '#fff' }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: isEdit ? '#d97706' : '#475569' }}>
-           {isEdit ? '✏️ แก้ไขข้อมูลผู้ใช้งาน' : '➕ เพิ่มผู้ใช้งานใหม่'}
-        </Typography>
-        <Grid container spacing={2}>
-            <Grid size={{ xs: 6, md: 2 }}>
-                <FormControl fullWidth>
-                    <InputLabel>คำนำหน้า</InputLabel>
-                    <Select value={formData.titleId} label="คำนำหน้า" onChange={e => setFormData({...formData, titleId: e.target.value})}>
-                        {titles.map((t) => <MenuItem key={t.titleId} value={t.titleId}>{t.titleNameTh}</MenuItem>)}
-                    </Select>
-                </FormControl>
-            </Grid>
-            <Grid size={{ xs: 12, md: 5 }}><TextField fullWidth label="ชื่อจริง" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} /></Grid>
-            <Grid size={{ xs: 12, md: 5 }}><TextField fullWidth label="นามสกุล" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} /></Grid>
+      {/* Form Section */}
+      <Card sx={{ mb: 4, borderRadius: 3, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+        <Box sx={{ p: 2, bgcolor: isEdit ? '#fff7ed' : '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1 }}>
+            {isEdit ? <Edit color="warning" /> : <PersonAdd color="primary" />}
+            <Typography variant="subtitle1" fontWeight="bold" color={isEdit ? 'warning.main' : 'primary.main'}>
+                {isEdit ? 'แก้ไขข้อมูลผู้ใช้งาน' : 'เพิ่มผู้ใช้งานใหม่'}
+            </Typography>
+        </Box>
+        <CardContent sx={{ p: 3 }}>
+            <Grid container spacing={3}>
+                {/* 1. ข้อมูลส่วนตัว */}
+                <Grid item xs={12}>
+                    <Typography variant="caption" fontWeight="bold" color="textSecondary" sx={{ mb: 1, display: 'block' }}>ข้อมูลส่วนตัว (Personal Info)</Typography>
+                    <Divider sx={{ mb: 2 }} />
+                </Grid>
+                
+                <Grid item xs={12} md={2}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel>คำนำหน้า</InputLabel>
+                        <Select value={formData.titleId} label="คำนำหน้า" onChange={e => setFormData({...formData, titleId: e.target.value})}>
+                            {titles.map((t) => <MenuItem key={t.titleId} value={t.titleId}>{t.titleNameTh}</MenuItem>)}
+                        </Select>
+                    </FormControl>
+                </Grid>
+                <Grid item xs={12} md={5}>
+                    <TextField fullWidth size="small" label="ชื่อจริง" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} InputProps={{ startAdornment: <InputAdornment position="start"><AccountCircle fontSize="small" color="action"/></InputAdornment> }} />
+                </Grid>
+                <Grid item xs={12} md={5}>
+                    <TextField fullWidth size="small" label="นามสกุล" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                    <TextField 
+                        fullWidth size="small" label="อีเมล" 
+                        value={formData.email} 
+                        onChange={e => setFormData({...formData, email: e.target.value})} 
+                        InputProps={{ startAdornment: <InputAdornment position="start"><Mail fontSize="small" color="action"/></InputAdornment> }}
+                    />
+                </Grid>
 
-            <Grid size={{ xs: 12, md: 4 }}>
-                <TextField 
-                    fullWidth label="อีเมล" 
-                    value={formData.email} 
-                    onChange={e => setFormData({...formData, email: e.target.value})} 
-                    InputProps={{ endAdornment: <Mail color="action" /> }}
-                />
-            </Grid>
+                 {/* 2. ข้อมูลเข้าระบบ */}
+                 <Grid item xs={12} sx={{ mt: 1 }}>
+                    <Typography variant="caption" fontWeight="bold" color="textSecondary" sx={{ mb: 1, display: 'block' }}>ข้อมูลเข้าระบบ (Account & Security)</Typography>
+                    <Divider sx={{ mb: 2 }} />
+                </Grid>
 
-            <Grid size={{ xs: 12, md: 4 }}>
-                <TextField fullWidth label="Username" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
-            </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
-                <TextField fullWidth type="password" label={isEdit ? "รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)" : "รหัสผ่าน"} value={formData.passwordHash} onChange={e => setFormData({...formData, passwordHash: e.target.value})} />
-            </Grid>
+                <Grid item xs={12} md={4}>
+                    <TextField fullWidth size="small" label="Username" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} InputProps={{ startAdornment: <InputAdornment position="start"><Badge fontSize="small" color="action"/></InputAdornment> }} />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    <TextField fullWidth size="small" type="password" label={isEdit ? "รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)" : "รหัสผ่าน"} value={formData.passwordHash} onChange={e => setFormData({...formData, passwordHash: e.target.value})} InputProps={{ startAdornment: <InputAdornment position="start"><VpnKey fontSize="small" color="action"/></InputAdornment> }} />
+                </Grid>
 
-            <Grid size={{ xs: 12, md: 4 }}>
-                <FormControl fullWidth>
-                    <InputLabel>ตำแหน่ง</InputLabel>
-                    <Select value={formData.roleId} label="ตำแหน่ง" onChange={e => setFormData({...formData, roleId: e.target.value})}>
-                        {roles.map((r) => <MenuItem key={r.roleId} value={r.roleId}>{r.roleName}</MenuItem>)}
-                    </Select>
-                </FormControl>
-            </Grid>
-            
-            <Grid size={{ xs: 12 }} sx={{ mt: 2 }}>
-                <Stack direction="row" spacing={2}>
+                <Grid item xs={12} md={4}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel>ตำแหน่ง / สิทธิ์</InputLabel>
+                        <Select value={formData.roleId} label="ตำแหน่ง / สิทธิ์" onChange={e => setFormData({...formData, roleId: e.target.value})}>
+                            {roles.map((r) => <MenuItem key={r.roleId} value={r.roleId}>{r.roleName}</MenuItem>)}
+                        </Select>
+                    </FormControl>
+                </Grid>
+                
+                {/* Action Buttons */}
+                <Grid item xs={12} sx={{ mt: 2, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                     {isEdit && <Button variant="outlined" color="inherit" onClick={handleCancelEdit} startIcon={<CleaningServices />}>ยกเลิก</Button>}
-                    <Button variant="contained" color={isEdit ? "warning" : "primary"} startIcon={isEdit ? <Save /> : <PersonAdd />} onClick={handleSubmit}>
+                    <Button variant="contained" color={isEdit ? "warning" : "primary"} startIcon={isEdit ? <Save /> : <PersonAdd />} onClick={handleSubmit} sx={{ px: 4, borderRadius: 2 }}>
                         {isEdit ? 'บันทึกการแก้ไข' : 'เพิ่มบุคลากร'}
                     </Button>
-                </Stack>
+                </Grid>
             </Grid>
-        </Grid>
-      </Paper>
+        </CardContent>
+      </Card>
 
-      <Paper sx={{ borderRadius: 4, border: '1px solid #e2e8f0' }}>
+      {/* Table Section */}
+      <Card sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+            <Typography variant="h6" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <SupervisorAccount color="primary"/> รายชื่อบุคลากรทั้งหมด <Chip label={filteredUsers.length} size="small" color="primary" sx={{ ml: 1, borderRadius: 1 }} />
+            </Typography>
+            
+            <TextField
+                size="small"
+                placeholder="ค้นหา (ชื่อ, อีเมล, User)..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                    startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                }}
+                sx={{ width: { xs: '100%', sm: 300 } }}
+            />
+        </Box>
         <TableContainer>
           <Table>
-            <TableHead sx={{ bgcolor: '#f8fafc' }}>
+            <TableHead sx={{ bgcolor: '#f1f5f9' }}>
                 <TableRow>
-                    <TableCell>ชื่อ-สกุล</TableCell>
-                    <TableCell>อีเมล</TableCell>
-                    <TableCell>Username</TableCell>
-                    <TableCell>ตำแหน่ง</TableCell>
-                    <TableCell align="center">จัดการ</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>User Profile</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>Contact</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>Account</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>Role</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold', color: '#64748b' }}>Action</TableCell>
                 </TableRow>
             </TableHead>
             <TableBody>
-              {users.map((u) => (
-                <TableRow key={u.userId}>
-                  <TableCell>{u.firstName} {u.lastName}</TableCell>
-                  <TableCell>{u.email || '-'}</TableCell>
-                  <TableCell>{u.username}</TableCell>
-                  <TableCell><Chip label={roles.find(r=>r.roleId === u.roleId)?.roleName || '-'} size="small" /></TableCell>
+              {filteredUsers.length === 0 ? (
+                  <TableRow><TableCell colSpan={5} align="center" sx={{ py: 5, color: '#94a3b8' }}>ไม่พบข้อมูล</TableCell></TableRow>
+              ) : filteredUsers.map((u) => (
+                <TableRow key={u.userId} hover>
+                  <TableCell>
+                      <Stack direction="row" spacing={2} alignItems="center">
+                          <Avatar {...stringAvatar(`${u.firstName} ${u.lastName}`)} />
+                          <Box>
+                              <Typography variant="body2" fontWeight="bold">
+                                {u.firstName} {u.lastName} 
+                                {/* ✅ ถ้าเป็นตัวเอง ใส่ (Me) ต่อท้าย */}
+                                {currentUser?.userId === u.userId && <span style={{color: '#3b82f6'}}> (Me)</span>}
+                              </Typography>
+                              <Typography variant="caption" color="textSecondary">ID: {u.userId}</Typography>
+                          </Box>
+                      </Stack>
+                  </TableCell>
+                  <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#475569' }}>
+                         <Mail fontSize="inherit" /> <Typography variant="body2">{u.email || '-'}</Typography>
+                      </Box>
+                  </TableCell>
+                  <TableCell>
+                      <Chip label={u.username} size="small" variant="outlined" sx={{ borderRadius: 1, fontFamily: 'monospace' }} />
+                  </TableCell>
+                  <TableCell>
+                      <Chip 
+                        label={roles.find(r=>r.roleId === u.roleId)?.roleName || '-'} 
+                        size="small" 
+                        color={getRoleColor(u.roleId) as any}
+                        sx={{ fontWeight: 'bold' }}
+                      />
+                  </TableCell>
                   <TableCell align="center">
-                      <IconButton color="primary" onClick={() => handleEditClick(u)}><Edit /></IconButton>
-                      <IconButton color="error" onClick={() => handleDelete(u.userId)}><Delete /></IconButton>
+                      <Tooltip title="แก้ไข">
+                        <IconButton size="small" color="primary" onClick={() => handleEditClick(u)} sx={{ bgcolor: '#eff6ff', mr: 1, '&:hover': { bgcolor: '#dbeafe' } }}>
+                            <Edit fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      
+                      {/* ✅✅✅ ซ่อนปุ่มลบ ถ้าเป็น User ของตัวเอง */}
+                      {currentUser?.userId !== u.userId && (
+                          <Tooltip title="ลบ">
+                            <IconButton size="small" color="error" onClick={() => handleDelete(u.userId)} sx={{ bgcolor: '#fef2f2', '&:hover': { bgcolor: '#fee2e2' } }}>
+                                <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                      )}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </TableContainer>
-      </Paper>
+      </Card>
     </Box>
   );
 };

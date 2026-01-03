@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema; // ✅ ต้องมี
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 
 namespace Backend.Models;
 
-[Table("request_items")] // ✅ บังคับชื่อตาราง
+[Table("request_items")]
 public partial class RequestItem
 {
     [Key]
@@ -19,24 +19,22 @@ public partial class RequestItem
     [Column("product_id")]
     public int ProductId { get; set; }
 
+    // ✅ Map ตัวแปร C# "Quantity" -> Database "quantity_requested"
     [Column("quantity_requested")]
-    public int QuantityRequested { get; set; }
+    public int Quantity { get; set; }
 
     [Column("damage_reason_id")]
     public int? DamageReasonId { get; set; }
 
     // --- Navigation Properties (ตัวเชื่อม) ---
 
-    // ✅ สั่งให้ใช้ RequestId เชื่อมเท่านั้น
     [ForeignKey("RequestId")]
     [JsonIgnore]
     public virtual Request? Request { get; set; }
 
-    // ✅✅✅ ตัวปัญหา (ProductId1)! เราสั่งมันตรงนี้เลยว่าให้ใช้ "ProductId"
     [ForeignKey("ProductId")]
     public virtual Product? Product { get; set; }
 
-    // ✅ กันไว้ก่อนเผื่อมันงงกับ DamageReason ด้วย
     [ForeignKey("DamageReasonId")]
     public virtual DamageReason? DamageReason { get; set; }
 }
