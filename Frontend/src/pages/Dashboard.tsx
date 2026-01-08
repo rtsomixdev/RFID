@@ -39,12 +39,8 @@ const Dashboard: React.FC = () => {
   const [requestData, setRequestData] = useState<any[]>([]);
   const [damagedData, setDamagedData] = useState<any[]>([]);
   
-  const yearlyData = [
-    { name: 'ม.ค.', value: 2400 }, { name: 'ก.พ.', value: 1398 }, { name: 'มี.ค.', value: 5800 },
-    { name: 'เม.ย.', value: 3908 }, { name: 'พ.ค.', value: 4800 }, { name: 'มิ.ย.', value: 3800 },
-    { name: 'ก.ค.', value: 4300 }, { name: 'ส.ค.', value: 5300 }, { name: 'ก.ย.', value: 4500 },
-    { name: 'ต.ค.', value: 6000 }, { name: 'พ.ย.', value: 5500 }, { name: 'ธ.ค.', value: 7000 },
-  ];
+  // ✅ แก้ไข 1: เปลี่ยนจากตัวแปร Mockup เป็น State เพื่อรอรับค่าจาก API
+  const [yearlyData, setYearlyData] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -63,6 +59,10 @@ const Dashboard: React.FC = () => {
       setDailyData(data.dailyData || []);
       setRequestData(data.requestData || []);
       setDamagedData(data.damagedData || []);
+      
+      // ✅ แก้ไข 2: รับค่า yearlyData จาก API มาใส่ State
+      setYearlyData(data.yearlyData || []);
+
     } catch (error) {
       console.error("Dashboard Fetch Error:", error);
     } finally {

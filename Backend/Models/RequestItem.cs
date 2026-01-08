@@ -26,6 +26,10 @@ public partial class RequestItem
     [Column("damage_reason_id")]
     public int? DamageReasonId { get; set; }
 
+    // 👇👇 เพิ่มส่วนนี้เข้าไปครับ (เพื่อให้ Controller รู้จัก LinenId) 👇👇
+    [Column("linen_id")]
+    public int? LinenId { get; set; }
+
     // --- Navigation Properties (ตัวเชื่อม) ---
 
     [ForeignKey("RequestId")]
@@ -37,4 +41,8 @@ public partial class RequestItem
 
     [ForeignKey("DamageReasonId")]
     public virtual DamageReason? DamageReason { get; set; }
+
+    // 👇👇 เพิ่มตัวเชื่อม Linen ด้วย 👇👇
+    [ForeignKey("LinenId")]
+    public virtual Linen? Linen { get; set; }
 }

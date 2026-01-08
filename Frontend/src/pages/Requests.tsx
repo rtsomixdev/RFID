@@ -3,17 +3,19 @@ import {
   Box, Paper, Typography, TextField, Button, Grid, Table, 
   TableBody, TableCell, TableContainer, TableHead, TableRow, 
   IconButton, Select, MenuItem, FormControl, InputLabel, Chip,
-  Stack, Divider, ToggleButton, ToggleButtonGroup, InputAdornment, Avatar, Card, CardContent
+  Stack, ToggleButton, ToggleButtonGroup, Card, CardContent, 
+  FormHelperText, Tooltip, Checkbox, Fade 
 } from '@mui/material';
 import { 
-  CheckCircle, Cancel, Send, History, AccessTime, Autorenew, 
-  Assignment, AddCircle, Category, LocalHospital, Warning, ListAlt
+  CheckCircle, Cancel, Send, AccessTime, Autorenew, 
+  Assignment, AddCircle, Warning, ListAlt, Inventory2, Delete, 
+  DeleteSweep
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
 
 const Requests: React.FC = () => {
-  // --- States (Logic เดิม) ---
+  // --- States ---
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   
@@ -23,6 +25,12 @@ const Requests: React.FC = () => {
   const [wards, setWards] = useState<any[]>([]);
   const [reasons, setReasons] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  // Stock
+  const [currentStock, setCurrentStock] = useState<number | null>(null);
 
   // Form
   const [requestType, setRequestType] = useState('1'); 
@@ -53,6 +61,24 @@ const Requests: React.FC = () => {
     fetchRequests();
   }, []);
 
+  useEffect(() => {
+    if (formData.productId) {
+        checkStock(parseInt(formData.productId));
+    } else {
+        setCurrentStock(null);
+    }
+  }, [formData.productId]);
+
+  const checkStock = async (prodId: number) => {
+      try {
+          const res = await axiosClient.get(`/Request/CheckStock/${prodId}`);
+          setCurrentStock(res.data.available);
+      } catch (error) {
+          console.error("Check Stock Error", error);
+          setCurrentStock(null);
+      }
+  };
+
   const fetchMasterData = async () => {
     try {
       const [catRes, prodRes, wardRes, reasonRes] = await Promise.all([
@@ -75,14 +101,71 @@ const Requests: React.FC = () => {
     } catch (err) { console.error(err); }
   };
 
+  // --- Handlers ---
+  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.checked) {
+      const newSelecteds = requests.map((n) => n.requestId);
+      setSelectedIds(newSelecteds);
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleClick = (event: React.MouseEvent<unknown>, id: number) => {
+    const selectedIndex = selectedIds.indexOf(id);
+    let newSelected: number[] = [];
+    if (selectedIndex === -1) newSelected = newSelected.concat(selectedIds, id);
+    else if (selectedIndex === 0) newSelected = newSelected.concat(selectedIds.slice(1));
+    else if (selectedIndex === selectedIds.length - 1) newSelected = newSelected.concat(selectedIds.slice(0, -1));
+    else if (selectedIndex > 0) newSelected = newSelected.concat(selectedIds.slice(0, selectedIndex), selectedIds.slice(selectedIndex + 1));
+    setSelectedIds(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    Swal.fire({
+      title: 'ยืนยันการลบหมู่?',
+      text: `ต้องการลบ ${selectedIds.length} รายการที่เลือกใช่หรือไม่?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      confirmButtonText: 'ยืนยันลบ',
+      cancelButtonText: 'ยกเลิก'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          const deletePromises = selectedIds.map(id => axiosClient.delete(`/Request/${id}`));
+          await Promise.all(deletePromises);
+          
+          // ✅ Success Popup แบบมีติ๊กถูก ตรงกลางจอ
+          Swal.fire({
+            icon: 'success',
+            title: 'ลบสำเร็จ!',
+            text: `ลบ ${selectedIds.length} รายการเรียบร้อยแล้ว`,
+            timer: 1500,
+            showConfirmButton: false
+          });
+          
+          setSelectedIds([]);
+          if(formData.productId) checkStock(parseInt(formData.productId));
+          fetchRequests(); 
+        } catch (err: any) {
+          Swal.fire('Error', 'เกิดข้อผิดพลาดในการลบ', 'error');
+          fetchRequests();
+        }
+      }
+    });
+  };
+
   const handleSubmit = async () => {
     if (!user || !user.userId) return Swal.fire('Error', 'ไม่พบข้อมูลผู้ใช้งาน', 'error');
     if (!formData.productId || !formData.quantity || !formData.wardId) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
     
     const quantity = parseInt(formData.quantity);
-    
-    // ✅ Validation: เช็คว่าจำนวนต้องมากกว่า 0
     if (quantity <= 0) return Swal.fire('แจ้งเตือน', 'จำนวนการเบิกต้องมากกว่า 0', 'warning');
+
+    if (currentStock !== null && quantity > currentStock) {
+        return Swal.fire('ของไม่พอ!', `สินค้าชิ้นนี้เหลือเพียง ${currentStock} ชิ้น`, 'error');
+    }
 
     const productId = parseInt(formData.productId);
     const wardId = parseInt(formData.wardId);
@@ -95,53 +178,98 @@ const Requests: React.FC = () => {
         requestedByUserId: user.userId,
         targetWardId: wardId,
         currentStatusId: 1, 
-        requestItems: [{ productId, quantityRequested: quantity, damageReasonId }]
+        requestItems: [{ productId, quantity: quantity, damageReasonId }]
     };
 
     try {
       await axiosClient.post('/Request', payload);
-      Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'ส่งคำร้องเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
-      setFormData(prev => ({ ...prev, productId: '', quantity: '', damageReasonId: '' }));
+      
+      // ✅ Success Popup แบบมีติ๊กถูก ตรงกลางจอ
+      Swal.fire({
+          icon: 'success',
+          title: 'ส่งคำร้องเรียบร้อย',
+          timer: 1500,
+          showConfirmButton: false
+      });
+
+      setFormData(prev => ({ ...prev, quantity: '', damageReasonId: '' }));
+      checkStock(productId); 
       fetchRequests();
     } catch (err: any) {
-      Swal.fire('Error', 'ไม่สามารถส่งคำร้องได้', 'error');
+      const msg = err.response?.data?.message || 'ไม่สามารถส่งคำร้องได้';
+      Swal.fire('Error', msg, 'error');
     }
   };
 
   const handleApprove = async (reqId: number, isApprove: boolean) => {
-    try {
-      const statusId = isApprove ? 2 : 3; 
-      const confirmText = isApprove ? 'อนุมัติ' : 'ปฏิเสธ';
-      const confirmColor = isApprove ? '#10b981' : '#ef4444';
-
-      Swal.fire({
-        title: `ยืนยันการ${confirmText}?`,
+    const action = isApprove ? 'อนุมัติ' : 'ปฏิเสธ';
+    Swal.fire({
+        title: `ยืนยันการ${action}?`,
         icon: isApprove ? 'question' : 'warning',
         showCancelButton: true,
-        confirmButtonColor: confirmColor,
+        confirmButtonColor: isApprove ? '#10b981' : '#ef4444',
         confirmButtonText: 'ยืนยัน',
         cancelButtonText: 'ยกเลิก'
-      }).then(async (result) => {
+    }).then(async (result) => {
         if (result.isConfirmed) {
-          const currentReq = requests.find(r => r.requestId === reqId);
-          if(currentReq) {
-              const cleanPayload = {
-                  requestId: reqId,
-                  currentStatusId: statusId,
-                  requestType: currentReq.requestType,
-                  requestedByUserId: currentReq.requestedByUserId,
-                  targetWardId: currentReq.targetWardId,
-                  requestCode: currentReq.requestCode
-              };
-              try {
-                  await axiosClient.put(`/Request/${reqId}`, cleanPayload);
-                  Swal.fire({ icon: 'success', title: 'สำเร็จ', timer: 1500, showConfirmButton: false });
-                  fetchRequests(); 
-              } catch (apiErr: any) { Swal.fire('Error', 'ไม่สามารถบันทึกสถานะได้', 'error'); }
-          }
+            try {
+                const currentReq = requests.find(r => r.requestId === reqId);
+                if(currentReq) {
+                    await axiosClient.put(`/Request/${reqId}`, {
+                        requestId: reqId,
+                        currentStatusId: isApprove ? 2 : 3,
+                        requestType: currentReq.requestType,
+                        requestedByUserId: currentReq.requestedByUserId,
+                        targetWardId: currentReq.targetWardId,
+                        requestCode: currentReq.requestCode
+                    });
+                    
+                    // ✅ Success Popup แบบมีติ๊กถูก ตรงกลางจอ
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'บันทึกสถานะเรียบร้อย',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    
+                    fetchRequests(); 
+                }
+            } catch (apiErr: any) { 
+                Swal.fire('Error', 'ไม่สามารถบันทึกสถานะได้', 'error'); 
+            }
         }
-      });
-    } catch (err) { Swal.fire('Error', 'เกิดข้อผิดพลาดในระบบ', 'error'); }
+    });
+  };
+
+  const handleDelete = async (reqId: number, code: string) => {
+    Swal.fire({
+      title: 'ยืนยันการลบ?',
+      text: `ต้องการลบ ${code} ใช่หรือไม่?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      confirmButtonText: 'ลบรายการ',
+      cancelButtonText: 'ยกเลิก'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await axiosClient.delete(`/Request/${reqId}`);
+          
+          // ✅ Success Popup แบบมีติ๊กถูก ตรงกลางจอ
+          Swal.fire({
+              icon: 'success',
+              title: 'ลบรายการเรียบร้อย',
+              timer: 1500,
+              showConfirmButton: false
+          });
+
+          if(formData.productId) checkStock(parseInt(formData.productId));
+          fetchRequests();
+        } catch (err: any) {
+          Swal.fire('Error', 'ไม่สามารถลบรายการได้', 'error');
+        }
+      }
+    });
   };
 
   const getStatusChip = (statusId: number) => {
@@ -170,7 +298,7 @@ const Requests: React.FC = () => {
         </Box>
       </Box>
 
-      {/* 1. ส่วน Form (เต็มความกว้าง) */}
+      {/* 1. ส่วน Form */}
       <Card sx={{ mb: 4, borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
         <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Send color="primary" />
@@ -180,7 +308,6 @@ const Requests: React.FC = () => {
         </Box>
         <CardContent sx={{ p: 3 }}>
             <Grid container spacing={3} alignItems="center">
-                {/* Type Selection */}
                 <Grid item xs={12} md={3}>
                     <Typography variant="caption" fontWeight="bold" color="textSecondary" sx={{ mb: 1, display: 'block' }}>ประเภทคำร้อง</Typography>
                     <ToggleButtonGroup
@@ -196,7 +323,6 @@ const Requests: React.FC = () => {
                     </ToggleButtonGroup>
                 </Grid>
 
-                {/* Ward */}
                 <Grid item xs={12} md={3}>
                     <FormControl fullWidth size="small" sx={{ mt: { md: 3 } }}>
                         <InputLabel>วอร์ด/แผนก</InputLabel>
@@ -210,7 +336,6 @@ const Requests: React.FC = () => {
                     </FormControl>
                 </Grid>
 
-                {/* Category */}
                 <Grid item xs={12} md={3}>
                     <FormControl fullWidth size="small" sx={{ mt: { md: 3 } }}>
                         <InputLabel>หมวดผ้า</InputLabel>
@@ -225,17 +350,21 @@ const Requests: React.FC = () => {
                     </FormControl>
                 </Grid>
 
-                {/* Product */}
                 <Grid item xs={12} md={3}>
                     <FormControl fullWidth size="small" sx={{ mt: { md: 3 } }}>
                         <InputLabel>รายการผ้า</InputLabel>
                         <Select value={formData.productId} label="รายการผ้า" onChange={e => setFormData({...formData, productId: e.target.value})}>
                             {filteredProducts.map((p) => <MenuItem key={p.productId} value={p.productId}>{p.productName} ({p.sizeSpec})</MenuItem>)}
                         </Select>
+                        {currentStock !== null && (
+                            <FormHelperText sx={{ color: currentStock > 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
+                                <Inventory2 fontSize="inherit" sx={{ mr: 0.5, verticalAlign: 'middle' }} />
+                                คงเหลือที่เบิกได้: {currentStock} ชิ้น
+                            </FormHelperText>
+                        )}
                     </FormControl>
                 </Grid>
 
-                {/* Row 2 */}
                 <Grid item xs={12} md={3}>
                     <TextField 
                         fullWidth 
@@ -244,12 +373,12 @@ const Requests: React.FC = () => {
                         label="จำนวน (ชิ้น)" 
                         value={formData.quantity} 
                         onChange={e => setFormData({...formData, quantity: e.target.value})} 
-                        // ✅ ป้องกันการกดลูกศรลงต่ำกว่า 1
-                        InputProps={{ inputProps: { min: 1 } }}
+                        InputProps={{ inputProps: { min: 1, max: currentStock || 999 } }}
+                        error={currentStock !== null && Number(formData.quantity) > currentStock}
+                        helperText={currentStock !== null && Number(formData.quantity) > currentStock ? "เกินจำนวนที่มีในคลัง" : ""}
                     />
                 </Grid>
 
-                {/* Damage Reason (Show if type 2) */}
                 {requestType === '2' && (
                     <Grid item xs={12} md={3}>
                         <FormControl fullWidth size="small" error>
@@ -272,6 +401,7 @@ const Requests: React.FC = () => {
                         onClick={handleSubmit} 
                         startIcon={requestType === '1' ? <AddCircle /> : <Autorenew />}
                         sx={{ px: 4, borderRadius: 2 }}
+                        disabled={currentStock !== null && (currentStock === 0 || Number(formData.quantity) > currentStock)}
                     >
                         {requestType === '1' ? 'ส่งคำร้องเบิก' : 'ส่งคำร้องเปลี่ยน'}
                     </Button>
@@ -280,35 +410,69 @@ const Requests: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* 2. ส่วน Table (เต็มความกว้าง) */}
+      {/* 2. ส่วน Table */}
       <Card sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
-        <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <ListAlt color="action" />
                 <Typography variant="subtitle1" fontWeight="bold" color="textSecondary">
                     {isAdmin ? 'รายการรออนุมัติ / ประวัติทั้งหมด' : 'ประวัติคำร้องของฉัน'}
                 </Typography>
+                <Chip label={`${requests.length} รายการ`} size="small" color="default" />
             </Box>
-            <Chip label={`${requests.length} รายการ`} size="small" color="default" />
+
+            <Fade in={selectedIds.length > 0}>
+                <Button 
+                    variant="contained" 
+                    color="error" 
+                    startIcon={<DeleteSweep />}
+                    onClick={handleBulkDelete}
+                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 'bold' }}
+                >
+                    ลบ {selectedIds.length} รายการที่เลือก
+                </Button>
+            </Fade>
         </Box>
         
         <TableContainer>
             <Table>
                 <TableHead sx={{ bgcolor: '#f1f5f9' }}>
                     <TableRow>
+                        <TableCell padding="checkbox">
+                            <Checkbox
+                                color="primary"
+                                indeterminate={selectedIds.length > 0 && selectedIds.length < requests.length}
+                                checked={requests.length > 0 && selectedIds.length === requests.length}
+                                onChange={handleSelectAll}
+                            />
+                        </TableCell>
                         <TableCell sx={{ fontWeight: 'bold', width: '15%' }}>เลขที่ / วันที่</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', width: '15%' }}>ผู้เบิก / แผนก</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', width: '40%' }}>รายการสินค้า</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: '35%' }}>รายการสินค้า</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 'bold', width: '15%' }}>สถานะ</TableCell>
-                        {isAdmin && <TableCell align="center" sx={{ fontWeight: 'bold', width: '15%' }}>จัดการ</TableCell>}
+                        <TableCell align="center" sx={{ fontWeight: 'bold', width: '15%' }}>จัดการ</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
                     {requests.length === 0 ? (
-                        <TableRow><TableCell colSpan={isAdmin ? 5 : 4} align="center" sx={{ py: 5, color: '#94a3b8' }}>ไม่พบข้อมูลคำร้อง</TableCell></TableRow>
-                    ) : requests.map((req) => (
-                        <TableRow key={req.requestId} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                            {/* Column 1: ID & Date */}
+                        <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5, color: '#94a3b8' }}>ไม่พบข้อมูลคำร้อง</TableCell></TableRow>
+                    ) : requests.map((req) => {
+                        const isSelected = selectedIds.indexOf(req.requestId) !== -1;
+                        return (
+                        <TableRow 
+                            key={req.requestId} 
+                            hover 
+                            selected={isSelected} 
+                            sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                        >
+                            <TableCell padding="checkbox">
+                                <Checkbox
+                                    color="primary"
+                                    checked={isSelected}
+                                    onChange={(event) => handleClick(event, req.requestId)}
+                                />
+                            </TableCell>
+
                             <TableCell>
                                 <Typography variant="body2" color="primary" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
                                     {req.requestCode}
@@ -319,8 +483,6 @@ const Requests: React.FC = () => {
                                     {new Date(req.createdAt || Date.now()).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'})} น.
                                 </Typography>
                             </TableCell>
-                            
-                            {/* Column 2: User & Ward */}
                             <TableCell>
                                 <Typography variant="body2" fontWeight="bold">
                                     {req.targetWard?.wardName || '-'}
@@ -329,17 +491,20 @@ const Requests: React.FC = () => {
                                     ผู้เบิก: {req.requestedByUser?.firstName}
                                 </Typography>
                             </TableCell>
-
-                            {/* Column 3: Items */}
                             <TableCell>
                                 {req.requestItems?.map((item: any, idx: number) => (
-                                    <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 0.5, borderBottom: idx !== req.requestItems.length -1 ? '1px dashed #eee' : 'none' }}>
-                                        <Avatar sx={{ width: 28, height: 28, fontSize: '0.8rem', bgcolor: '#e2e8f0', color: '#475569', fontWeight: 'bold' }}>
-                                            {item.quantityRequested}
-                                        </Avatar>
+                                    <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1, borderBottom: idx !== req.requestItems.length -1 ? '1px dashed #eee' : 'none' }}>
+                                        <Box sx={{ minWidth: 60, textAlign: 'center', bgcolor: '#f1f5f9', p: 0.5, borderRadius: 2 }}>
+                                            <Typography variant="h6" color="primary" fontWeight="bold" sx={{ lineHeight: 1 }}>
+                                                {item.quantity || 0}
+                                            </Typography>
+                                            <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>
+                                                ชิ้น
+                                            </Typography>
+                                        </Box>
                                         <Box>
-                                            <Typography variant="body2">
-                                                {item.product?.productName} <span style={{color:'#94a3b8', fontSize:'0.8em'}}>({item.product?.sizeSpec})</span>
+                                            <Typography variant="body2" fontWeight="500">
+                                                {item.product?.productName} <span style={{color:'#64748b', fontSize:'0.85em'}}>({item.product?.sizeSpec})</span>
                                             </Typography>
                                             {item.damageReason && (
                                                 <Typography variant="caption" color="error" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -350,39 +515,47 @@ const Requests: React.FC = () => {
                                     </Box>
                                 ))}
                             </TableCell>
-
-                            {/* Column 4: Status */}
                             <TableCell align="center">
                                 {getStatusChip(req.currentStatusId)}
                             </TableCell>
-
-                            {/* Column 5: Action (Admin) */}
-                            {isAdmin && (
-                                <TableCell align="center">
-                                    {req.currentStatusId === 1 && (
-                                        <Stack direction="row" spacing={1} justifyContent="center">
-                                            <IconButton 
-                                                size="small" 
-                                                sx={{ color: '#10b981', bgcolor: '#ecfdf5', border: '1px solid #10b981', '&:hover':{ bgcolor: '#d1fae5' } }}
-                                                onClick={() => handleApprove(req.requestId, true)}
-                                                title="อนุมัติ"
-                                            >
-                                                <CheckCircle fontSize="small" />
-                                            </IconButton>
-                                            <IconButton 
-                                                size="small" 
-                                                sx={{ color: '#ef4444', bgcolor: '#fef2f2', border: '1px solid #ef4444', '&:hover':{ bgcolor: '#fee2e2' } }}
-                                                onClick={() => handleApprove(req.requestId, false)}
-                                                title="ปฏิเสธ"
-                                            >
-                                                <Cancel fontSize="small" />
-                                            </IconButton>
-                                        </Stack>
+                            <TableCell align="center">
+                                <Stack direction="row" spacing={1} justifyContent="center">
+                                    {isAdmin && req.currentStatusId === 1 && (
+                                        <>
+                                            <Tooltip title="อนุมัติ">
+                                                <IconButton 
+                                                    size="small" 
+                                                    sx={{ color: '#10b981', bgcolor: '#ecfdf5', border: '1px solid #10b981', '&:hover':{ bgcolor: '#d1fae5' } }}
+                                                    onClick={() => handleApprove(req.requestId, true)}
+                                                >
+                                                    <CheckCircle fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="ปฏิเสธ">
+                                                <IconButton 
+                                                    size="small" 
+                                                    sx={{ color: '#f59e0b', bgcolor: '#fffbeb', border: '1px solid #f59e0b', '&:hover':{ bgcolor: '#fef3c7' } }}
+                                                    onClick={() => handleApprove(req.requestId, false)}
+                                                >
+                                                    <Cancel fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </>
                                     )}
-                                </TableCell>
-                            )}
+                                    <Tooltip title="ลบรายการ">
+                                        <IconButton 
+                                            size="small" 
+                                            sx={{ color: '#ef4444', bgcolor: '#fef2f2', border: '1px solid #ef4444', '&:hover':{ bgcolor: '#fee2e2' } }}
+                                            onClick={() => handleDelete(req.requestId, req.requestCode)}
+                                        >
+                                            <Delete fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Stack>
+                            </TableCell>
                         </TableRow>
-                    ))}
+                        );
+                    })}
                 </TableBody>
             </Table>
         </TableContainer>

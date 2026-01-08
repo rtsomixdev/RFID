@@ -1,49 +1,37 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, Paper, Typography, TextField, Button, Grid, Table, 
   TableBody, TableCell, TableContainer, TableHead, TableRow, 
-  IconButton, Select, MenuItem, FormControl, InputLabel, Chip, Stack,
-  InputAdornment, Card, CardContent, Divider, Tooltip
+  IconButton, Card, CardContent, Chip, FormControl, InputLabel, Select, MenuItem, 
+  Divider, Stack, Tooltip
 } from '@mui/material';
 import { 
-  AddCircle, QrCodeScanner, Delete, Inventory, Search, CheckCircle, Cancel
+  AppRegistration, Delete, PlaylistAddCheck, QrCodeScanner, RestartAlt,
+  AutoFixHigh // ไอคอนสำหรับปุ่ม Test
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
 
-const Linen: React.FC = () => {
-  // --- States ---
-  const [linens, setLinens] = useState<any[]>([]);
-  const [filteredLinens, setFilteredLinens] = useState<any[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // Master Data (Dropdowns)
+const RegisterLinen: React.FC = () => {
+  // --- Master Data ---
   const [products, setProducts] = useState<any[]>([]);
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
 
-  // Form State
-  const [formData, setFormData] = useState({
-    rfidCode: '',
-    productId: '',
-    hospitalId: '',
-    vendorId: ''
-  });
+  // --- Selection State ---
+  const [selectedProduct, setSelectedProduct] = useState<string>('');
+  const [selectedHospital, setSelectedHospital] = useState<string>('');
+  const [selectedVendor, setSelectedVendor] = useState<string>('');
+
+  // --- Scanning State ---
+  const [rfidInput, setRfidInput] = useState('');
+  const [scannedRfids, setScannedRfids] = useState<string[]>([]);
+  
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchMasterData();
-    fetchLinens();
   }, []);
-
-  // Search Logic
-  useEffect(() => {
-    const lowerTerm = searchTerm.toLowerCase();
-    const filtered = linens.filter(item => 
-        item.rfidCode?.toLowerCase().includes(lowerTerm) || 
-        item.product?.productName?.toLowerCase().includes(lowerTerm)
-    );
-    setFilteredLinens(filtered);
-  }, [searchTerm, linens]);
 
   const fetchMasterData = async () => {
     try {
@@ -55,275 +43,250 @@ const Linen: React.FC = () => {
       setProducts(prodRes.data);
       setHospitals(hospRes.data);
       setVendors(vendRes.data);
-      
-      // Set Default Hospital ถ้ามีข้อมูล
-      if (hospRes.data.length > 0) {
-          setFormData(prev => ({...prev, hospitalId: hospRes.data[0].hospitalId}));
-      }
+
+      if (hospRes.data.length > 0) setSelectedHospital(hospRes.data[0].hospitalId);
     } catch (err) { console.error("Error loading master data", err); }
   };
 
-  const fetchLinens = async () => {
-    try {
-      const res = await axiosClient.get('/Linen');
-      setLinens(res.data);
-      setFilteredLinens(res.data);
-    } catch (err) { console.error(err); }
-  };
+  // --- Handlers ---
 
-  // --- Actions ---
+  const handleScan = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanRfid = rfidInput.trim();
+    if (!cleanRfid) return;
 
-  const handleGenRFID = () => {
-      // จำลองการอ่าน RFID หรือ Gen เลขมั่วๆ เพื่อ Test
-      const randomHex = Math.floor(Math.random() * 16777215).toString(16).toUpperCase().padStart(24, '0');
-      setFormData({ ...formData, rfidCode: 'E200' + randomHex.substring(4) });
-  };
-
-  const handleSubmit = async () => {
-    // Validation
-    if (!formData.rfidCode || !formData.productId || !formData.hospitalId) {
-      return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน (RFID, สินค้า, โรงพยาบาล)', 'warning');
+    if (scannedRfids.includes(cleanRfid)) {
+       const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1000 });
+       Toast.fire({ icon: 'warning', title: 'รหัสซ้ำ (สแกนไปแล้ว)' });
+    } else {
+       setScannedRfids(prev => [cleanRfid, ...prev]);
     }
-
-    const payload = {
-        rfidCode: formData.rfidCode,
-        productId: parseInt(formData.productId),
-        hospitalId: parseInt(formData.hospitalId),
-        vendorId: formData.vendorId ? parseInt(formData.vendorId) : null,
-        isActive: true
-    };
-
-    try {
-      await axiosClient.post('/Linen', payload);
-      
-      Swal.fire({
-          icon: 'success',
-          title: 'บันทึกสำเร็จ',
-          text: `เพิ่ม RFID: ${formData.rfidCode} เข้าระบบแล้ว`,
-          timer: 1500,
-          showConfirmButton: false
-      });
-      
-      // Reset Form (เก็บ Hospital ไว้ เพราะน่าจะแอดรัวๆ ที่เดิม)
-      setFormData(prev => ({ ...prev, rfidCode: '', productId: '' })); 
-      fetchLinens(); // Refresh Table
-    } catch (err: any) {
-      console.error(err);
-      Swal.fire('Error', err.response?.data?.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
-    }
+    
+    setRfidInput('');
+    setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  const handleDelete = async (id: number, rfid: string) => {
-      Swal.fire({
-          title: 'ลบข้อมูล?',
-          text: `ต้องการลบ RFID: ${rfid} ออกจากระบบหรือไม่?`,
-          icon: 'warning',
-          showCancelButton: true,
-          confirmButtonColor: '#d33',
-          confirmButtonText: 'ลบข้อมูล'
-      }).then(async (result) => {
-          if (result.isConfirmed) {
-              try {
-                  await axiosClient.delete(`/Linen/${id}`);
-                  Swal.fire('ลบแล้ว', 'ข้อมูลถูกลบเรียบร้อย', 'success');
-                  fetchLinens();
-              } catch (err) {
-                  Swal.fire('Error', 'ลบไม่สำเร็จ', 'error');
-              }
-          }
-      });
+  // 🎲 ฟังก์ชันสุ่ม RFID เพื่อ Test (กดทีเดียวมา 5 อัน)
+  const handleSimulateScan = () => {
+    if(!selectedProduct) return Swal.fire('เตือน', 'เลือกสินค้าก่อนสุ่มนะจ๊ะ', 'warning');
+
+    const newMockTags: string[] = [];
+    for(let i=0; i<5; i++) {
+        // สุ่มเลข Hex 20 หลัก ต่อท้าย E200
+        const randomHex = Array.from({length: 20}, () => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase();
+        const mockRfid = `E200${randomHex}`;
+        
+        // เช็คว่าซ้ำกับที่มีอยู่ไหม
+        if(!scannedRfids.includes(mockRfid) && !newMockTags.includes(mockRfid)) {
+            newMockTags.push(mockRfid);
+        }
+    }
+    setScannedRfids(prev => [...newMockTags, ...prev]);
+  };
+
+  const handleRemove = (rfidToRemove: string) => {
+    setScannedRfids(prev => prev.filter(r => r !== rfidToRemove));
+  };
+
+  const handleClearAll = () => {
+    setScannedRfids([]);
+    setRfidInput('');
+    inputRef.current?.focus();
+  };
+
+  const handleSubmitBatch = async () => {
+    if (!selectedProduct) return Swal.fire('เตือน', 'กรุณาเลือกชนิดสินค้า', 'warning');
+    if (!selectedHospital) return Swal.fire('เตือน', 'กรุณาเลือกโรงพยาบาล', 'warning');
+    if (scannedRfids.length === 0) return Swal.fire('เตือน', 'ไม่มีรายการให้บันทึก', 'warning');
+
+    Swal.fire({
+        title: 'ยืนยันการบันทึก?',
+        text: `ลงทะเบียนผ้าใหม่ ${scannedRfids.length} ชิ้น เข้าสู่ระบบ?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึกทันที',
+        confirmButtonColor: '#166534'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                const payload = {
+                    productId: parseInt(selectedProduct),
+                    hospitalId: parseInt(selectedHospital),
+                    vendorId: selectedVendor ? parseInt(selectedVendor) : null,
+                    rfidCodes: scannedRfids
+                };
+
+                await axiosClient.post('/Linen/RegisterBatch', payload);
+
+                Swal.fire('สำเร็จ', `บันทึก ${scannedRfids.length} รายการเรียบร้อย`, 'success');
+                setScannedRfids([]);
+                setRfidInput('');
+                inputRef.current?.focus();
+            } catch (err: any) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'บันทึกไม่สำเร็จ',
+                    text: err.response?.data?.message || 'เกิดข้อผิดพลาด',
+                });
+            }
+        }
+    });
   };
 
   return (
     <Box sx={{ pb: 5 }}>
       {/* Header */}
       <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#e0f2fe', color: '#0284c7' }}>
-            <Inventory fontSize="large" />
+        <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#dcfce7', color: '#166534' }}>
+            <AppRegistration fontSize="large" />
         </Paper>
         <Box>
             <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
-                จัดการสต็อกผ้า (Linen Inventory)
+                ลงทะเบียนผ้าใหม่ (Batch Registration)
             </Typography>
             <Typography variant="body2" color="textSecondary">
-                ลงทะเบียนผ้าใหม่ ตรวจสอบสถานะ และจัดการข้อมูล RFID
+                นำเข้าผ้าล็อตใหม่ครั้งละมากๆ (มีปุ่ม Test สุ่มข้อมูลให้)
             </Typography>
         </Box>
       </Box>
 
-      {/* Form Section */}
-      <Card sx={{ mb: 4, borderRadius: 3, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
-        <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Inventory color="primary" />
-            <Typography variant="subtitle1" fontWeight="bold" color="primary.main">
-                ลงทะเบียนผ้าใหม่ (Register Linen)
-            </Typography>
-        </Box>
+      {/* Main Card */}
+      <Card sx={{ borderRadius: 3, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
         <CardContent sx={{ p: 3 }}>
-           <Grid container spacing={3}>
-               {/* 1. ข้อมูลหลัก */}
-               <Grid item xs={12}>
-                   <Typography variant="caption" fontWeight="bold" color="textSecondary" sx={{ mb: 1, display: 'block' }}>ข้อมูลสินค้า (Product Info)</Typography>
-                   <Divider sx={{ mb: 2 }} />
-               </Grid>
-
-               <Grid item xs={12} md={6}>
-                 <Box sx={{ display: 'flex', gap: 1 }}>
-                    <TextField 
-                        fullWidth 
-                        size="small"
-                        label="RFID Code (สแกน หรือ กรอก)" 
-                        value={formData.rfidCode} 
-                        onChange={e => setFormData({...formData, rfidCode: e.target.value})} 
-                        placeholder="E200..."
-                        autoFocus
-                        InputProps={{
-                            startAdornment: <InputAdornment position="start"><QrCodeScanner fontSize="small" color="action"/></InputAdornment>
-                        }}
-                    />
-                    <Button variant="outlined" onClick={handleGenRFID} sx={{ minWidth: 80 }}>
-                        สุ่ม
-                    </Button>
-                 </Box>
-               </Grid>
-
-               <Grid item xs={12} md={6}>
-                 <FormControl fullWidth size="small">
-                    <InputLabel>ชนิดผ้า / สินค้า</InputLabel>
-                    <Select 
-                        value={formData.productId} 
-                        label="ชนิดผ้า / สินค้า" 
-                        onChange={e => setFormData({...formData, productId: e.target.value})}
-                    >
-                        {products.map((p) => (
-                            <MenuItem key={p.productId} value={p.productId}>
-                                {p.productName} ({p.sizeSpec || 'มาตรฐาน'})
-                            </MenuItem>
-                        ))}
-                    </Select>
-                 </FormControl>
-               </Grid>
-
-               {/* 2. ข้อมูลเจ้าของ */}
-               <Grid item xs={12} sx={{ mt: 1 }}>
-                   <Typography variant="caption" fontWeight="bold" color="textSecondary" sx={{ mb: 1, display: 'block' }}>ความเป็นเจ้าของ (Ownership)</Typography>
-                   <Divider sx={{ mb: 2 }} />
-               </Grid>
-
-               <Grid item xs={12} md={6}>
-                 <FormControl fullWidth size="small">
-                    <InputLabel>โรงพยาบาลเจ้าของ</InputLabel>
-                    <Select 
-                        value={formData.hospitalId} 
-                        label="โรงพยาบาลเจ้าของ" 
-                        onChange={e => setFormData({...formData, hospitalId: e.target.value})}
-                    >
-                        {hospitals.map((h) => <MenuItem key={h.hospitalId} value={h.hospitalId}>{h.hospitalName}</MenuItem>)}
-                    </Select>
-                 </FormControl>
-               </Grid>
-
-               <Grid item xs={12} md={6}>
-                 <FormControl fullWidth size="small">
-                    <InputLabel>บริษัทผู้ผลิต/จำหน่าย</InputLabel>
-                    <Select 
-                        value={formData.vendorId} 
-                        label="บริษัทผู้ผลิต/จำหน่าย" 
-                        onChange={e => setFormData({...formData, vendorId: e.target.value})}
-                    >
-                        <MenuItem value=""><em>ไม่ระบุ</em></MenuItem>
-                        {vendors.map((v) => <MenuItem key={v.vendorId} value={v.vendorId}>{v.vendorName}</MenuItem>)}
-                    </Select>
-                 </FormControl>
-               </Grid>
-
-               <Grid item xs={12} sx={{ textAlign: 'right', mt: 2 }}>
-                  <Button 
-                    variant="contained" 
-                    size="large" 
-                    onClick={handleSubmit} 
-                    startIcon={<AddCircle />}
-                    sx={{ px: 4, borderRadius: 2 }}
-                  >
-                      บันทึกเข้าระบบ
-                  </Button>
-               </Grid>
-           </Grid>
-        </CardContent>
-      </Card>
-
-      {/* List Table Section */}
-      <Card sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-            <Typography variant="h6" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Inventory color="primary"/> รายการผ้าในระบบ <Chip label={filteredLinens.length} size="small" color="primary" sx={{ ml: 1, borderRadius: 1 }} />
-            </Typography>
             
-            <TextField
-                size="small"
-                placeholder="ค้นหา (RFID, ชื่อสินค้า)..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                InputProps={{
-                    startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
-                }}
-                sx={{ width: { xs: '100%', sm: 300 } }}
-            />
-        </Box>
-        <TableContainer sx={{ maxHeight: 600 }}>
-          <Table stickyHeader>
-            <TableHead sx={{ bgcolor: '#f1f5f9' }}>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>RFID Code</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>Product Name</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>Owner (Hospital)</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', color: '#64748b' }}>Registered Date</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#64748b' }}>Status</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#64748b' }}>Action</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredLinens.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5, color: '#94a3b8' }}>ไม่พบข้อมูล</TableCell></TableRow>
-              ) : filteredLinens.map((item) => (
-                <TableRow key={item.linenId} hover>
-                  <TableCell>
-                      <Chip 
-                        label={item.rfidCode} 
-                        size="small" 
-                        variant="outlined" 
-                        color="primary"
-                        sx={{ fontFamily: 'monospace', fontWeight: 500, bgcolor: '#eff6ff', border: 'none' }} 
-                      />
-                  </TableCell>
-                  <TableCell>
-                      <Typography variant="body2" fontWeight="bold">{item.product?.productName || '-'}</Typography>
-                      <Typography variant="caption" color="textSecondary">{item.product?.sizeSpec}</Typography>
-                  </TableCell>
-                  <TableCell>{item.hospital?.hospitalName || '-'}</TableCell>
-                  <TableCell>{new Date(item.registeredAt).toLocaleString('th-TH')}</TableCell>
-                  <TableCell align="center">
-                      {item.isActive ? (
-                          <Chip icon={<CheckCircle />} label="Active" size="small" color="success" variant="outlined" />
-                      ) : (
-                          <Chip icon={<Cancel />} label="Inactive" size="small" color="default" variant="outlined" />
-                      )}
-                  </TableCell>
-                  <TableCell align="center">
-                      <Tooltip title="ลบข้อมูล">
-                          <IconButton color="error" size="small" onClick={() => handleDelete(item.linenId, item.rfidCode)} sx={{ bgcolor: '#fef2f2', '&:hover': { bgcolor: '#fee2e2' } }}>
-                              <Delete fontSize="small" />
-                          </IconButton>
-                      </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            {/* 1. Configuration */}
+            <Grid container spacing={3}>
+                <Grid item xs={12} md={4}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel>โรงพยาบาลเจ้าของ</InputLabel>
+                        <Select value={selectedHospital} label="โรงพยาบาลเจ้าของ" onChange={e => setSelectedHospital(e.target.value)}>
+                            {hospitals.map(h => <MenuItem key={h.hospitalId} value={h.hospitalId}>{h.hospitalName}</MenuItem>)}
+                        </Select>
+                    </FormControl>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel>บริษัทผู้ผลิต/จำหน่าย</InputLabel>
+                        <Select value={selectedVendor} label="บริษัทผู้ผลิต/จำหน่าย" onChange={e => setSelectedVendor(e.target.value)}>
+                            <MenuItem value=""><em>ไม่ระบุ</em></MenuItem>
+                            {vendors.map(v => <MenuItem key={v.vendorId} value={v.vendorId}>{v.vendorName}</MenuItem>)}
+                        </Select>
+                    </FormControl>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    <FormControl fullWidth size="small" error={!selectedProduct}>
+                        <InputLabel>ชนิดผ้า / สินค้า (Product)</InputLabel>
+                        <Select value={selectedProduct} label="ชนิดผ้า / สินค้า (Product)" onChange={e => setSelectedProduct(e.target.value)}>
+                            {products.map(p => <MenuItem key={p.productId} value={p.productId}>{p.productName} ({p.sizeSpec})</MenuItem>)}
+                        </Select>
+                    </FormControl>
+                </Grid>
+            </Grid>
+
+            {/* 2. Scanning Area */}
+            <Box sx={{ mt: 4, bgcolor: '#f8fafc', p: 3, borderRadius: 2, border: '1px dashed #cbd5e1' }}>
+                <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} md={7}>
+                        <form onSubmit={handleScan}>
+                            <TextField 
+                                inputRef={inputRef}
+                                fullWidth 
+                                label={selectedProduct ? "พร้อมสแกน! ยิง RFID ที่นี่..." : "กรุณาเลือกสินค้าด้านบนก่อน..."}
+                                placeholder="E200..."
+                                value={rfidInput} 
+                                onChange={e => setRfidInput(e.target.value)} 
+                                disabled={!selectedProduct}
+                                autoFocus
+                                InputProps={{
+                                    startAdornment: <QrCodeScanner color={selectedProduct ? "primary" : "disabled"} sx={{ mr: 1 }} />
+                                }}
+                                sx={{ bgcolor: 'white' }}
+                            />
+                        </form>
+                    </Grid>
+                    <Grid item xs={12} md={5}>
+                        <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
+                            {/* 🔥 ปุ่ม Test สุ่มข้อมูล */}
+                            <Tooltip title="กดเพื่อสุ่ม RFID 5 ชิ้น (สำหรับ Test)">
+                                <Button 
+                                    variant="outlined" 
+                                    color="secondary" 
+                                    onClick={handleSimulateScan}
+                                    startIcon={<AutoFixHigh />}
+                                    disabled={!selectedProduct}
+                                >
+                                    สุ่ม 5 ชิ้น
+                                </Button>
+                            </Tooltip>
+
+                            <Chip 
+                                label={`${scannedRfids.length} รายการ`} 
+                                color={scannedRfids.length > 0 ? "success" : "default"} 
+                                sx={{ fontSize: '1.1rem', py: 2.5, px: 1, borderRadius: 2 }} 
+                            />
+                            {scannedRfids.length > 0 && (
+                                <Button startIcon={<RestartAlt />} color="error" onClick={handleClearAll}>
+                                    ล้าง
+                                </Button>
+                            )}
+                        </Stack>
+                    </Grid>
+                </Grid>
+            </Box>
+
+            {/* 3. Preview Table */}
+            {scannedRfids.length > 0 && (
+                <Box sx={{ mt: 3 }}>
+                    <TableContainer sx={{ maxHeight: 300, border: '1px solid #e2e8f0', borderRadius: 2 }}>
+                        <Table stickyHeader size="small">
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>ลำดับ</TableCell>
+                                    <TableCell>RFID Code</TableCell>
+                                    <TableCell>Product</TableCell>
+                                    <TableCell align="center">Action</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {scannedRfids.map((rfid, idx) => {
+                                    const prod = products.find(p => p.productId === selectedProduct);
+                                    return (
+                                        <TableRow key={rfid}>
+                                            <TableCell>{scannedRfids.length - idx}</TableCell>
+                                            <TableCell sx={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#166534' }}>
+                                                {rfid}
+                                            </TableCell>
+                                            <TableCell>{prod?.productName}</TableCell>
+                                            <TableCell align="center">
+                                                <IconButton size="small" color="error" onClick={() => handleRemove(rfid)}>
+                                                    <Delete fontSize="small" />
+                                                </IconButton>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+
+                    <Button 
+                        fullWidth 
+                        variant="contained" 
+                        size="large" 
+                        color="success"
+                        startIcon={<PlaylistAddCheck />}
+                        onClick={handleSubmitBatch}
+                        sx={{ mt: 3, py: 1.5, fontSize: '1.1rem', borderRadius: 2 }}
+                    >
+                        ยืนยันการบันทึก {scannedRfids.length} รายการ
+                    </Button>
+                </Box>
+            )}
+
+        </CardContent>
       </Card>
     </Box>
   );
 };
 
-export default Linen;
+export default RegisterLinen;

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  AppBar, Toolbar, IconButton, Typography, Box, Badge, Avatar, Stack 
+  AppBar, Toolbar, IconButton, Typography, Box, Badge, Stack 
 } from '@mui/material';
 import { 
-  Menu as MenuIcon, Notifications, Search, AccountCircle 
+  Menu as MenuIcon, Notifications
 } from '@mui/icons-material';
 import { useLocation } from 'react-router-dom';
 
@@ -29,11 +29,13 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
       case '/': return 'หน้าหลัก (Monitor)';
       case '/stats': return 'สถิติภาพรวม (Dashboard)';
       case '/requests': return 'รายการคำร้องเบิกผ้า';
+      case '/laundry': return 'ระบบซักรีด (Laundry Management)'; // ✅ เพิ่มเคสนี้
       case '/discard': return 'แจ้งผ้าชำรุด / สูญหาย';
       case '/linens': return 'จัดการสต็อกผ้า (Linen Inventory)';
       case '/hospital': return 'ข้อมูลโรงพยาบาล';
       case '/users': return 'จัดการบุคลากร';
       case '/rfid-connect': return 'ตั้งค่าการเชื่อมต่อ RFID';
+      case '/vendors': return 'จัดการข้อมูลบริษัทคู่ค้า';
       default: return 'Smart RFID System';
     }
   };
@@ -44,10 +46,10 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
       sx={{
         width: { sm: `calc(100% - ${drawerWidth}px)` },
         ml: { sm: `${drawerWidth}px` },
-        bgcolor: 'rgba(255, 255, 255, 0.9)', // พื้นหลังขาวโปร่งแสง
-        backdropFilter: 'blur(8px)',       // เอฟเฟกต์เบลอข้างหลัง
+        bgcolor: 'rgba(255, 255, 255, 0.9)', 
+        backdropFilter: 'blur(8px)',       
         boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
-        color: '#1e293b', // สีตัวอักษรเทาเข้ม
+        color: '#1e293b', 
         borderBottom: '1px solid #f1f5f9'
       }}
     >
@@ -84,15 +86,12 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
               </Typography>
            </Box>
 
-           {/* ปุ่มแจ้งเตือน */}
+           {/* ปุ่มแจ้งเตือน (Low Stock Alert Placeholder) */}
            <IconButton sx={{ bgcolor: '#f1f5f9', '&:hover':{ bgcolor: '#e2e8f0' } }}>
               <Badge badgeContent={3} color="error">
                 <Notifications sx={{ color: '#64748b' }} />
               </Badge>
            </IconButton>
-
-           {/* ปุ่ม Profile (ถ้าไม่อยากใช้ใน Sidebar ก็ใช้ตรงนี้ได้) */}
-           {/* <Avatar sx={{ bgcolor: '#3b82f6', cursor: 'pointer' }}>A</Avatar> */}
 
         </Stack>
 

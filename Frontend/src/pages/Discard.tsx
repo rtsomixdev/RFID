@@ -1,119 +1,148 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Box, Paper, Typography, TextField, Button, Grid, MenuItem, 
-  FormControl, Select, Table, TableBody, TableCell, 
-  TableContainer, TableHead, TableRow, Chip, Autocomplete, Card, CardContent, Divider, InputLabel, InputAdornment
+  Box, Paper, Typography, TextField, Button, Grid, Table, 
+  TableBody, TableCell, TableContainer, TableHead, TableRow, 
+  IconButton, Card, CardContent, FormControl, InputLabel, Select, MenuItem, 
+  Alert, Divider, Stack, Autocomplete 
 } from '@mui/material';
 import { 
-  Search, Info, ReportProblem, Delete, RestoreFromTrash, QrCodeScanner, Description
+  ReportProblem, DeleteForever, PlaylistRemove, Delete, History, Search 
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
 
+// Interface
+interface CandidateItem {
+    rfidCode: string;
+    productName: string;
+    status: string;
+}
+
 const Discard: React.FC = () => {
-  // --- States ---
-  const [linens, setLinens] = useState<any[]>([]); 
+  // Master Data
   const [reasons, setReasons] = useState<any[]>([]);
+  const [candidates, setCandidates] = useState<CandidateItem[]>([]); 
+  const [searchSelection, setSearchSelection] = useState<CandidateItem | null>(null);
+
+  // Form State
+  const [selectedReason, setSelectedReason] = useState<string>(''); // ✅ เริ่มต้นเป็นค่าว่าง
+  const [note, setNote] = useState('');
+  const [scannedItems, setScannedItems] = useState<CandidateItem[]>([]); 
   
-  const [discardHistory, setDiscardHistory] = useState<any[]>([]);
   const [deleteHistory, setDeleteHistory] = useState<any[]>([]);
 
-  // Form Data
-  const [selectedLinen, setSelectedLinen] = useState<any | null>(null);
-  const [reasonId, setReasonId] = useState('');
-  const [note, setNote] = useState('');
-
   useEffect(() => {
-    fetchInitialData();
+    fetchReasons();
+    fetchHistory();
+    fetchCandidates();
   }, []);
 
-  const fetchInitialData = async () => {
+  const fetchCandidates = async () => {
+      try {
+          const res = await axiosClient.get('/Linen/Candidates/Discard');
+          setCandidates(res.data);
+      } catch (err) { console.error(err); }
+  };
+
+  const fetchReasons = async () => {
     try {
-      const [linenRes, reasonRes, discardRes, deleteRes] = await Promise.all([
-        axiosClient.get('/Linen'), 
-        axiosClient.get('/DamageReason'),
-        axiosClient.get('/Linen/DiscardHistory'),
-        axiosClient.get('/Linen/DeleteHistory')
-      ]);
-      setLinens(linenRes.data);
-      setReasons(reasonRes.data);
-      setDiscardHistory(discardRes.data);
-      setDeleteHistory(deleteRes.data);
-    } catch (err) {
-      console.error("Error fetching data:", err);
-    }
+        const res = await axiosClient.get('/DamageReason'); 
+        setReasons(res.data || []);
+    } catch (err) { console.error(err); }
   };
 
-  const refreshHistories = async () => {
-    const discardRes = await axiosClient.get('/Linen/DiscardHistory');
-    const deleteRes = await axiosClient.get('/Linen/DeleteHistory');
-    setDiscardHistory(discardRes.data);
-    setDeleteHistory(deleteRes.data);
+  const fetchHistory = async () => {
+      try {
+          // ถ้า Backend รวม API แล้วใช้ /DeleteHistory ก็ได้ แต่ถ้าแยก ให้ใช้ /DiscardHistory เพื่อดูผลลัพธ์ทันที
+          const res = await axiosClient.get('/Linen/DeleteHistory'); 
+          setDeleteHistory(res.data);
+      } catch (err) { console.error(err); }
   };
 
-  const getCategoryName = (product: any) => {
-    if (!product) return '-';
-    const cat = product.category || product.Category; 
-    if (!cat) return 'ไม่ระบุ';
-    return cat.categoryName || cat.CategoryName || cat.category_name || 'ไม่ระบุ';
-  };
+  // ✅ ฟังก์ชันเลือกรายการ (แก้กันเบิ้ล 100%)
+  const handleSelectItem = (item: CandidateItem | null) => {
+      if (!item) return;
 
-  // --- Handlers ---
-  const handleSubmit = async () => {
-    if (!selectedLinen) return Swal.fire('เตือน', 'กรุณาเลือกรายการผ้า', 'warning');
-    if (!reasonId) return Swal.fire('เตือน', 'กรุณาระบุสาเหตุ', 'warning');
+      // 1. UI Check: แจ้งเตือนถ้ามีอยู่แล้ว
+      if (scannedItems.find(s => s.rfidCode === item.rfidCode)) {
+          const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1000 });
+          Toast.fire({ icon: 'warning', title: 'รายการนี้เลือกไปแล้ว' });
+          setSearchSelection(null);
+          return;
+      }
 
-    const payload = {
-        rfidCode: selectedLinen.rfidCode,
-        productId: selectedLinen.productId,
-        damageReasonId: parseInt(reasonId),
-        note: note,
-        reportedByUserId: 1 
-    };
-
-    try {
-      await axiosClient.post('/Linen/Discard', payload);
-      Swal.fire({ icon: 'success', title: 'แจ้งชำรุดสำเร็จ', timer: 1500, showConfirmButton: false });
+      // 2. Data Check: กันเบิ้ลจริงๆ (ใช้ค่าล่าสุดจาก State)
+      setScannedItems(prev => {
+          if (prev.find(s => s.rfidCode === item.rfidCode)) return prev;
+          return [item, ...prev];
+      });
       
-      refreshHistories();
-      setSelectedLinen(null);
-      setNote('');
-      setReasonId('');
-      
-      const linenRes = await axiosClient.get('/Linen');
-      setLinens(linenRes.data);
-    } catch (err: any) {
-      console.error(err);
-      Swal.fire('Error', err.response?.data?.message || 'เกิดข้อผิดพลาด', 'error');
-    }
+      setTimeout(() => setSearchSelection(null), 100);
   };
 
-  const handleDeletePermanent = async () => {
-    if (!selectedLinen) return Swal.fire('เตือน', 'กรุณาเลือกรายการผ้าที่จะลบ', 'warning');
+  const handleRemoveItem = (rfid: string) => {
+    setScannedItems(prev => prev.filter(item => item.rfidCode !== rfid));
+  };
+
+  const handleDiscardBatch = async () => {
+    if (scannedItems.length === 0) return Swal.fire('เตือน', 'กรุณาเลือกรายการ', 'warning');
+    if (!selectedReason) return Swal.fire('เตือน', 'กรุณาระบุสาเหตุ', 'warning');
 
     Swal.fire({
-      title: 'ลบข้อมูลถาวร?',
-      text: `ต้องการลบ ${selectedLinen.rfidCode} ออกจากระบบถาวรใช่หรือไม่?`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      confirmButtonText: 'ลบถาวร',
-      cancelButtonText: 'ยกเลิก'
+        title: 'ยืนยันแจ้งชำรุด?',
+        text: `ต้องการแจ้งชำรุด ${scannedItems.length} รายการ?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#f59e0b',
+        confirmButtonText: 'ยืนยัน (Discard)'
     }).then(async (result) => {
-      if (result.isConfirmed) {
-        try {
-          await axiosClient.delete(`/Linen/${selectedLinen.linenId}`);
-          Swal.fire('ลบเสร็จสิ้น', 'ข้อมูลถูกลบออกจากระบบแล้ว', 'success');
-          refreshHistories();
-          setSelectedLinen(null);
-          setNote('');
-          setReasonId('');
-          const linenRes = await axiosClient.get('/Linen');
-          setLinens(linenRes.data);
-        } catch (err) {
-          Swal.fire('Error', 'ไม่สามารถลบข้อมูลได้', 'error');
+        if (result.isConfirmed) {
+            try {
+                await axiosClient.post('/Linen/DiscardBatch', {
+                    rfidCodes: scannedItems.map(i => i.rfidCode),
+                    damageReasonId: parseInt(selectedReason), // แปลงกลับเป็น Int
+                    note: note,
+                    reportedByUserId: 1
+                });
+                Swal.fire('สำเร็จ', 'บันทึกเรียบร้อย', 'success');
+                
+                // เคลียร์ค่า
+                setScannedItems([]);
+                setNote('');
+                setSelectedReason(''); 
+                
+                // อัปเดตข้อมูล
+                fetchHistory(); 
+                fetchCandidates(); 
+            } catch (err: any) {
+                Swal.fire('Error', err.response?.data?.message || 'Error', 'error');
+            }
         }
-      }
+    });
+  };
+
+  const handleDeleteBatch = async () => {
+    if (scannedItems.length === 0) return Swal.fire('เตือน', 'กรุณาเลือกรายการ', 'warning');
+
+    Swal.fire({
+        title: 'ยืนยันลบถาวร?',
+        text: `ข้อมูล ${scannedItems.length} รายการจะหายไปจากระบบกู้คืนไม่ได้!`,
+        icon: 'error',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'ลบทิ้งทันที (Delete)'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                await axiosClient.post('/Linen/DeleteBatch', scannedItems.map(i => i.rfidCode));
+                Swal.fire('ลบแล้ว', 'ข้อมูลถูกลบออกจากระบบ', 'success');
+                setScannedItems([]);
+                fetchHistory();
+                fetchCandidates();
+            } catch (err: any) {
+                Swal.fire('Error', err.response?.data?.message || 'Error', 'error');
+            }
+        }
     });
   };
 
@@ -126,224 +155,176 @@ const Discard: React.FC = () => {
         </Paper>
         <Box>
             <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
-                แจ้งผ้าชำรุด / ลบออกจากระบบ
+                แจ้งผ้าชำรุด / สูญหาย (Discard & Lost)
             </Typography>
             <Typography variant="body2" color="textSecondary">
-                บันทึกประวัติความเสียหายหรือจำหน่ายผ้าออกจากสต็อก
+                ค้นหาผ้าด้วยชื่อสินค้า หรือสแกน RFID เพื่อแจ้งชำรุด (รองรับทีละหลายรายการ)
             </Typography>
         </Box>
       </Box>
 
-      {/* --- ส่วนบน: FORM --- */}
-      <Paper sx={{ p: 3, borderRadius: 3, mb: 4, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
-         <Grid container spacing={3}>
-            
-            {/* ROW 1: Search (Full Width) */}
-            <Grid item xs={12}>
-                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1, color: '#334155' }}>
-                    1. ค้นหาผ้า (ระบุ RFID หรือ ชื่อสินค้า)
-                </Typography>
-                <Autocomplete
-                    fullWidth
-                    options={linens}
-                    getOptionLabel={(option) => `${option.rfidCode} : ${option.product?.productName} (${option.product?.sizeSpec})`}
-                    value={selectedLinen}
-                    onChange={(event, newValue) => setSelectedLinen(newValue)}
-                    renderInput={(params) => (
-                        <TextField 
-                            {...params} 
-                            placeholder="สแกน RFID หรือพิมพ์ค้นหา..." 
-                            InputProps={{
-                                ...params.InputProps,
-                                startAdornment: (
-                                    <>
-                                        <QrCodeScanner color="action" sx={{ mr: 1 }} />
-                                        {params.InputProps.startAdornment}
-                                    </>
-                                )
-                            }}
-                        />
-                    )}
-                />
-            </Grid>
+      {/* Main Input Card */}
+      <Card sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none', mb: 3 }}>
+        <CardContent sx={{ p: 3 }}>
+            <Grid container spacing={3}>
+                {/* Left: Scanner */}
+                <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>1. เพิ่มรายการ (Search / Scan)</Typography>
+                    
+                    <Autocomplete
+                        value={searchSelection}
+                        onChange={(event, newValue) => handleSelectItem(newValue)}
+                        options={candidates.filter(c => !scannedItems.find(s => s.rfidCode === c.rfidCode))} 
+                        getOptionLabel={(option) => `${option.productName} (${option.rfidCode})`} 
+                        
+                        // ✅ Option สำหรับ Scanner
+                        autoHighlight 
+                        autoSelect
+                        blurOnSelect
 
-            {/* ROW 2: Info Card (Full Width) */}
-            <Grid item xs={12}>
-                <Card variant="outlined" sx={{ bgcolor: selectedLinen ? '#f0f9ff' : '#f8fafc', borderColor: selectedLinen ? '#bae6fd' : '#e2e8f0', transition: 'all 0.3s' }}>
-                    <CardContent sx={{ py: 3, '&:last-child': { pb: 3 } }}>
-                        {!selectedLinen ? (
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', gap: 1 }}>
-                                <Info /> <Typography variant="body1">ข้อมูลสินค้าจะแสดงที่นี่อัตโนมัติ (Auto-Fill)</Typography>
-                            </Box>
-                        ) : (
-                            <Grid container spacing={2} alignItems="center">
-                                <Grid item xs={12} md={4} sx={{ borderRight: { md: '1px solid #e2e8f0' } }}>
-                                    <Typography variant="caption" color="textSecondary" display="block">RFID Code</Typography>
-                                    <Typography variant="h6" fontWeight="bold" color="#0284c7" sx={{ fontFamily: 'monospace' }}>
-                                        {selectedLinen.rfidCode}
-                                    </Typography>
-                                </Grid>
-                                <Grid item xs={12} md={4} sx={{ borderRight: { md: '1px solid #e2e8f0' }, pl: { md: 3 } }}>
-                                    <Typography variant="caption" color="textSecondary" display="block">สินค้า</Typography>
-                                    <Typography variant="body1" fontWeight="bold" sx={{ fontSize: '1.1rem' }}>
-                                        {selectedLinen.product?.productName}
-                                    </Typography>
-                                </Grid>
-                                <Grid item xs={12} md={4} sx={{ pl: { md: 3 } }}>
-                                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                                        <Chip label={getCategoryName(selectedLinen.product)} size="small" color="primary" variant="filled" />
-                                        <Typography variant="body2">Size: <b>{selectedLinen.product?.sizeSpec}</b></Typography>
-                                    </Box>
-                                </Grid>
-                            </Grid>
+                        renderInput={(params) => (
+                            <TextField 
+                                {...params} 
+                                label="ค้นหาด้วยชื่อ หรือ สแกน RFID..." 
+                                placeholder="พิมพ์ 'ปลอกหมอน' หรือยิง E200..."
+                                autoFocus
+                                InputProps={{
+                                    ...params.InputProps,
+                                    startAdornment: <Search color="action" sx={{ mr: 1 }} />
+                                }}
+                            />
                         )}
-                    </CardContent>
-                </Card>
+                        noOptionsText="ไม่พบข้อมูล (หรือถูกเลือกไปแล้ว)"
+                        fullWidth
+                    />
+
+                    <Box sx={{ mt: 2 }}>
+                         {scannedItems.length > 0 ? (
+                             <Alert severity="info" icon={<PlaylistRemove />}>
+                                 รอจัดการ: <strong>{scannedItems.length}</strong> รายการ
+                             </Alert>
+                         ) : (
+                             <Typography variant="body2" color="textSecondary" align="center" sx={{ py: 2, bgcolor: '#f8fafc', borderRadius: 2 }}>
+                                 ยังไม่มีรายการที่เลือก
+                             </Typography>
+                         )}
+                    </Box>
+                </Grid>
+
+                {/* Right: Options */}
+                <Grid item xs={12} md={6}>
+                    <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>2. ระบุรายละเอียด</Typography>
+                    <Grid container spacing={2}>
+                        <Grid item xs={12} sm={6}>
+                            <FormControl fullWidth size="small">
+                                <InputLabel id="reason-label">สาเหตุความเสียหาย</InputLabel>
+                                <Select 
+                                    labelId="reason-label"
+                                    value={selectedReason} 
+                                    label="สาเหตุความเสียหาย" 
+                                    onChange={(e) => setSelectedReason(e.target.value)}
+                                >
+                                    {reasons.map((r: any) => (
+                                        // ✅ ใช้ String เพื่อแก้ปัญหาเลือกไม่ได้
+                                        <MenuItem key={r.reasonId || r.id} value={String(r.reasonId || r.id)}>
+                                            {r.reasonName}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField 
+                                fullWidth size="small" 
+                                label="หมายเหตุ (Optional)" 
+                                value={note}
+                                onChange={e => setNote(e.target.value)}
+                            />
+                        </Grid>
+                    </Grid>
+
+                    <Divider sx={{ my: 3 }} />
+
+                    <Stack direction="row" spacing={2} justifyContent="flex-end">
+                        <Button 
+                            variant="outlined" color="error" startIcon={<DeleteForever />}
+                            onClick={handleDeleteBatch} disabled={scannedItems.length === 0}
+                            sx={{ borderRadius: 2 }}
+                        >
+                            ลบถาวร
+                        </Button>
+                        <Button 
+                            variant="contained" color="warning" startIcon={<ReportProblem />}
+                            onClick={handleDiscardBatch} disabled={scannedItems.length === 0}
+                            sx={{ borderRadius: 2, px: 3 }}
+                        >
+                            แจ้งชำรุด
+                        </Button>
+                    </Stack>
+                </Grid>
             </Grid>
 
-            {/* ROW 3: Reason & Note */}
-            <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1, color: '#334155' }}>
-                    2. ระบุสาเหตุความเสียหาย
+            {/* List Table */}
+            {scannedItems.length > 0 && (
+                <TableContainer sx={{ mt: 3, maxHeight: 300, border: '1px solid #e2e8f0', borderRadius: 2 }}>
+                    <Table stickyHeader size="small">
+                        <TableHead>
+                            <TableRow>
+                                <TableCell>ลำดับ</TableCell>
+                                <TableCell>สินค้า</TableCell>
+                                <TableCell>RFID Code</TableCell>
+                                <TableCell>สถานะปัจจุบัน</TableCell>
+                                <TableCell align="center">ลบ</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {scannedItems.map((item, idx) => (
+                                <TableRow key={idx} hover>
+                                    <TableCell>{scannedItems.length - idx}</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>{item.productName}</TableCell>
+                                    <TableCell sx={{ fontFamily: 'monospace', color: '#64748b' }}>{item.rfidCode}</TableCell>
+                                    <TableCell>{item.status}</TableCell>
+                                    <TableCell align="center">
+                                        <IconButton size="small" color="error" onClick={() => handleRemoveItem(item.rfidCode)}>
+                                            <Delete fontSize="small"/>
+                                        </IconButton>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            )}
+        </CardContent>
+      </Card>
+      
+      {/* History Card */}
+      <Card sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
+            <Box sx={{ p: 2, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <History color="action" />
+                <Typography variant="h6" fontWeight="bold" sx={{ color: '#475569' }}>
+                    ประวัติการดำเนินการล่าสุด (History)
                 </Typography>
-                <FormControl fullWidth>
-                    <Select 
-                        value={reasonId} 
-                        onChange={(e) => setReasonId(e.target.value)} 
-                        displayEmpty
-                        renderValue={(selected) => {
-                            if (!selected) return <Typography color="#94a3b8">เลือกสาเหตุ...</Typography>;
-                            const r = reasons.find(x => x.reasonId === parseInt(selected as string));
-                            return r ? r.reasonName : selected;
-                        }}
-                    >
-                        {reasons.map((r) => (
-                            <MenuItem key={r.reasonId} value={r.reasonId}>{r.reasonName}</MenuItem>
+            </Box>
+            <TableContainer sx={{ maxHeight: 300 }}>
+                <Table size="small">
+                    <TableHead>
+                        <TableRow>
+                            <TableCell>รายการ</TableCell>
+                            <TableCell align="right">เวลา</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {deleteHistory.map((log: any) => (
+                            <TableRow key={log.id}>
+                                <TableCell sx={{ color: '#334155', fontWeight: 500 }}>{log.item}</TableCell>
+                                <TableCell align="right" sx={{ color: '#64748b', fontSize: '0.85rem' }}>{log.time}</TableCell>
+                            </TableRow>
                         ))}
-                    </Select>
-                </FormControl>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1, color: '#334155' }}>
-                    3. หมายเหตุ (Optional)
-                </Typography>
-                <TextField
-                    fullWidth
-                    placeholder="รายละเอียดเพิ่มเติม..."
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    InputProps={{
-                        startAdornment: <Description color="action" sx={{ mr: 1, opacity: 0.7 }} fontSize="small" />
-                    }}
-                />
-            </Grid>
-
-            {/* ROW 4: Action Buttons */}
-            <Grid item xs={12}>
-                <Divider sx={{ mb: 2 }} />
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                    <Button
-                        variant="outlined"
-                        size="large"
-                        onClick={handleDeletePermanent}
-                        color="error"
-                        startIcon={<Delete />}
-                        disabled={!selectedLinen}
-                        sx={{ px: 3, borderRadius: 2 }}
-                    >
-                        ลบถาวร (Delete)
-                    </Button>
-                    <Button
-                        variant="contained"
-                        size="large"
-                        onClick={handleSubmit}
-                        color="warning"
-                        startIcon={<ReportProblem />}
-                        disabled={!selectedLinen}
-                        sx={{ px: 4, borderRadius: 2, boxShadow: '0 4px 10px rgba(245, 158, 11, 0.3)' }}
-                    >
-                        บันทึกแจ้งชำรุด (Discard)
-                    </Button>
-                </Box>
-            </Grid>
-
-         </Grid>
-      </Paper>
-
-      {/* --- ส่วนล่าง: HISTORY --- */}
-      <Grid container spacing={3}>
-        {/* Left: Discard History */}
-        <Grid item xs={12} md={6}>
-            <Card sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none', height: '100%' }}>
-                <Box sx={{ p: 2, bgcolor: '#fff7ed', borderBottom: '1px solid #ffedd5', display: 'flex', alignItems: 'center' }}>
-                    <ReportProblem color="warning" sx={{ mr: 1 }} />
-                    <Typography variant="subtitle1" fontWeight="bold" color="#c2410c">ประวัติแจ้งชำรุดล่าสุด</Typography>
-                </Box>
-                <TableContainer sx={{ maxHeight: 300 }}>
-                    <Table stickyHeader size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>รายการ</TableCell>
-                                <TableCell align="right">สาเหตุ/เวลา</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {discardHistory.length === 0 ? (
-                                <TableRow><TableCell colSpan={2} align="center" sx={{ py: 3, color: '#94a3b8' }}>ไม่มีข้อมูล</TableCell></TableRow>
-                            ) : discardHistory.map((row) => (
-                                <TableRow key={row.id} hover>
-                                    <TableCell>
-                                        <Typography variant="body2" fontWeight="bold">{row.item}</Typography>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                        <Chip label={row.reason} size="small" color="warning" variant="outlined" sx={{ mb: 0.5 }} />
-                                        <Typography variant="caption" display="block" color="textSecondary">{row.time}</Typography>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            </Card>
-        </Grid>
-
-        {/* Right: Delete History */}
-        <Grid item xs={12} md={6}>
-            <Card sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none', height: '100%' }}>
-                <Box sx={{ p: 2, bgcolor: '#fef2f2', borderBottom: '1px solid #fee2e2', display: 'flex', alignItems: 'center' }}>
-                    <RestoreFromTrash color="error" sx={{ mr: 1 }} />
-                    <Typography variant="subtitle1" fontWeight="bold" color="#b91c1c">ประวัติการลบถาวร</Typography>
-                </Box>
-                <TableContainer sx={{ maxHeight: 300 }}>
-                    <Table stickyHeader size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>รายการที่ถูกลบ</TableCell>
-                                <TableCell align="right">เวลา</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {deleteHistory.length === 0 ? (
-                                <TableRow><TableCell colSpan={2} align="center" sx={{ py: 3, color: '#94a3b8' }}>ไม่มีข้อมูล</TableCell></TableRow>
-                            ) : deleteHistory.map((row) => (
-                                <TableRow key={row.id} hover>
-                                    <TableCell>
-                                        <Typography variant="body2" fontWeight="bold" color="error">{row.item}</Typography>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                        <Typography variant="caption" color="textSecondary">{row.time}</Typography>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            </Card>
-        </Grid>
-
-      </Grid>
-
+                    </TableBody>
+                </Table>
+            </TableContainer>
+      </Card>
     </Box>
   );
 };

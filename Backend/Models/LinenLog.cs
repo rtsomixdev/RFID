@@ -25,6 +25,10 @@ public partial class LinenLog
     [Column("activity_type")]
     public string? ActivityType { get; set; }
 
+    // 👇👇 เพิ่มบรรทัดนี้เข้าไปครับ (เพื่อให้หายแดง) 👇👇
+    [Column("description")]
+    public string? Description { get; set; }
+
     [Column("timestamp")]
     public DateTime? Timestamp { get; set; }
 

@@ -1,207 +1,372 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Backend.Models;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Collections.Generic;
 
-namespace Backend.Controllers;
-
-// Class สำหรับรับข้อมูล Body เวลาแจ้งชำรุด
-public class DiscardPayload
+namespace Backend.Controllers
 {
-    public string? RfidCode { get; set; }
-    public int? ProductId { get; set; }
-    public int DamageReasonId { get; set; }
-    public string? Note { get; set; }
-    public int ReportedByUserId { get; set; }
-}
-
-[Route("api/[controller]")]
-[ApiController]
-public class LinenController : ControllerBase
-{
-    private readonly LinenDbContext _context;
-
-    public LinenController(LinenDbContext context)
+    // Class สำหรับรับข้อมูล Body เวลาแจ้งชำรุด (ทีละชิ้น)
+    public class DiscardPayload
     {
-        _context = context;
+        public string? RfidCode { get; set; }
+        public int? ProductId { get; set; }
+        public int DamageReasonId { get; set; }
+        public string? Note { get; set; }
+        public int ReportedByUserId { get; set; }
     }
 
-    // ==========================================
-    // 1. GET: ดึงรายการผ้าที่ยัง Active (สำหรับ Search/Dropdown)
-    // ==========================================
-    [HttpGet]
-    public async Task<ActionResult<IEnumerable<Linen>>> GetLinens()
+    // DTO สำหรับรับข้อมูลแจ้งชำรุดแบบกลุ่ม (Batch)
+    public class DiscardBatchDto
     {
-        return await _context.Linens
-            .Include(l => l.Product)
-                .ThenInclude(p => p.Category)
-            .Include(l => l.Hospital)
-            .Where(l => l.IsActive == true) // ดึงเฉพาะตัวที่ยังไม่เสีย/หาย
-            .OrderByDescending(l => l.RegisteredAt)
-            .ToListAsync();
+        public List<string> RfidCodes { get; set; } = new List<string>();
+        public int DamageReasonId { get; set; }
+        public string? Note { get; set; }
+        public int ReportedByUserId { get; set; }
     }
 
-    // ==========================================
-    // 2. GET: ดึงประวัติการแจ้งชำรุด (Soft Delete)
-    // ==========================================
-    [HttpGet("DiscardHistory")]
-    public async Task<ActionResult<IEnumerable<object>>> GetDiscardHistory()
+    // DTO สำหรับลงทะเบียนแบบกลุ่ม (Batch)
+    public class RegisterBatchDto
     {
-        var history = await _context.Linens
-            .Include(l => l.Product)
-            .Where(l => l.IsActive == false && l.Status != "Available") // เอาเฉพาะที่เสีย/หาย
-            .OrderByDescending(l => l.UpdatedAt)
-            .Take(50) // ดึง 50 รายการล่าสุด
-            .Select(l => new 
-            {
-                id = l.LinenId,
-                item = l.Product != null ? l.Product.ProductName : ("RFID: " + l.RfidCode), 
-                reason = l.Status,
-                time = l.UpdatedAt.HasValue ? l.UpdatedAt.Value.ToLocalTime().ToString("dd/MM/yy HH:mm") : "-"
-            })
-            .ToListAsync();
-
-        return Ok(history);
+        public int ProductId { get; set; }
+        public int HospitalId { get; set; }
+        public int? VendorId { get; set; }
+        public List<string> RfidCodes { get; set; } = new List<string>();
     }
 
-    // ==========================================
-    // 3. GET: ดึงประวัติการลบถาวร (ดึงจาก SystemLogs)
-    // ==========================================
-    [HttpGet("DeleteHistory")]
-    public async Task<ActionResult<IEnumerable<object>>> GetDeleteHistory()
+    [Route("api/[controller]")]
+    [ApiController]
+    public class LinenController : ControllerBase
     {
-        var logs = await _context.SystemLogs
-            .Where(x => x.ActionType == "DELETE_LINEN") // กรองเฉพาะ Log การลบ
-            .OrderByDescending(x => x.CreatedAt)
-            .Take(20)
-            .Select(x => new 
-            {
-                id = x.LogId,
-                item = x.Description, // ชื่อผ้าที่ถูกลบไป
-                time = x.CreatedAt.ToLocalTime().ToString("dd/MM/yy HH:mm")
-            })
-            .ToListAsync();
+        private readonly LinenDbContext _context;
 
-        return Ok(logs);
-    }
-
-    // ==========================================
-    // ✅ 4. GET: ดึงข้อมูลล่าสุดสำหรับหน้า Monitor (Real-time List 50 Items)
-    // ==========================================
-    [HttpGet("Monitor/Latest")]
-    public async Task<IActionResult> GetLatestMonitor()
-    {
-        // ดึง 50 รายการล่าสุดที่มีการอัปเดต (ไม่สนสถานะ เพื่อโชว์ความเคลื่อนไหว)
-        var recentItems = await _context.Linens
-            .Include(l => l.Product)
-            .OrderByDescending(l => l.UpdatedAt) // เรียงจากล่าสุด
-            .Take(50) 
-            .ToListAsync();
-
-        // ถ้าไม่มีข้อมูลเลย ให้ส่ง List ว่างกลับไป
-        if (!recentItems.Any()) 
+        public LinenController(LinenDbContext context)
         {
-            return Ok(new List<object>()); 
+            _context = context;
         }
 
-        // แปลงข้อมูลให้ Frontend นำไปใช้ง่ายๆ
-        var result = recentItems.Select(l => 
+        // Helper สำหรับดึงเวลาประเทศไทย (ใช้ตอนบันทึก)
+        private DateTime ThaiTime()
         {
-            // Logic จำลองสถานที่ (Location) ตามสถานะ
-            // (ในอนาคตถ้ามี Table Location ค่อยมาแก้ตรงนี้ครับ)
-            string loc = "จุดรับผ้าเปื้อน (Dirty Zone)"; 
-            if (l.Status == "Available") loc = "คลังผ้าสะอาด (Clean Stock)";
-            else if (l.Status == "Damaged" || l.Status != "Available") loc = "ห้องคัดแยกชำรุด";
+            return DateTime.UtcNow.AddHours(7);
+        }
 
-            return new 
+        // ==========================================
+        // 1. GET: ดึงรายการผ้าที่ยัง Active
+        // ==========================================
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<Linen>>> GetLinens()
+        {
+            return await _context.Linens
+                .Include(l => l.Product)
+                    .ThenInclude(p => p.Category)
+                .Include(l => l.Hospital)
+                .Where(l => l.IsActive == true)
+                .OrderByDescending(l => l.RegisteredAt)
+                .ToListAsync();
+        }
+
+        // ==========================================
+        // 2. GET: ดึงประวัติการแจ้งชำรุด (Discard History)
+        // ==========================================
+        [HttpGet("DiscardHistory")]
+        public async Task<ActionResult<IEnumerable<object>>> GetDiscardHistory()
+        {
+            var history = await _context.Linens
+                .Include(l => l.Product)
+                .Where(l => l.IsActive == false && l.Status != "Available")
+                .OrderByDescending(l => l.UpdatedAt)
+                .Take(50)
+                .Select(l => new 
+                {
+                    id = l.LinenId,
+                    item = l.Product != null ? l.Product.ProductName : ("RFID: " + l.RfidCode), 
+                    reason = l.Status,
+                    // ✅ แก้ไข: แสดงเวลาตามจริงจาก DB (ไม่บวกซ้ำ)
+                    time = l.UpdatedAt.HasValue ? l.UpdatedAt.Value.ToString("dd/MM/yy HH:mm") : "-"
+                })
+                .ToListAsync();
+
+            return Ok(history);
+        }
+
+        // ==========================================
+        // 3. GET: ดึงประวัติรวม (แจ้งชำรุด + ลบถาวร)
+        // ==========================================
+        [HttpGet("DeleteHistory")]
+        public async Task<ActionResult<IEnumerable<object>>> GetDeleteHistory()
+        {
+            var logs = await _context.SystemLogs
+                // 🔥 แก้ไข: ดึง Log ที่มีคำว่า DELETE หรือ DISCARD (แจ้งชำรุด)
+                .Where(x => x.ActionType.Contains("DELETE") || x.ActionType.Contains("DISCARD"))
+                .OrderByDescending(x => x.CreatedAt)
+                .Take(20)
+                .Select(x => new 
+                {
+                    id = x.LogId,
+                    item = x.Description, // ข้อความนี้จะถูกบันทึกมาพร้อมคำนำหน้าแล้ว
+                    time = x.CreatedAt.ToString("dd/MM/yy HH:mm")
+                })
+                .ToListAsync();
+
+            return Ok(logs);
+        }
+
+        // ==========================================
+        // 4. GET: Monitor (Latest 50 Items)
+        // ==========================================
+        [HttpGet("Monitor/Latest")]
+        public async Task<IActionResult> GetLatestMonitor()
+        {
+            var recentItems = await _context.Linens
+                .Include(l => l.Product)
+                .OrderByDescending(l => l.UpdatedAt)
+                .Take(50) 
+                .ToListAsync();
+
+            if (!recentItems.Any()) return Ok(new List<object>()); 
+
+            var result = recentItems.Select(l => 
             {
-                rfid = l.RfidCode,
-                productName = l.Product?.ProductName ?? "Unknown",
-                location = loc, 
-                status = l.Status,
-                timestamp = l.UpdatedAt.HasValue 
-                    ? l.UpdatedAt.Value.ToLocalTime().ToString("HH:mm:ss") 
-                    : "-"
-            };
-        });
+                string loc = "จุดรับผ้าเปื้อน (Dirty Zone)"; 
+                if (l.Status == "Available") loc = "คลังผ้าสะอาด (Clean Stock)";
+                else if (l.Status == "Washing") loc = "ร้านซักรีด (Laundry)";
+                else if (l.Status != "Available") loc = "ห้องคัดแยกชำรุด";
 
-        return Ok(result);
-    }
+                return new 
+                {
+                    rfid = l.RfidCode,
+                    productName = l.Product?.ProductName ?? "Unknown",
+                    location = loc, 
+                    status = l.Status,
+                    timestamp = l.UpdatedAt.HasValue 
+                        ? l.UpdatedAt.Value.ToString("HH:mm:ss") 
+                        : "-"
+                };
+            });
 
-    // ==========================================
-    // 5. POST: แจ้งชำรุด (Soft Delete - เก็บประวัติใน Table Linens)
-    // ==========================================
-    [HttpPost("Discard")]
-    public async Task<IActionResult> DiscardLinen([FromBody] DiscardPayload payload)
-    {
-        try 
+            return Ok(result);
+        }
+
+        // ==========================================
+        // 5. POST: แจ้งชำรุด (Discard - ทีละชิ้น)
+        // ==========================================
+        [HttpPost("Discard")]
+        public async Task<IActionResult> DiscardLinen([FromBody] DiscardPayload payload)
         {
-            var reasonName = "Damaged"; 
-            var reason = await _context.DamageReasons.FindAsync(payload.DamageReasonId);
+            try 
+            {
+                var reasonName = "Damaged"; 
+                var reason = await _context.DamageReasons.FindAsync(payload.DamageReasonId);
+                if (reason != null) reasonName = reason.ReasonName;
+
+                if (!string.IsNullOrEmpty(payload.RfidCode))
+                {
+                    var linen = await _context.Linens.FirstOrDefaultAsync(l => l.RfidCode == payload.RfidCode);
+                    if (linen == null) return NotFound(new { message = $"ไม่พบรหัส RFID: {payload.RfidCode}" });
+
+                    linen.IsActive = false;
+                    linen.Status = reasonName;
+                    linen.UpdatedAt = ThaiTime(); 
+                }
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "บันทึกแจ้งชำรุดสำเร็จ" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error: " + ex.Message });
+            }
+        }
+
+        // ==========================================
+        // 6. POST: เพิ่มผ้าใหม่ทีละชิ้น (Manual Register)
+        // ==========================================
+        [HttpPost]
+        public async Task<ActionResult<Linen>> PostLinen(Linen linen)
+        {
+            var exists = await _context.Linens.AnyAsync(l => l.RfidCode == linen.RfidCode);
+            if (exists) return BadRequest(new { message = $"RFID {linen.RfidCode} มีอยู่แล้ว" });
+
+            linen.RegisteredAt = ThaiTime();
+            linen.UpdatedAt = ThaiTime();
+            linen.IsActive = true;
+            linen.Status = "Available"; 
+
+            _context.Linens.Add(linen);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction("GetLinens", new { id = linen.LinenId }, linen);
+        }
+
+        // ==========================================
+        // 7. POST: เพิ่มผ้าใหม่แบบกลุ่ม (Batch Register)
+        // ==========================================
+        [HttpPost("RegisterBatch")]
+        public async Task<IActionResult> RegisterBatch([FromBody] RegisterBatchDto request)
+        {
+            if (request.RfidCodes == null || !request.RfidCodes.Any())
+                return BadRequest("กรุณาสแกน RFID อย่างน้อย 1 รายการ");
+
+            var existingRfids = await _context.Linens
+                .Where(l => request.RfidCodes.Contains(l.RfidCode))
+                .Select(l => l.RfidCode)
+                .ToListAsync();
+
+            if (existingRfids.Any())
+            {
+                return BadRequest(new { 
+                    message = $"พบ RFID ซ้ำในระบบ: {string.Join(", ", existingRfids)}",
+                    duplicates = existingRfids 
+                });
+            }
+
+            var newLinens = new List<Linen>();
+            var now = ThaiTime();
+
+            foreach (var rfid in request.RfidCodes)
+            {
+                newLinens.Add(new Linen
+                {
+                    RfidCode = rfid,
+                    ProductId = request.ProductId,
+                    HospitalId = request.HospitalId,
+                    VendorId = request.VendorId,
+                    Status = "Available",
+                    IsActive = true,
+                    RegisteredAt = now,
+                    UpdatedAt = now
+                });
+            }
+
+            await _context.Linens.AddRangeAsync(newLinens);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = $"ลงทะเบียนสำเร็จ {newLinens.Count} รายการ" });
+        }
+        
+        // ==========================================
+        // 8. DELETE: ลบถาวร (Hard Delete - ทีละชิ้น)
+        // ==========================================
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteLinen(int id)
+        {
+            var linen = await _context.Linens
+                .Include(l => l.Product)
+                .FirstOrDefaultAsync(l => l.LinenId == id);
+
+            if (linen == null) return NotFound();
+
+            var log = new SystemLog
+            {
+                UserId = 1, 
+                ActionType = "DELETE_LINEN",
+                Description = $"ลบถาวร {linen.RfidCode} : {linen.Product?.ProductName ?? "Unknown"}",
+                CreatedAt = ThaiTime()
+            };
+            _context.SystemLogs.Add(log);
+
+            _context.Linens.Remove(linen);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        // ==========================================
+        // 9. POST: แจ้งชำรุดแบบกลุ่ม (Batch Discard) - แก้ไขให้บันทึก Log
+        // ==========================================
+        [HttpPost("DiscardBatch")]
+        public async Task<IActionResult> DiscardBatch([FromBody] DiscardBatchDto request)
+        {
+            if (request.RfidCodes == null || !request.RfidCodes.Any())
+                return BadRequest("กรุณาระบุรายการ RFID");
+
+            var reasonName = "Damaged";
+            var reason = await _context.DamageReasons.FindAsync(request.DamageReasonId);
             if (reason != null) reasonName = reason.ReasonName;
 
-            if (!string.IsNullOrEmpty(payload.RfidCode))
+            var linens = await _context.Linens
+                .Include(l => l.Product) // Include เพื่อเอาชื่อไปลง Log
+                .Where(l => request.RfidCodes.Contains(l.RfidCode))
+                .ToListAsync();
+
+            if (!linens.Any()) return NotFound("ไม่พบรายการ RFID ในระบบ");
+
+            var now = ThaiTime();
+
+            foreach (var linen in linens)
             {
-                var linen = await _context.Linens.FirstOrDefaultAsync(l => l.RfidCode == payload.RfidCode);
-                if (linen == null) return NotFound(new { message = $"ไม่พบรหัส RFID: {payload.RfidCode}" });
+                linen.IsActive = false;
+                linen.Status = reasonName;
+                linen.UpdatedAt = now;
 
-                linen.IsActive = false;       // ตัดออกจาก Active
-                linen.Status = reasonName;    // อัปเดตสถานะเป็นสาเหตุ
-                linen.UpdatedAt = DateTime.UtcNow;
+                // 🔥 เพิ่ม: บันทึก Log การแจ้งชำรุด ลง SystemLogs
+                _context.SystemLogs.Add(new SystemLog 
+                {
+                    UserId = request.ReportedByUserId,
+                    ActionType = "DISCARD_BATCH",
+                    // เขียนคำว่า "แจ้งชำรุด" ลงไปเลย
+                    Description = $"แจ้งชำรุด {linen.RfidCode} : {linen.Product?.ProductName} ({reasonName})",
+                    CreatedAt = now
+                });
             }
+
             await _context.SaveChangesAsync();
-            return Ok(new { message = "บันทึกแจ้งชำรุดสำเร็จ" });
+            return Ok(new { message = $"บันทึกแจ้งชำรุดเรียบร้อย {linens.Count} รายการ" });
         }
-        catch (Exception ex)
+
+        // ==========================================
+        // 10. POST: ลบถาวรแบบกลุ่ม (Batch Delete)
+        // ==========================================
+        [HttpPost("DeleteBatch")]
+        public async Task<IActionResult> DeleteBatch([FromBody] List<string> rfidCodes)
         {
-            return StatusCode(500, new { message = "Error: " + ex.Message });
+            if (rfidCodes == null || !rfidCodes.Any()) return BadRequest("กรุณาระบุ RFID");
+
+            var linens = await _context.Linens
+                .Include(l => l.Product)
+                .Where(l => rfidCodes.Contains(l.RfidCode))
+                .ToListAsync();
+
+            if (!linens.Any()) return NotFound("ไม่พบรายการ");
+
+            var now = ThaiTime();
+
+            // สร้าง Log ก่อนลบ (ใช้คำว่า "ลบถาวร")
+            var logs = linens.Select(l => new SystemLog
+            {
+                UserId = 1,
+                ActionType = "DELETE_BATCH",
+                Description = $"ลบถาวร {l.RfidCode} : {l.Product?.ProductName ?? "Unknown"}",
+                CreatedAt = now
+            });
+            await _context.SystemLogs.AddRangeAsync(logs);
+
+            _context.Linens.RemoveRange(linens);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = $"ลบข้อมูลถาวรเรียบร้อย {linens.Count} รายการ" });
         }
-    }
 
-    // ==========================================
-    // 6. POST: เพิ่มผ้าใหม่ (Register)
-    // ==========================================
-    [HttpPost]
-    public async Task<ActionResult<Linen>> PostLinen(Linen linen)
-    {
-        var exists = await _context.Linens.AnyAsync(l => l.RfidCode == linen.RfidCode);
-        if (exists) return BadRequest(new { message = $"RFID {linen.RfidCode} มีอยู่แล้ว" });
-
-        linen.RegisteredAt = DateTime.UtcNow;
-        linen.UpdatedAt = DateTime.UtcNow; // เพิ่มบรรทัดนี้ เพื่อให้ Monitor เห็นทันทีที่เพิ่ม
-        linen.IsActive = true;
-        linen.Status = "Available"; 
-
-        _context.Linens.Add(linen);
-        await _context.SaveChangesAsync();
-        return CreatedAtAction("GetLinens", new { id = linen.LinenId }, linen);
-    }
-    
-    // ==========================================
-    // 7. DELETE: ลบถาวร (Hard Delete) + บันทึก Log
-    // ==========================================
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteLinen(int id)
-    {
-        var linen = await _context.Linens
-            .Include(l => l.Product)
-            .FirstOrDefaultAsync(l => l.LinenId == id);
-
-        if (linen == null) return NotFound();
-
-        // --- บันทึก Log ลง SystemLogs ก่อนข้อมูลหาย ---
-        var log = new SystemLog
+        // ==========================================
+        // 11. GET: ดึงรายการผ้าสำหรับ Dropdown หน้า Discard
+        // ==========================================
+        [HttpGet("Candidates/Discard")]
+        public async Task<ActionResult<IEnumerable<object>>> GetDiscardCandidates()
         {
-            UserId = 1, // TODO: ใส่ UserID คนลบจริง (ถ้ามี Auth)
-            ActionType = "DELETE_LINEN",
-            Description = $"ลบ {linen.RfidCode} : {linen.Product?.ProductName ?? "Unknown"}",
-            CreatedAt = DateTime.UtcNow
-        };
-        _context.SystemLogs.Add(log);
-        // -------------------------------------------
+            // ดึงเฉพาะผ้าที่ยัง Active (ยังไม่ถูกตัดจำหน่าย)
+            var candidates = await _context.Linens
+                .Include(l => l.Product)
+                .Where(l => l.IsActive == true) 
+                .Select(l => new {
+                    l.RfidCode,
+                    ProductName = l.Product.ProductName ?? "Unknown",
+                    l.Status
+                })
+                .ToListAsync();
 
-        _context.Linens.Remove(linen); // ลบจาก DB ถาวร
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+            return Ok(candidates);
+        }
+        
     }
 }

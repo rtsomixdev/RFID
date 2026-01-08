@@ -6,12 +6,12 @@ import {
 import { 
   Home, ShowChart, EditNote, ExpandLess, ExpandMore,
   LocalHospital, Checkroom, Business, Person, Assignment, Settings, Sensors,
-  CameraAlt, SystemUpdate, DeleteForever, Logout, ChevronRight
+  CameraAlt, SystemUpdate, DeleteForever, Logout, ChevronRight, LocalLaundryService // ✅ Added Import
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
-const drawerWidth = 280; // ขยายความกว้างนิดนึงให้ดูโปร่ง
+const drawerWidth = 280; 
 
 interface SidebarProps {
   open: boolean;
@@ -53,17 +53,15 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
   const isSelected = (path: string) => location.pathname === path;
 
   // --- Styles ---
-  // สีพื้นหลัง Sidebar
-  const sidebarBg = '#0f172a'; // Slate 900
-  const textPrimary = '#f8fafc'; // Slate 50
-  const textSecondary = '#94a3b8'; // Slate 400
-  const activeGradient = 'linear-gradient(90deg, #0ea5e9 0%, #2563eb 100%)'; // Blue Gradient
+  const sidebarBg = '#0f172a'; 
+  const textPrimary = '#f8fafc'; 
+  const textSecondary = '#94a3b8'; 
+  const activeGradient = 'linear-gradient(90deg, #0ea5e9 0%, #2563eb 100%)'; 
 
-  // สไตล์ปุ่มเมนูหลัก
   const menuButtonStyle = (path: string) => ({
     mb: 0.5,
     mx: 2,
-    borderRadius: '12px', // มุมมน
+    borderRadius: '12px', 
     transition: 'all 0.3s ease',
     color: isSelected(path) ? '#fff' : textSecondary,
     background: isSelected(path) ? activeGradient : 'transparent',
@@ -75,7 +73,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
     },
   });
 
-  // สไตล์ปุ่มเมนูย่อย
   const subMenuButtonStyle = (path: string) => ({
     pl: 4, 
     py: 1,
@@ -140,6 +137,14 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
             <ListItemButton sx={menuButtonStyle('/requests')} onClick={() => handleNavigate('/requests')}>
               <ListItemIcon sx={{ color: 'inherit', minWidth: 35 }}><Assignment fontSize="small" /></ListItemIcon>
               <ListItemText primary="คำร้องเบิกผ้า" primaryTypographyProps={{ fontSize: '0.95rem', fontWeight: 500 }} />
+            </ListItemButton>
+          </ListItem>
+
+          {/* ✅ เมนูระบบซักรีด (เพิ่มใหม่) */}
+          <ListItem disablePadding>
+            <ListItemButton sx={menuButtonStyle('/laundry')} onClick={() => handleNavigate('/laundry')}>
+              <ListItemIcon sx={{ color: 'inherit', minWidth: 35 }}><LocalLaundryService fontSize="small" /></ListItemIcon>
+              <ListItemText primary="ระบบซักรีด (Laundry)" primaryTypographyProps={{ fontSize: '0.95rem', fontWeight: 500 }} />
             </ListItemButton>
           </ListItem>
           
