@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Box, Paper, Typography, Grid, TextField, Button, MenuItem, 
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
+  TableContainer, Table, TableHead, TableBody, TableRow, TableCell, 
   Card, CardContent, Chip 
 } from '@mui/material';
 import { 
@@ -11,6 +11,8 @@ import axiosClient from '../api/axiosClient';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+
+// *** ไม่ต้อง Import Font ***
 
 interface ReportItem {
     date: string;
@@ -37,107 +39,101 @@ const Reports: React.FC = () => {
     }
   };
 
-  // ✅ Helper: ฟังก์ชันโหลด Font จากไฟล์ .ttf (Clean Code)
-  const addThaiFont = async (doc: jsPDF) => {
-      const fontName = 'THSarabunNew';
-      const fontPath = '/fonts/THSarabunNew.ttf'; // ⚠️ ต้องมีไฟล์นี้ใน public/fonts/
-
+  // ✅ ฟังก์ชันโหลด Font "Sarabun"
+  const loadThaiFont = async (doc: jsPDF) => {
       try {
-          const response = await fetch(fontPath);
+          // ⚠️ ต้องมีไฟล์ public/fonts/Sarabun-Regular.ttf
+          const response = await fetch('/fonts/Sarabun-Regular.ttf');
+          if (!response.ok) throw new Error("หาไฟล์ Font ไม่เจอ");
+          
           const blob = await response.blob();
           const reader = new FileReader();
 
           return new Promise<void>((resolve) => {
               reader.onloadend = () => {
                   const base64data = (reader.result as string).split(',')[1];
-                  doc.addFileToVFS(fontName + '.ttf', base64data);
-                  doc.addFont(fontName + '.ttf', fontName, 'normal');
-                  doc.setFont(fontName);
+                  
+                  // เพิ่ม Font Sarabun
+                  doc.addFileToVFS('Sarabun.ttf', base64data);
+                  doc.addFont('Sarabun.ttf', 'Sarabun', 'normal');
+                  doc.addFont('Sarabun.ttf', 'Sarabun', 'bold'); // Register กัน Crash
+                  doc.setFont('Sarabun');
+                  
                   resolve();
               };
               reader.readAsDataURL(blob);
           });
       } catch (error) {
-          console.error("Font load error:", error);
-          alert("หาไฟล์ Font ไม่เจอ! กรุณาเช็คว่ามีไฟล์ public/fonts/THSarabunNew.ttf หรือไม่");
+          console.error("Font Error:", error);
+          alert("โหลด Font ไม่ได้: กรุณาโหลดไฟล์ Sarabun-Regular.ttf ใส่ใน public/fonts/");
       }
   };
 
-  // ✅ Export PDF
   const handleExportPDF = async () => {
-    if (reportData.length === 0) return alert("ไม่มีข้อมูล");
+    if (reportData.length === 0) return alert("ไม่มีข้อมูลสำหรับ Export");
 
-    const doc = new jsPDF();
+    try {
+        const doc = new jsPDF();
 
-    // 1. โหลด Font ก่อนเริ่มวาด (รอจนเสร็จ)
-    await addThaiFont(doc);
+        // 1. โหลด Font
+        await loadThaiFont(doc);
 
-    // 2. เริ่มวาด Header
-    doc.setFillColor(37, 99, 235);
-    doc.rect(0, 0, 210, 28, 'F'); 
+        // 2. Header
+        doc.setFillColor(37, 99, 235);
+        doc.rect(0, 0, 210, 25, 'F'); 
 
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.text('ระบบจัดการผ้า (Smart RFID)', 14, 18); 
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(20);
+        doc.text('ระบบจัดการผ้า (Smart RFID)', 14, 17); 
 
-    doc.setFontSize(14);
-    doc.text('รายงานสรุปทางการ', 170, 18); 
+        doc.setFontSize(14);
+        doc.text('รายงานสรุป', 175, 17); 
 
-    // 3. Report Info
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(18);
-    doc.text('สรุปรายงาน (Report Summary)', 14, 45);
-    doc.setDrawColor(200, 200, 200);
-    doc.line(14, 48, 196, 48); 
+        // 3. Info
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(16);
+        doc.text(`รายงาน: ${reportType === 'damaged' ? 'ผ้าชำรุด/สูญหาย' : 'การเคลื่อนไหว'}`, 14, 40);
+        
+        doc.setFontSize(12);
+        const printDate = new Date().toLocaleString('th-TH');
+        doc.text(`วันที่พิมพ์: ${printDate}`, 14, 48);
 
-    doc.setFontSize(14);
-    doc.text(`ประเภทรายงาน: ${reportType === 'damaged' ? 'รายการชำรุด/สูญหาย' : 'การเคลื่อนไหว'}`, 14, 56);
-    
-    const start = startDate ? new Date(startDate).toLocaleDateString('th-TH') : '-';
-    const end = endDate ? new Date(endDate).toLocaleDateString('th-TH') : '-';
-    doc.text(`ช่วงเวลา: ${start} ถึง ${end}`, 14, 64);
-    doc.text(`วันที่ออกรายงาน: ${new Date().toLocaleString('th-TH')}`, 130, 56);
+        // 4. Table
+        autoTable(doc, {
+            startY: 55,
+            head: [['ลำดับ', 'วัน/เวลา', 'ชื่อสินค้า', 'RFID Code', 'สถานะ']],
+            body: reportData.map((item, index) => [
+                index + 1,
+                new Date(item.date).toLocaleString('th-TH'),    
+                item.product || '-', 
+                item.rfid || '-',    
+                item.status || '-'   
+            ]),
+            theme: 'grid',
+            styles: { 
+                font: 'Sarabun', // ✅ ใช้ Font Sarabun
+                fontSize: 10, 
+                cellPadding: 3 
+            },
+            headStyles: { 
+                fillColor: [41, 128, 185], 
+                textColor: 255, 
+                font: 'Sarabun',
+                fontStyle: 'bold', // ถ้าใช้ Sarabun-Regular ไฟล์เดียวอาจต้องเปลี่ยนเป็น normal ถ้ายัง Crash
+                halign: 'center' 
+            }
+        });
 
-    // 4. Table (ใช้ Font ไทยได้แล้ว!)
-    autoTable(doc, {
-        startY: 75,
-        head: [['#', 'วัน/เวลา', 'ชื่อสินค้า', 'RFID Code', 'สถานะ']],
-        body: reportData.map((item, index) => [
-            index + 1,
-            new Date(item.date).toLocaleString('th-TH'),    
-            item.product, 
-            item.rfid,    
-            item.status   
-        ]),
-        theme: 'grid',
-        // ใช้ Font ที่เราโหลดมา
-        styles: { font: 'THSarabunNew', fontSize: 13, cellPadding: 3 },
-        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold', halign: 'center' },
-        columnStyles: {
-            0: { halign: 'center', cellWidth: 15 },
-            1: { cellWidth: 45 },
-            2: { cellWidth: 60 },
-            4: { halign: 'center' }
-        },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { top: 70 }
-    });
+        doc.save(`Report_${reportType}.pdf`);
 
-    // 5. Footer
-    const pageCount = (doc as any).internal.getNumberOfPages();
-    for(let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(10);
-        doc.setTextColor(150);
-        doc.text(`หน้า ${i} / ${pageCount}`, 190, doc.internal.pageSize.height - 10);
-        doc.text('Smart RFID System - Confidential', 14, doc.internal.pageSize.height - 10);
+    } catch (error) {
+        console.error("PDF Error:", error);
+        alert("เกิดข้อผิดพลาดในการสร้าง PDF");
     }
-
-    doc.save(`Report_${reportType}.pdf`);
   };
 
   const handleExportExcel = () => {
-    if (reportData.length === 0) return alert("ไม่มีข้อมูล");
+    // ... (ส่วน Excel เหมือนเดิม)
     const excelData = reportData.map(item => ({
         "วัน/เวลา": new Date(item.date).toLocaleString('th-TH'),
         "ชื่อสินค้า": item.product,
@@ -145,8 +141,6 @@ const Reports: React.FC = () => {
         "สถานะ": item.status
     }));
     const worksheet = XLSX.utils.json_to_sheet(excelData);
-    const wscols = [{ wch: 22 }, { wch: 30 }, { wch: 35 }, { wch: 15 }];
-    worksheet['!cols'] = wscols;
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
     XLSX.writeFile(workbook, `report_${reportType}.xlsx`);
@@ -159,14 +153,9 @@ const Reports: React.FC = () => {
         <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#e0e7ff', color: '#4338ca' }}>
             <Download fontSize="large" />
         </Paper>
-        <Box>
-            <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
-                ระบบออกรายงาน (Reports Center)
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-                เลือกช่วงเวลาและประเภทรายงานที่ต้องการ Export
-            </Typography>
-        </Box>
+        <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
+            ระบบออกรายงาน (Reports Center)
+        </Typography>
       </Box>
 
       {/* Filter Card */}
@@ -208,20 +197,15 @@ const Reports: React.FC = () => {
       </Card>
 
       {/* Result Table */}
-      {reportData.length > 0 ? (
+      {reportData.length > 0 && (
           <>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6" fontWeight="bold" color="textSecondary">
-                    ผลลัพธ์: {reportData.length} รายการ
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button variant="outlined" color="error" startIcon={<PictureAsPdf />} onClick={handleExportPDF}>
-                        PDF (Thai Font)
-                    </Button>
-                    <Button variant="outlined" color="success" startIcon={<TableView />} onClick={handleExportExcel}>
-                        Excel
-                    </Button>
-                </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mb: 2 }}>
+                <Button variant="outlined" color="error" startIcon={<PictureAsPdf />} onClick={handleExportPDF}>
+                    PDF (Sarabun)
+                </Button>
+                <Button variant="outlined" color="success" startIcon={<TableView />} onClick={handleExportExcel}>
+                    Excel
+                </Button>
             </Box>
 
             <TableContainer component={Paper} sx={{ borderRadius: 3, border: '1px solid #e2e8f0', maxHeight: 500 }}>
@@ -255,15 +239,6 @@ const Reports: React.FC = () => {
                 </Table>
             </TableContainer>
           </>
-      ) : (
-        <Paper sx={{ textAlign: 'center', py: 8, bgcolor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: 3 }}>
-            <Typography color="textSecondary" variant="body1">
-                ไม่พบข้อมูลในช่วงเวลาที่เลือก
-            </Typography>
-            <Typography variant="caption" color="textDisabled">
-                กรุณาเลือกเงื่อนไขใหม่และกดปุ่ม "เรียกดูข้อมูล"
-            </Typography>
-        </Paper>
       )}
     </Box>
   );

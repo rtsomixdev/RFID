@@ -1,242 +1,259 @@
-# 🏥 Smart RFID Linen Management System
+```
+RFID
+├─ architecture.md
+├─ Backend
+│  ├─ appsettings.Development.json
+│  ├─ appsettings.json
+│  ├─ Backend.csproj
+│  ├─ Backend.http
+│  ├─ bin
+│  │  └─ Debug
+│  │     └─ net9.0
+│  │        ├─ appsettings.Development.json
+│  │        ├─ appsettings.json
+│  │        ├─ Backend.deps.json
+│  │        ├─ Backend.dll
+│  │        ├─ Backend.exe
+│  │        ├─ Backend.pdb
+│  │        ├─ Backend.runtimeconfig.json
+│  │        ├─ Backend.staticwebassets.endpoints.json
+│  │        ├─ cs
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ de
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ es
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ fr
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ Humanizer.dll
+│  │        ├─ it
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ ja
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ ko
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ Microsoft.AspNetCore.OpenApi.dll
+│  │        ├─ Microsoft.Bcl.AsyncInterfaces.dll
+│  │        ├─ Microsoft.Build.Locator.dll
+│  │        ├─ Microsoft.CodeAnalysis.CSharp.dll
+│  │        ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.dll
+│  │        ├─ Microsoft.CodeAnalysis.dll
+│  │        ├─ Microsoft.CodeAnalysis.Workspaces.dll
+│  │        ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll
+│  │        ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.dll
+│  │        ├─ Microsoft.EntityFrameworkCore.Abstractions.dll
+│  │        ├─ Microsoft.EntityFrameworkCore.Design.dll
+│  │        ├─ Microsoft.EntityFrameworkCore.dll
+│  │        ├─ Microsoft.EntityFrameworkCore.Relational.dll
+│  │        ├─ Microsoft.Extensions.DependencyModel.dll
+│  │        ├─ Microsoft.OpenApi.dll
+│  │        ├─ Mono.TextTemplating.dll
+│  │        ├─ Npgsql.dll
+│  │        ├─ Npgsql.EntityFrameworkCore.PostgreSQL.dll
+│  │        ├─ pl
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ pt-BR
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ ru
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ Swashbuckle.AspNetCore.Swagger.dll
+│  │        ├─ Swashbuckle.AspNetCore.SwaggerGen.dll
+│  │        ├─ Swashbuckle.AspNetCore.SwaggerUI.dll
+│  │        ├─ System.CodeDom.dll
+│  │        ├─ System.Composition.AttributedModel.dll
+│  │        ├─ System.Composition.Convention.dll
+│  │        ├─ System.Composition.Hosting.dll
+│  │        ├─ System.Composition.Runtime.dll
+│  │        ├─ System.Composition.TypedParts.dll
+│  │        ├─ tr
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ zh-Hans
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        └─ zh-Hant
+│  │           ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │           ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │           ├─ Microsoft.CodeAnalysis.resources.dll
+│  │           ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │           └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  ├─ Controllers
+│  │  ├─ AuthController.cs
+│  │  ├─ CategoryController.cs
+│  │  ├─ DamageReasonController.cs
+│  │  ├─ DashboardController.cs
+│  │  ├─ HospitalController.cs
+│  │  ├─ LaundryController.cs
+│  │  ├─ LinenController.cs
+│  │  ├─ LinenLogController.cs
+│  │  ├─ ProductController.cs
+│  │  ├─ ReaderController.cs
+│  │  ├─ ReportController.cs
+│  │  ├─ RequestController.cs
+│  │  ├─ RequestItemController.cs
+│  │  ├─ RequestStatusController.cs
+│  │  ├─ RoleController.cs
+│  │  ├─ RoomController.cs
+│  │  ├─ TitleController.cs
+│  │  ├─ UserController.cs
+│  │  ├─ VendorController.cs
+│  │  └─ WardController.cs
+│  ├─ Migrations
+│  │  ├─ 20260105105122_InitialCreate.cs
+│  │  ├─ 20260105105122_InitialCreate.Designer.cs
+│  │  └─ LinenDbContextModelSnapshot.cs
+│  ├─ Models
+│  │  ├─ Category.cs
+│  │  ├─ DamageReason.cs
+│  │  ├─ Hospital.cs
+│  │  ├─ Linen.cs
+│  │  ├─ LinenDbContext.cs
+│  │  ├─ LinenLog.cs
+│  │  ├─ Product.cs
+│  │  ├─ Reader.cs
+│  │  ├─ Request.cs
+│  │  ├─ RequestItem.cs
+│  │  ├─ RequestStatus.cs
+│  │  ├─ Role.cs
+│  │  ├─ Room.cs
+│  │  ├─ SystemLog.cs
+│  │  ├─ Title.cs
+│  │  ├─ User.cs
+│  │  ├─ Vendor.cs
+│  │  └─ Ward.cs
+│  ├─ obj
+│  │  ├─ Backend.csproj.EntityFrameworkCore.targets
+│  │  ├─ Backend.csproj.nuget.dgspec.json
+│  │  ├─ Backend.csproj.nuget.g.props
+│  │  ├─ Backend.csproj.nuget.g.targets
+│  │  ├─ Debug
+│  │  │  └─ net9.0
+│  │  │     ├─ .NETCoreApp,Version=v9.0.AssemblyAttributes.cs
+│  │  │     ├─ apphost.exe
+│  │  │     ├─ Backend.AssemblyInfo.cs
+│  │  │     ├─ Backend.AssemblyInfoInputs.cache
+│  │  │     ├─ Backend.assets.cache
+│  │  │     ├─ Backend.csproj.AssemblyReference.cache
+│  │  │     ├─ Backend.csproj.CoreCompileInputs.cache
+│  │  │     ├─ Backend.csproj.FileListAbsolute.txt
+│  │  │     ├─ Backend.csproj.Up2Date
+│  │  │     ├─ Backend.dll
+│  │  │     ├─ Backend.GeneratedMSBuildEditorConfig.editorconfig
+│  │  │     ├─ Backend.genruntimeconfig.cache
+│  │  │     ├─ Backend.GlobalUsings.g.cs
+│  │  │     ├─ Backend.MvcApplicationPartsAssemblyInfo.cache
+│  │  │     ├─ Backend.MvcApplicationPartsAssemblyInfo.cs
+│  │  │     ├─ Backend.pdb
+│  │  │     ├─ Backend.sourcelink.json
+│  │  │     ├─ ref
+│  │  │     │  └─ Backend.dll
+│  │  │     ├─ refint
+│  │  │     │  └─ Backend.dll
+│  │  │     ├─ rjsmcshtml.dswa.cache.json
+│  │  │     ├─ rjsmrazor.dswa.cache.json
+│  │  │     ├─ rpswa.dswa.cache.json
+│  │  │     ├─ staticwebassets
+│  │  │     ├─ staticwebassets.build.endpoints.json
+│  │  │     ├─ staticwebassets.build.json
+│  │  │     └─ staticwebassets.build.json.cache
+│  │  ├─ project.assets.json
+│  │  └─ project.nuget.cache
+│  ├─ Program.cs
+│  ├─ Properties
+│  │  └─ launchSettings.json
+│  └─ Services
+│     └─ EmailService.cs
+├─ docker-compose.yml
+├─ Frontend
+│  ├─ eslint.config.js
+│  ├─ index.html
+│  ├─ package-lock.json
+│  ├─ package.json
+│  ├─ public
+│  │  ├─ fonts
+│  │  │  └─ Sarabun-Regular.ttf
+│  │  └─ vite.svg
+│  ├─ README.md
+│  ├─ src
+│  │  ├─ api
+│  │  │  └─ axiosClient.ts
+│  │  ├─ App.css
+│  │  ├─ App.tsx
+│  │  ├─ assets
+│  │  │  └─ react.svg
+│  │  ├─ components
+│  │  │  ├─ Navbar.tsx
+│  │  │  └─ Sidebar.tsx
+│  │  ├─ index.css
+│  │  ├─ layouts
+│  │  │  └─ MainLayout.tsx
+│  │  ├─ main.tsx
+│  │  ├─ pages
+│  │  │  ├─ Dashboard.tsx
+│  │  │  ├─ Discard.tsx
+│  │  │  ├─ ForgotPassword.tsx
+│  │  │  ├─ Home.tsx
+│  │  │  ├─ Hospital.tsx
+│  │  │  ├─ Laundry.tsx
+│  │  │  ├─ Linen.tsx
+│  │  │  ├─ Login.tsx
+│  │  │  ├─ Reports.tsx
+│  │  │  ├─ Requests.tsx
+│  │  │  ├─ Users.tsx
+│  │  │  └─ Vendor.tsx
+│  │  └─ theme
+│  │     └─ theme.ts
+│  ├─ tsconfig.app.json
+│  ├─ tsconfig.json
+│  ├─ tsconfig.node.json
+│  └─ vite.config.ts
+├─ README.md
+└─ RFID.sln
 
-ระบบบริหารจัดการผ้าในโรงพยาบาลด้วยเทคโนโลยี RFID แบบครบวงจร (Full Stack) ครอบคลุมการทำงานตั้งแต่การติดตามสถานะผ้าแบบ Real-time, ระบบเบิกจ่ายสินค้า, ไปจนถึงการจัดการคลังสินค้าหลังบ้าน
-
-![Project Banner](https://via.placeholder.com/1000x300?text=Smart+RFID+System+Full+Stack)
-
-## 🏗️ เทคโนโลยีที่ใช้ (Tech Stack)
-
-โปรเจกต์นี้พัฒนาโดยแยกส่วน Frontend และ Backend เพื่อประสิทธิภาพและความยืดหยุ่นในการขยายระบบ
-
-### 🖥️ Frontend (Client Side)
-* **Framework:** [React](https://reactjs.org/) + [Vite](https://vitejs.dev/) (Language: TypeScript)
-* **UI Framework:** [Material UI (MUI)](https://mui.com/)
-* **Visualization:** [Recharts](https://recharts.org/) (สำหรับกราฟและ Dashboard)
-* **Data Fetching:** [Axios](https://axios-http.com/)
-* **Alerts:** [SweetAlert2](https://sweetalert2.github.io/)
-
-### ⚙️ Backend (Server Side)
-* **Framework:** [.NET Core 8.0](https://dotnet.microsoft.com/) (C#)
-* **Architecture:** RESTful API
-* **Database:** [PostgreSQL](https://www.postgresql.org/)
-* **ORM:** Entity Framework Core (EF Core)
-* **API Documentation:** Swagger UI
-
----
-
-## 🚀 ฟีเจอร์หลัก (Key Features)
-
-* **📡 Real-time Monitoring:** ติดตามสถานะและตำแหน่งของผ้าผ่าน RFID Tag ได้ทันที
-* **📊 Dashboard Analytics:** วิเคราะห์ข้อมูลสรุปรายวัน กราฟการเบิกจ่าย และสัดส่วนความเสียหาย
-* **🛒 Request System (E-Commerce Style):** ระบบสร้างคำร้องเบิก/เปลี่ยนผ้าที่ใช้งานง่ายเหมือนแอปช้อปปิ้ง
-* **⚠️ Discard & Loss Tracking:** บันทึกประวัติผ้าชำรุด สูญหาย พร้อมระบุสาเหตุเพื่อการตรวจสอบ
-* **🔐 Role-Based Access Control:** ระบบจัดการสิทธิ์ผู้ใช้งาน (Administrator / Staff)
-* **🏢 Organization Management:** จัดการข้อมูลโรงพยาบาล วอร์ด คู่ค้า และบุคลากร
-
----
-
-## ⚙️ ขั้นตอนการติดตั้งและใช้งาน (Installation)
-
-กรุณาติดตั้งโปรแกรมพื้นฐานต่อไปนี้ก่อนเริ่มงาน:
-* [Node.js](https://nodejs.org/) (v18+)
-* [.NET SDK](https://dotnet.microsoft.com/download) (v8.0)
-* [PostgreSQL](https://www.postgresql.org/)
-
-### 📥 1. ติดตั้งส่วน Backend (.NET Core)
-
-1.  เข้าไปที่โฟลเดอร์ Backend
-    ```bash
-    cd backend
-    ```
-
-2.  **ตั้งค่าฐานข้อมูล:**
-    * เปิดไฟล์ `appsettings.json`
-    * แก้ไข `ConnectionStrings:DefaultConnection` ให้ตรงกับ PostgreSQL ของเครื่องคุณ
-    ```json
-    "ConnectionStrings": {
-      "DefaultConnection": "Host=localhost;Database=RFID_DB;Username=postgres;Password=your_password"
-    }
-    ```
-
-3.  **สร้างฐานข้อมูล (Migration):**
-    ```bash
-    dotnet ef database update
-    ```
-
-4.  **รันเซิร์ฟเวอร์:**
-    ```bash
-    dotnet run
-    ```
-    * Backend จะทำงานที่: `https://localhost:5001` หรือ `http://localhost:5000`
-    * ตรวจสอบ Swagger API Docs ได้ที่: `https://localhost:5001/swagger`
-
----
-
-### 💻 2. ติดตั้งส่วน Frontend (React)
-
-1.  เปิด Terminal ใหม่ แล้วเข้าไปที่โฟลเดอร์ Frontend
-    ```bash
-    cd frontend
-    ```
-
-2.  **ติดตั้ง Libraries:**
-    ```bash
-    npm install
-    # หรือ yarn install
-    ```
-
-3.  **ตั้งค่าการเชื่อมต่อ:**
-    * เปิดไฟล์ `src/api/axiosClient.ts`
-    * ตรวจสอบ `baseURL` ให้ตรงกับพอร์ตของ Backend ที่รันอยู่
-    ```typescript
-    const axiosClient = axios.create({
-      baseURL: 'http://localhost:5000/api', 
-    });
-    ```
-
-4.  **รันโปรเจกต์:**
-    ```bash
-    npm run dev
-    ```
-    * เปิดเว็บเบราว์เซอร์ไปที่: `http://localhost:5173`
-
----
-
-## 📂 โครงสร้างโปรเจกต์ (Project Structure)
-นี่คือไฟล์ README.md ฉบับเต็มรูปแบบสำหรับโปรเจกต์ Full Stack ของคุณ โดยใส่ชื่อผู้พัฒนาตามที่คุณระบุครับ
-
-สามารถก๊อปปี้ไปวางในไฟล์ README.md ที่หน้าแรกของโปรเจกต์ได้เลยครับ
-
-Markdown
-
-# 🏥 Smart RFID Linen Management System
-
-ระบบบริหารจัดการผ้าในโรงพยาบาลด้วยเทคโนโลยี RFID แบบครบวงจร (Full Stack) ครอบคลุมการทำงานตั้งแต่การติดตามสถานะผ้าแบบ Real-time, ระบบเบิกจ่ายสินค้า, ไปจนถึงการจัดการคลังสินค้าหลังบ้าน
-
-![Project Banner](https://via.placeholder.com/1000x300?text=Smart+RFID+System+Full+Stack)
-
-## 🏗️ เทคโนโลยีที่ใช้ (Tech Stack)
-
-โปรเจกต์นี้พัฒนาโดยแยกส่วน Frontend และ Backend เพื่อประสิทธิภาพและความยืดหยุ่นในการขยายระบบ
-
-### 🖥️ Frontend (Client Side)
-* **Framework:** [React](https://reactjs.org/) + [Vite](https://vitejs.dev/) (Language: TypeScript)
-* **UI Framework:** [Material UI (MUI)](https://mui.com/)
-* **Visualization:** [Recharts](https://recharts.org/) (สำหรับกราฟและ Dashboard)
-* **Data Fetching:** [Axios](https://axios-http.com/)
-* **Alerts:** [SweetAlert2](https://sweetalert2.github.io/)
-
-### ⚙️ Backend (Server Side)
-* **Framework:** [.NET Core 8.0](https://dotnet.microsoft.com/) (C#)
-* **Architecture:** RESTful API
-* **Database:** [PostgreSQL](https://www.postgresql.org/)
-* **ORM:** Entity Framework Core (EF Core)
-* **API Documentation:** Swagger UI
-
----
-
-## 🚀 ฟีเจอร์หลัก (Key Features)
-
-* **📡 Real-time Monitoring:** ติดตามสถานะและตำแหน่งของผ้าผ่าน RFID Tag ได้ทันที
-* **📊 Dashboard Analytics:** วิเคราะห์ข้อมูลสรุปรายวัน กราฟการเบิกจ่าย และสัดส่วนความเสียหาย
-* **🛒 Request System (E-Commerce Style):** ระบบสร้างคำร้องเบิก/เปลี่ยนผ้าที่ใช้งานง่ายเหมือนแอปช้อปปิ้ง
-* **⚠️ Discard & Loss Tracking:** บันทึกประวัติผ้าชำรุด สูญหาย พร้อมระบุสาเหตุเพื่อการตรวจสอบ
-* **🔐 Role-Based Access Control:** ระบบจัดการสิทธิ์ผู้ใช้งาน (Administrator / Staff)
-* **🏢 Organization Management:** จัดการข้อมูลโรงพยาบาล วอร์ด คู่ค้า และบุคลากร
-
----
-
-## ⚙️ ขั้นตอนการติดตั้งและใช้งาน (Installation)
-
-กรุณาติดตั้งโปรแกรมพื้นฐานต่อไปนี้ก่อนเริ่มงาน:
-* [Node.js](https://nodejs.org/) (v18+)
-* [.NET SDK](https://dotnet.microsoft.com/download) (v8.0)
-* [PostgreSQL](https://www.postgresql.org/)
-
-### 📥 1. ติดตั้งส่วน Backend (.NET Core)
-
-1.  เข้าไปที่โฟลเดอร์ Backend
-    ```bash
-    cd backend
-    ```
-
-2.  **ตั้งค่าฐานข้อมูล:**
-    * เปิดไฟล์ `appsettings.json`
-    * แก้ไข `ConnectionStrings:DefaultConnection` ให้ตรงกับ PostgreSQL ของเครื่องคุณ
-    ```json
-    "ConnectionStrings": {
-      "DefaultConnection": "Host=localhost;Database=RFID_DB;Username=postgres;Password=your_password"
-    }
-    ```
-
-3.  **สร้างฐานข้อมูล (Migration):**
-    ```bash
-    dotnet ef database update
-    ```
-
-4.  **รันเซิร์ฟเวอร์:**
-    ```bash
-    dotnet run
-    ```
-    * Backend จะทำงานที่: `https://localhost:5001` หรือ `http://localhost:5000`
-    * ตรวจสอบ Swagger API Docs ได้ที่: `https://localhost:5001/swagger`
-
----
-
-### 💻 2. ติดตั้งส่วน Frontend (React)
-
-1.  เปิด Terminal ใหม่ แล้วเข้าไปที่โฟลเดอร์ Frontend
-    ```bash
-    cd frontend
-    ```
-
-2.  **ติดตั้ง Libraries:**
-    ```bash
-    npm install
-    # หรือ yarn install
-    ```
-
-3.  **ตั้งค่าการเชื่อมต่อ:**
-    * เปิดไฟล์ `src/api/axiosClient.ts`
-    * ตรวจสอบ `baseURL` ให้ตรงกับพอร์ตของ Backend ที่รันอยู่
-    ```typescript
-    const axiosClient = axios.create({
-      baseURL: 'http://localhost:5000/api', 
-    });
-    ```
-
-4.  **รันโปรเจกต์:**
-    ```bash
-    npm run dev
-    ```
-    * เปิดเว็บเบราว์เซอร์ไปที่: `http://localhost:5173`
-
----
-
-## 📂 โครงสร้างโปรเจกต์ (Project Structure)
-
-RFID-Project/ ├── backend/ # ระบบหลังบ้าน (.NET Core API) │ ├── Controllers/ # จุดรับ Request (API Endpoints) │ ├── Models/ # โครงสร้าง Database (Entity) │ ├── Data/ # DB Context │ ├── Services/ # Business Logic │ └── appsettings.json # ค่า Config ต่างๆ │ ├── frontend/ # ระบบหน้าบ้าน (React TypeScript) │ ├── src/ │ │ ├── api/ # Config Axios │ │ ├── components/ # ชิ้นส่วน UI (Navbar, Sidebar, Card) │ │ ├── layouts/ # โครงสร้างหน้าเว็บหลัก │ │ ├── pages/ # หน้าจอต่างๆ (Dashboard, Requests, Users) │ │ └── theme/ # การตั้งค่าธีม MUI │ └── package.json │ └── README.md 
-
-# คู่มือการใช้งาน
-
----
-
-## 📝 ตัวอย่าง API Endpoints
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/Dashboard/Stats` | ดึงข้อมูลสรุปสำหรับ Dashboard |
-| `GET` | `/api/Linen` | ดึงรายการผ้าทั้งหมด |
-| `POST` | `/api/Request` | สร้างคำร้องเบิกผ้าใหม่ |
-| `PUT` | `/api/Request/{id}` | อัปเดตสถานะคำร้อง (อนุมัติ/ปฏิเสธ) |
-| `POST` | `/api/Auth/Login` | เข้าสู่ระบบ |
-
----
-
-## 👨‍💻 ผู้พัฒนา (Developer)
-
-พัฒนาโดย: **นายธนภัทร์ สุคนธ์ทิพย์**
-GitHub: [https://github.com/rtsomixdev/RFID.git](https://github.com/rtsomixdev/RFID.git)
-
----
-*© 2025 Smart RFID System. All rights reserved.*
+```

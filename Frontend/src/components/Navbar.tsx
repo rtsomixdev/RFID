@@ -36,6 +36,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
       case '/users': return 'จัดการบุคลากร';
       case '/rfid-connect': return 'ตั้งค่าการเชื่อมต่อ RFID';
       case '/vendors': return 'จัดการข้อมูลบริษัทคู่ค้า';
+      case '/reports': return 'ระบบออกรายงาน (Reports Center)';
       default: return 'Smart RFID System';
     }
   };
