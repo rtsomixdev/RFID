@@ -12,9 +12,6 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
-// ✅ 1. Import ไฟล์ Font ภาษาไทยที่คุณเพิ่งสร้าง
-import '../assets/MyThaiFont.js'; 
-
 interface ReportItem {
     date: string;
     product: string;
@@ -36,105 +33,119 @@ const Reports: React.FC = () => {
       setReportData(res.data);
     } catch (err) {
       console.error(err);
-      alert('Error fetching data');
+      alert('Error: ไม่สามารถดึงข้อมูลได้');
     }
   };
 
-  // ✅ Export PDF (Fixed Thai Font)
+  // ✅ Helper: ฟังก์ชันโหลด Font จากไฟล์ .ttf (Clean Code)
+  const addThaiFont = async (doc: jsPDF) => {
+      const fontName = 'THSarabunNew';
+      const fontPath = '/fonts/THSarabunNew.ttf'; // ⚠️ ต้องมีไฟล์นี้ใน public/fonts/
+
+      try {
+          const response = await fetch(fontPath);
+          const blob = await response.blob();
+          const reader = new FileReader();
+
+          return new Promise<void>((resolve) => {
+              reader.onloadend = () => {
+                  const base64data = (reader.result as string).split(',')[1];
+                  doc.addFileToVFS(fontName + '.ttf', base64data);
+                  doc.addFont(fontName + '.ttf', fontName, 'normal');
+                  doc.setFont(fontName);
+                  resolve();
+              };
+              reader.readAsDataURL(blob);
+          });
+      } catch (error) {
+          console.error("Font load error:", error);
+          alert("หาไฟล์ Font ไม่เจอ! กรุณาเช็คว่ามีไฟล์ public/fonts/THSarabunNew.ttf หรือไม่");
+      }
+  };
+
+  // ✅ Export PDF
   const handleExportPDF = async () => {
     if (reportData.length === 0) return alert("ไม่มีข้อมูล");
 
     const doc = new jsPDF();
 
-    // ✅ 2. ตั้งค่าให้ใช้ Font ภาษาไทย
-    doc.setFont('THSarabun');
+    // 1. โหลด Font ก่อนเริ่มวาด (รอจนเสร็จ)
+    await addThaiFont(doc);
 
-    // Header Design
+    // 2. เริ่มวาด Header
     doc.setFillColor(37, 99, 235);
-    doc.rect(0, 0, 210, 25, 'F');
+    doc.rect(0, 0, 210, 28, 'F'); 
 
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
-    doc.text('ระบบ Smart RFID', 14, 16); // ใช้ภาษาไทยได้แล้ว!
+    doc.setFontSize(24);
+    doc.text('ระบบจัดการผ้า (Smart RFID)', 14, 18); 
 
-    doc.setFontSize(12);
-    doc.text('เอกสารรายงานสรุป', 160, 16);
+    doc.setFontSize(14);
+    doc.text('รายงานสรุปทางการ', 170, 18); 
 
-    // Report Info
+    // 3. Report Info
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(16);
-    doc.text('สรุปรายงาน (Report Summary)', 14, 40);
+    doc.setFontSize(18);
+    doc.text('สรุปรายงาน (Report Summary)', 14, 45);
     doc.setDrawColor(200, 200, 200);
-    doc.line(14, 42, 196, 42);
+    doc.line(14, 48, 196, 48); 
 
-    doc.setFontSize(12);
-    doc.text(`ประเภทรายงาน:`, 14, 50);
-    doc.setFont(undefined, 'bold');
-    doc.text(`${reportType === 'damaged' ? 'ผ้าชำรุด/สูญหาย' : 'การเคลื่อนไหว'}`, 45, 50);
+    doc.setFontSize(14);
+    doc.text(`ประเภทรายงาน: ${reportType === 'damaged' ? 'รายการชำรุด/สูญหาย' : 'การเคลื่อนไหว'}`, 14, 56);
+    
+    const start = startDate ? new Date(startDate).toLocaleDateString('th-TH') : '-';
+    const end = endDate ? new Date(endDate).toLocaleDateString('th-TH') : '-';
+    doc.text(`ช่วงเวลา: ${start} ถึง ${end}`, 14, 64);
+    doc.text(`วันที่ออกรายงาน: ${new Date().toLocaleString('th-TH')}`, 130, 56);
 
-    doc.setFont(undefined, 'normal');
-    doc.text(`ช่วงเวลา:`, 14, 58);
-    doc.text(`${startDate || 'ทั้งหมด'} ถึง ${endDate || 'ปัจจุบัน'}`, 45, 58);
-
-    doc.text(`พิมพ์เมื่อ:`, 140, 50);
-    doc.text(`${new Date().toLocaleString('th-TH')}`, 160, 50);
-
-    // Table
+    // 4. Table (ใช้ Font ไทยได้แล้ว!)
     autoTable(doc, {
-        startY: 65,
-        head: [['ลำดับ', 'วันที่/เวลา', 'ชื่อสินค้า', 'RFID Code', 'สถานะ']], // หัวตารางไทย
+        startY: 75,
+        head: [['#', 'วัน/เวลา', 'ชื่อสินค้า', 'RFID Code', 'สถานะ']],
         body: reportData.map((item, index) => [
             index + 1,
-            item.date,    
-            item.product, // ชื่อสินค้าไทยจะแสดงถูกต้อง!
+            new Date(item.date).toLocaleString('th-TH'),    
+            item.product, 
             item.rfid,    
-            item.status === 'Damaged' ? 'ชำรุด' : (item.status === 'Lost' ? 'สูญหาย' : item.status)
+            item.status   
         ]),
         theme: 'grid',
-        // ✅ 3. ตั้งค่า Font ภาษาไทยให้ตาราง
-        styles: { font: 'THSarabun', fontSize: 12, cellPadding: 3 },
-        headStyles: { 
-            fillColor: [41, 128, 185], 
-            textColor: 255, 
-            fontStyle: 'bold',
-            halign: 'center'
-        },
+        // ใช้ Font ที่เราโหลดมา
+        styles: { font: 'THSarabunNew', fontSize: 13, cellPadding: 3 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold', halign: 'center' },
         columnStyles: {
             0: { halign: 'center', cellWidth: 15 },
-            1: { cellWidth: 35 },
-            2: { cellWidth: 55 },
-            3: { font: 'courier', cellWidth: 50 }, // RFID ใช้ Font อังกฤษปกติ
+            1: { cellWidth: 45 },
+            2: { cellWidth: 60 },
             4: { halign: 'center' }
         },
         alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { top: 60 }
+        margin: { top: 70 }
     });
 
-    // Footer
+    // 5. Footer
     const pageCount = (doc as any).internal.getNumberOfPages();
     for(let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        doc.setFillColor(240, 240, 240);
-        doc.rect(0, doc.internal.pageSize.height - 20, 210, 20, 'F');
         doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text('© 2026 Smart RFID Management System. เอกสารภายใน.', 14, doc.internal.pageSize.height - 8);
-        doc.text(`หน้า ${i} จาก ${pageCount}`, 180, doc.internal.pageSize.height - 8);
+        doc.setTextColor(150);
+        doc.text(`หน้า ${i} / ${pageCount}`, 190, doc.internal.pageSize.height - 10);
+        doc.text('Smart RFID System - Confidential', 14, doc.internal.pageSize.height - 10);
     }
 
-    doc.save(`SmartRFID_Report_${reportType}.pdf`);
+    doc.save(`Report_${reportType}.pdf`);
   };
 
   const handleExportExcel = () => {
     if (reportData.length === 0) return alert("ไม่มีข้อมูล");
     const excelData = reportData.map(item => ({
-        "Date/Time": item.date,
-        "Product Name": item.product,
+        "วัน/เวลา": new Date(item.date).toLocaleString('th-TH'),
+        "ชื่อสินค้า": item.product,
         "RFID Code": item.rfid,
-        "Status": item.status
+        "สถานะ": item.status
     }));
     const worksheet = XLSX.utils.json_to_sheet(excelData);
-    const wscols = [{ wch: 20 }, { wch: 30 }, { wch: 35 }, { wch: 15 }];
+    const wscols = [{ wch: 22 }, { wch: 30 }, { wch: 35 }, { wch: 15 }];
     worksheet['!cols'] = wscols;
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
@@ -204,8 +215,8 @@ const Reports: React.FC = () => {
                     ผลลัพธ์: {reportData.length} รายการ
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button variant="contained" color="error" startIcon={<PictureAsPdf />} onClick={handleExportPDF}>
-                        PDF (ภาษาไทย)
+                    <Button variant="outlined" color="error" startIcon={<PictureAsPdf />} onClick={handleExportPDF}>
+                        PDF (Thai Font)
                     </Button>
                     <Button variant="outlined" color="success" startIcon={<TableView />} onClick={handleExportExcel}>
                         Excel
@@ -217,8 +228,8 @@ const Reports: React.FC = () => {
                 <Table stickyHeader size="small">
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>วันที่/เวลา</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>สินค้า</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>วัน/เวลา</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>ชื่อสินค้า</TableCell>
                             <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>RFID Code</TableCell>
                             <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>สถานะ</TableCell>
                         </TableRow>
@@ -226,7 +237,7 @@ const Reports: React.FC = () => {
                     <TableBody>
                         {reportData.map((row, idx) => (
                             <TableRow key={idx} hover>
-                                <TableCell>{row.date}</TableCell>
+                                <TableCell>{new Date(row.date).toLocaleString('th-TH')}</TableCell>
                                 <TableCell sx={{ fontWeight: 500 }}>{row.product}</TableCell>
                                 <TableCell sx={{ fontFamily: 'monospace', color: '#64748b' }}>{row.rfid}</TableCell>
                                 <TableCell>
