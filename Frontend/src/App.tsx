@@ -18,7 +18,8 @@ import Users from './pages/Users';
 import Linen from './pages/Linen';
 import Requests from './pages/Requests';
 import Discard from './pages/Discard';
-import Laundry from './pages/Laundry'; // ✅ 1. Import หน้า Laundry
+import Laundry from './pages/Laundry'; 
+import Reports from './pages/Reports'; // ✅ 1. Import หน้า Reports
 
 const ComingSoon = ({ title }: { title: string }) => (
   <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
@@ -87,10 +88,11 @@ function App() {
             <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
             <Route path="/requests" element={<ProtectedRoute><Requests /></ProtectedRoute>} />
             
-            {/* ✅ 2. เพิ่ม Route สำหรับระบบซักรีด */}
             <Route path="/laundry" element={<ProtectedRoute><Laundry /></ProtectedRoute>} />
-            
             <Route path="/discard" element={<ProtectedRoute><Discard /></ProtectedRoute>} />
+
+            {/* ✅ 2. เพิ่ม Route สำหรับหน้า Reports */}
+            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
             
             <Route path="/rfid-connect" element={<ProtectedRoute><ComingSoon title="เชื่อมต่อ RFID" /></ProtectedRoute>} />
             <Route path="/readers" element={<ProtectedRoute><ComingSoon title="เพิ่มอุปกรณ์ RFID" /></ProtectedRoute>} />
