@@ -1,3 +1,4 @@
+
 ```
 RFID
 ├─ architecture.md
@@ -211,6 +212,8 @@ RFID
 │     └─ EmailService.cs
 ├─ docker-compose.yml
 ├─ Frontend
+│  ├─ .env
+│  ├─ Dockerfile
 │  ├─ eslint.config.js
 │  ├─ index.html
 │  ├─ package-lock.json
@@ -256,4 +259,4 @@ RFID
 ├─ README.md
 └─ RFID.sln
 
-```
+``

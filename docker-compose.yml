@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 1. Database Service (PostgreSQL)
+  # 1. Database
   db:
     image: postgres:15-alpine
     container_name: linen_postgres_db
@@ -14,8 +14,10 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     restart: always
+    networks:
+      - linen_network
 
-  # 2. Database Management Tool (pgAdmin 4)
+  # 2. pgAdmin (เพิ่ม Volume ให้จำค่า Server แล้ว)
   pgadmin:
     image: dpage/pgadmin4
     container_name: linen_pgadmin
@@ -23,10 +25,59 @@ services:
       - PGADMIN_DEFAULT_EMAIL=admin@linen.com
       - PGADMIN_DEFAULT_PASSWORD=123456
     ports:
-      - "5050:80" # เข้าผ่าน browser ด้วย port 5050
+      - "5050:80"
+    volumes:
+      # 👇 เพิ่มบรรทัดนี้ครับ: จะสร้างโฟลเดอร์ pgadmin-data ขึ้นมาเก็บค่า config
+      - ./pgadmin-data:/var/lib/pgadmin
     depends_on:
-      - db # บอกให้รัน db ให้เสร็จก่อนค่อยรันตัวนี้
+      - db
     restart: always
+    networks:
+      - linen_network
+
+  # 3. Backend API
+  api:
+    build: ./Backend
+    container_name: linen_api
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=linen_db;Username=admin;Password=123456;
+      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "5134:8080"
+    depends_on:
+      - db
+    restart: always
+    networks:
+      - linen_network
+
+  # 4. Frontend (ตั้งค่า Proxy /api เรียบร้อย)
+  frontend:
+    build: ./Frontend
+    container_name: linen_frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./Frontend:/app
+      - /app/node_modules
+    environment:
+      # ใช้ /api เพื่อให้วิ่งผ่าน Proxy ของ Vite (แก้ปัญหา Login ไม่ได้)
+      - VITE_API_URL=/api
+    restart: always
+    networks:
+      - linen_network
+
+  # 5. Cloudflare Tunnel (โหมดไม่มีโดเมน)
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: linen_tunnel
+    restart: always
+    command: tunnel --url http://linen_frontend:5173
+    networks:
+      - linen_network
 
 volumes:
   pg_data:
+
+networks:
+  linen_network:
+    driver: bridge

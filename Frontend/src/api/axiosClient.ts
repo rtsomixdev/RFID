@@ -1,18 +1,20 @@
 import axios from 'axios';
 
+// ไม่ต้องเช็ค localhost หรือ domain แล้ว ให้ใช้ '/api' อย่างเดียวเลย
+// เดี๋ยว Vite Proxy จะจัดการเลือกทางไปต่อให้เอง
 const axiosClient = axios.create({
-  baseURL: 'http://localhost:5134/api', // URL ของ .NET Backend
+  baseURL: '/api', 
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// เพิ่ม Interceptor เผื่อไว้ดักจับ Error (เช่น 401 Unauthorized)
+// Interceptor (คงเดิมไว้)
 axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      window.location.href = '/login'; // ถ้า Session หลุดให้ดีดกลับหน้า Login
+      // window.location.href = '/login'; // เปิดใช้อันนี้ถ้าต้องการให้ดีด log out
     }
     return Promise.reject(error);
   }
