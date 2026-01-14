@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { 
   Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, 
-  Toolbar, Box, Collapse, Typography, Avatar, Divider, IconButton
+  Toolbar, Box, Collapse, Typography, Avatar, IconButton
 } from '@mui/material';
 import { 
   Home, ShowChart, EditNote, ExpandLess, ExpandMore,
-  LocalHospital, Checkroom, Business, Person, Assignment, Settings, Sensors,
-  CameraAlt, SystemUpdate, DeleteForever, Logout, ChevronRight, LocalLaundryService,
-  Summarize // ✅ เพิ่ม Import ไอคอนสำหรับ Report
+  Assignment, Settings, Sensors,
+  DeleteForever, Logout, ChevronRight, LocalLaundryService,
+  Summarize, // Report Icon
+  LocalShipping // ✅ เพิ่ม Import ไอคอนรถบรรทุกสำหรับ Transport
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
@@ -141,7 +142,14 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
             </ListItemButton>
           </ListItem>
 
-          {/* เมนูระบบซักรีด */}
+          {/* ✅ เมนูระบบขนส่ง (เพิ่มใหม่) */}
+          <ListItem disablePadding>
+            <ListItemButton sx={menuButtonStyle('/transport')} onClick={() => handleNavigate('/transport')}>
+              <ListItemIcon sx={{ color: 'inherit', minWidth: 35 }}><LocalShipping fontSize="small" /></ListItemIcon>
+              <ListItemText primary="ระบบขนส่ง (Transport)" primaryTypographyProps={{ fontSize: '0.95rem', fontWeight: 500 }} />
+            </ListItemButton>
+          </ListItem>
+
           <ListItem disablePadding>
             <ListItemButton sx={menuButtonStyle('/laundry')} onClick={() => handleNavigate('/laundry')}>
               <ListItemIcon sx={{ color: 'inherit', minWidth: 35 }}><LocalLaundryService fontSize="small" /></ListItemIcon>
@@ -149,7 +157,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
             </ListItemButton>
           </ListItem>
           
-           {/* เมนูแจ้งชำรุด */}
            <ListItem disablePadding>
             <ListItemButton sx={menuButtonStyle('/discard')} onClick={() => handleNavigate('/discard')}>
               <ListItemIcon sx={{ color: 'inherit', minWidth: 35 }}><DeleteForever fontSize="small" /></ListItemIcon>
@@ -157,7 +164,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
             </ListItemButton>
           </ListItem>
 
-          {/* ✅ เมนูรายงาน (เพิ่มใหม่) */}
           <ListItem disablePadding>
             <ListItemButton sx={menuButtonStyle('/reports')} onClick={() => handleNavigate('/reports')}>
               <ListItemIcon sx={{ color: 'inherit', minWidth: 35 }}><Summarize fontSize="small" /></ListItemIcon>

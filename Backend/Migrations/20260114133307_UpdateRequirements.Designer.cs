@@ -3,6 +3,7 @@ using System;
 using Backend.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Backend.Migrations
 {
     [DbContext(typeof(LinenDbContext))]
-    partial class LinenDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260114133307_UpdateRequirements")]
+    partial class UpdateRequirements
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -176,10 +179,6 @@ namespace Backend.Migrations
                         .HasColumnType("text")
                         .HasColumnName("activity_type");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("created_at");
-
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");
@@ -196,10 +195,6 @@ namespace Backend.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("room_id");
 
-                    b.Property<string>("StatusAfter")
-                        .HasColumnType("text")
-                        .HasColumnName("status_after");
-
                     b.Property<DateTime?>("Timestamp")
                         .HasColumnType("timestamp without time zone")
                         .HasColumnName("timestamp");
@@ -213,55 +208,6 @@ namespace Backend.Migrations
                     b.HasIndex("RoomId");
 
                     b.ToTable("linen_logs");
-                });
-
-            modelBuilder.Entity("Backend.Models.Notification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("notification_id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_read");
-
-                    b.Property<string>("LinkUrl")
-                        .HasColumnType("text")
-                        .HasColumnName("link_url");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("message");
-
-                    b.Property<int?>("RoleId")
-                        .HasColumnType("integer")
-                        .HasColumnName("role_id");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("title");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("type");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("integer")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("notifications", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Models.Product", b =>
@@ -333,10 +279,6 @@ namespace Backend.Migrations
                     b.Property<bool?>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
-
-                    b.Property<string>("Location")
-                        .HasColumnType("text")
-                        .HasColumnName("location");
 
                     b.Property<string>("OperatingDays")
                         .HasColumnType("text")
@@ -411,10 +353,6 @@ namespace Backend.Migrations
                     b.Property<int>("RequestedByUserId")
                         .HasColumnType("integer")
                         .HasColumnName("requested_by_user_id");
-
-                    b.Property<string>("Status")
-                        .HasColumnType("text")
-                        .HasColumnName("status");
 
                     b.Property<int>("TargetWardId")
                         .HasColumnType("integer")

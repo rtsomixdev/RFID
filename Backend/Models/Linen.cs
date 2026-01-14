@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace Backend.Models;
 
-// ✅ แนะนำให้สร้าง Enum ไว้ใช้คุม Status ใน Controller (วางไว้ข้างบน หรือแยกไฟล์ก็ได้)
+// ✅ Enum นี้ดีแล้วครับ เก็บไว้ใช้กับ Controller ได้เลย
 public enum LinenStatus 
 {
     Available,      // พร้อมใช้
@@ -34,7 +34,7 @@ public partial class Linen
     public int ProductId { get; set; }
 
     [Column("vendor_id")]
-    public int? VendorId { get; set; } // เจ้าของผ้า หรือ ผู้ผลิต
+    public int? VendorId { get; set; }
 
     [Column("hospital_id")]
     public int HospitalId { get; set; }
@@ -43,15 +43,13 @@ public partial class Linen
     public DateTime RegisteredAt { get; set; } = DateTime.Now;
 
     // ---------------------------------------------------------
-    // ⭐ ส่วนที่เพิ่มใหม่เพื่อรองรับระบบซักรีด (Laundry) ⭐
+    // ⭐ ส่วนที่รองรับระบบซักรีด (Laundry) ⭐
     // ---------------------------------------------------------
 
-    // สถานะปัจจุบัน (เก็บเป็น String เพื่อให้อ่านใน DB ง่าย หรือจะเก็บเป็น Int ก็ได้)
-    // Values: "Available", "Washing", "Damaged", etc.
     [Column("status")]
     public string Status { get; set; } = "Available"; 
 
-    // จำนวนรอบการซัก (Wash Cycle) -> บวกเพิ่มทุกครั้งที่รับผ้ากลับ
+    // จำนวนรอบการซักปัจจุบัน
     [Column("wash_count")]
     public int WashCount { get; set; } = 0;
 
@@ -60,12 +58,25 @@ public partial class Linen
     public DateTime? LastWashDate { get; set; }
 
     // ---------------------------------------------------------
+    // ⭐ ส่วนที่เพิ่มใหม่ตาม Requirement อาจารย์ ⭐
+    // ---------------------------------------------------------
+
+    // [New] เกณฑ์หมดอายุของผ้าชิ้นนี้ (เช่น 50 ครั้ง, 100 ครั้ง)
+    // ระบบจะเช็คว่าถ้า WashCount >= MaxWashCount ให้แจ้งเตือนหมดอายุ
+    [Column("max_wash_count")]
+    public int MaxWashCount { get; set; } = 100; 
+
+    // [New] สถานที่ปัจจุบัน (เอาไว้บอกว่าผ้าอยู่ที่ไหน เช่น "Stock", "Ward 3", "Laundry")
+    [Column("current_location")]
+    public string CurrentLocation { get; set; } = "Stock";
+
+    // ---------------------------------------------------------
 
     [Column("updated_at")]
     public DateTime? UpdatedAt { get; set; }
 
     [Column("is_active")]
-    public bool IsActive { get; set; } = true;
+    public bool IsActive { get; set; } = true; // true=ปกติ, false=จำหน่ายออก/ชำรุด
 
     // --- Navigation Properties ---
     

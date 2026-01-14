@@ -6,13 +6,15 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
-    allowedHosts: true, // อันเดิมที่คุณเพิ่งใส่
-    // 👇 เพิ่มส่วนนี้เข้าไปครับ
+    allowedHosts: true, 
     proxy: {
       '/api': {
-        target: 'http://linen_api:8080', // ส่งไปหา Container Backend โดยตรง
+        // 👇 แก้ตรงนี้: เปลี่ยนจาก http://linen_api:8080 เป็น localhost
+        // ⚠️ สำคัญ: เลข 5134 ต้องตรงกับที่ขึ้นใน Terminal ตอนคุณรัน 'dotnet watch run'
+        // (ถ้ามันขึ้น port อื่น เช่น 5000, 5200 ให้แก้เลขตรงนี้ตามครับ)
+        target: 'http://localhost:5134', 
         changeOrigin: true,
-        secure: false,
+        secure: false, // ใส่ไว้เผื่อ Backend เป็น HTTPS (Self-signed) จะได้ไม่ error
       }
     }
   },

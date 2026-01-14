@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Backend.Models;
+using System.Threading.Tasks;
+using System.Linq; // 👈 ต้องมีบรรทัดนี้ ไม่งั้น .Select() จะแดง
 
 namespace Backend.Controllers
 {
@@ -9,12 +11,47 @@ namespace Backend.Controllers
     public class ReaderController : ControllerBase
     {
         private readonly LinenDbContext _context;
-        public ReaderController(LinenDbContext context) => _context = context;
 
-        [HttpGet] public async Task<ActionResult<IEnumerable<Reader>>> Get() => await _context.Readers.ToListAsync();
-        [HttpGet("{id}")] public async Task<ActionResult<Reader>> Get(int id) { var item = await _context.Readers.FindAsync(id); return item == null ? NotFound() : item; }
-        [HttpPost] public async Task<ActionResult<Reader>> Post(Reader item) { _context.Readers.Add(item); await _context.SaveChangesAsync(); return CreatedAtAction(nameof(Get), new { id = item.ReaderId }, item); }
-        [HttpPut("{id}")] public async Task<IActionResult> Put(int id, Reader item) { if (id != item.ReaderId) return BadRequest(); _context.Entry(item).State = EntityState.Modified; await _context.SaveChangesAsync(); return NoContent(); }
-        [HttpDelete("{id}")] public async Task<IActionResult> Delete(int id) { var item = await _context.Readers.FindAsync(id); if (item == null) return NotFound(); _context.Readers.Remove(item); await _context.SaveChangesAsync(); return NoContent(); }
+        public ReaderController(LinenDbContext context)
+        {
+            _context = context;
+        }
+
+        // GET: api/Reader
+        [HttpGet]
+        public async Task<IActionResult> GetReaders()
+        {
+            // ✅ แก้ไข: เลือกส่งเฉพาะ Id, Name, Location (ตัด TimeOnly ทิ้ง)
+            var readers = await _context.Readers
+                .Where(r => r.IsActive == true)
+                .OrderBy(r => r.ReaderName)
+                .Select(r => new 
+                {
+                    r.ReaderId,
+                    r.ReaderName,
+                    Location = r.Location ?? "-" // กันค่าว่าง
+                })
+                .ToListAsync();
+
+            return Ok(readers);
+        }
+
+        // GET: api/Reader/5
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetReader(int id)
+        {
+            var reader = await _context.Readers
+                .Where(r => r.ReaderId == id)
+                .Select(r => new 
+                {
+                    r.ReaderId,
+                    r.ReaderName,
+                    Location = r.Location ?? "-"
+                })
+                .FirstOrDefaultAsync();
+
+            if (reader == null) return NotFound();
+            return Ok(reader);
+        }
     }
 }

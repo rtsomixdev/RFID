@@ -1,7 +1,5 @@
-
 ```
 RFID
-├─ architecture.md
 ├─ Backend
 │  ├─ appsettings.Development.json
 │  ├─ appsettings.json
@@ -145,6 +143,7 @@ RFID
 │  │  ├─ UserController.cs
 │  │  ├─ VendorController.cs
 │  │  └─ WardController.cs
+│  ├─ Dockerfile
 │  ├─ Migrations
 │  │  ├─ 20260105105122_InitialCreate.cs
 │  │  ├─ 20260105105122_InitialCreate.Designer.cs
@@ -256,7 +255,22 @@ RFID
 │  ├─ tsconfig.json
 │  ├─ tsconfig.node.json
 │  └─ vite.config.ts
+├─ pgadmin-data
+│  ├─ azurecredentialcache
+│  ├─ pgadmin4.db
+│  ├─ sessions
+│  │  ├─ 0688c59a-d6a9-4007-835f-afa9464bc503
+│  │  ├─ 0cc50b7b-83b6-46dc-a151-0a3af6fa9fb0
+│  │  ├─ 2a9b2821-bf5f-4618-b748-cf00186a615e
+│  │  ├─ 2b534bbe-b0c5-460e-ad66-0dfe40bb55f8
+│  │  ├─ 3e57cf44-b7f6-4037-8a1a-88536514c300
+│  │  ├─ 9da5e0b3-23fe-4be1-9a97-f5334a494c9e
+│  │  ├─ a5d9e157-29a9-49dc-bed9-a92b7b5030f9
+│  │  ├─ ce68f4f0-328f-49f9-b806-e2b3375650d4
+│  │  └─ d908c828-60f8-48d3-a252-26fef641828e
+│  └─ storage
+│     └─ admin_linen.com
 ├─ README.md
 └─ RFID.sln
 
-``
+```

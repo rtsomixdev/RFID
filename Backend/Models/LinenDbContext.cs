@@ -22,11 +22,17 @@ public partial class LinenDbContext : DbContext
     public virtual DbSet<RequestStatus> RequestStatuses { get; set; }
     public virtual DbSet<Role> Roles { get; set; }
     public virtual DbSet<Room> Rooms { get; set; }
-    public virtual DbSet<SystemLog> SystemLogs { get; set; } // ✅ เพิ่มตาราง Log
+    public virtual DbSet<SystemLog> SystemLogs { get; set; }
     public virtual DbSet<Title> Titles { get; set; }
     public virtual DbSet<User> Users { get; set; }
     public virtual DbSet<Vendor> Vendors { get; set; }
     public virtual DbSet<Ward> Wards { get; set; }
+
+    // ✅ Setting (ที่มีอยู่แล้ว)
+    public virtual DbSet<Setting> Settings { get; set; }
+
+    // ✅ Notification (เพิ่มใหม่ตามที่ Error แจ้งเตือน)
+    public virtual DbSet<Notification> Notifications { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -57,14 +63,19 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
         });
 
-        // 4. Linen (✅ Clean Code: ใช้ Attribute ใน Model แทน)
+        // 4. Linen
         modelBuilder.Entity<Linen>(entity => {
             entity.HasKey(e => e.LinenId);
+            // เพิ่ม Mapping ให้ครบตาม Migration ล่าสุด
+            entity.Property(e => e.LinenId).HasColumnName("linen_id");
+            entity.Property(e => e.CurrentLocation).HasColumnName("current_location");
+            entity.Property(e => e.MaxWashCount).HasColumnName("max_wash_count");
         });
 
-        // 5. LinenLog (✅ Clean Code: ใช้ Attribute ใน Model แทน)
+        // 5. LinenLog
         modelBuilder.Entity<LinenLog>(entity => {
             entity.HasKey(e => e.LogId);
+            entity.Property(e => e.LogId).HasColumnName("log_id");
         });
 
         // 6. Product
@@ -89,6 +100,8 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.ReaderName).HasColumnName("reader_name");
             entity.Property(e => e.IpAddress).HasColumnName("ip_address");
             entity.Property(e => e.ReaderType).HasColumnName("reader_type");
+            entity.Property(e => e.ReaderFunction).HasColumnName("reader_function"); 
+            entity.Property(e => e.Location).HasColumnName("location"); // ✅ เพิ่ม Location
             entity.Property(e => e.InstalledAtRoomId).HasColumnName("installed_at_room_id");
             entity.Property(e => e.OperatingDays).HasColumnName("operating_days");
             entity.Property(e => e.OperatingStartTime).HasColumnName("operating_start_time");
@@ -96,14 +109,16 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.IsActive).HasColumnName("is_active");
         });
 
-        // 8. Request (✅ Clean Code: ใช้ Attribute ใน Model แทน)
+        // 8. Request
         modelBuilder.Entity<Request>(entity => {
             entity.HasKey(e => e.RequestId);
+            entity.Property(e => e.RequestId).HasColumnName("request_id");
         });
 
-        // 9. RequestItem (✅ Clean Code: ใช้ Attribute ใน Model แทน)
+        // 9. RequestItem
         modelBuilder.Entity<RequestItem>(entity => {
             entity.HasKey(e => e.ItemId);
+            entity.Property(e => e.ItemId).HasColumnName("item_id");
         });
 
         // 10. RequestStatus
@@ -131,10 +146,10 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.WardId).HasColumnName("ward_id");
         });
 
-        // 13. SystemLog (✅ เพิ่ม Mapping ใหม่)
+        // 13. SystemLog
         modelBuilder.Entity<SystemLog>(entity => {
             entity.HasKey(e => e.LogId);
-            // เชื่อม FK อัตโนมัติจาก Attribute ใน Model
+            entity.Property(e => e.LogId).HasColumnName("log_id");
         });
 
         // 14. Title
@@ -178,9 +193,35 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.RegistrationNumber).HasColumnName("registration_number");
         });
 
-        // 17. Ward (✅ Clean Code: ใช้ Attribute ใน Model แทน)
+        // 17. Ward
         modelBuilder.Entity<Ward>(entity => {
             entity.HasKey(e => e.WardId);
+            entity.Property(e => e.WardId).HasColumnName("ward_id");
+        });
+
+        // ✅ Mapping สำหรับ Setting
+        modelBuilder.Entity<Setting>(entity => {
+            entity.ToTable("settings");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("setting_id");
+            entity.Property(e => e.Key).HasColumnName("setting_key");
+            entity.Property(e => e.Value).HasColumnName("setting_value");
+            entity.Property(e => e.Description).HasColumnName("description");
+        });
+
+        // ✅ Mapping สำหรับ Notification (สำคัญมาก)
+        modelBuilder.Entity<Notification>(entity => {
+            entity.ToTable("notifications");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("notification_id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.RoleId).HasColumnName("role_id");
+            entity.Property(e => e.Title).HasColumnName("title");
+            entity.Property(e => e.Message).HasColumnName("message");
+            entity.Property(e => e.Type).HasColumnName("type");
+            entity.Property(e => e.IsRead).HasColumnName("is_read");
+            entity.Property(e => e.LinkUrl).HasColumnName("link_url");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
         });
 
         OnModelCreatingPartial(modelBuilder);
