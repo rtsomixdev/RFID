@@ -4,16 +4,15 @@ import {
   TableBody, TableCell, TableContainer, TableHead, TableRow, 
   IconButton, Select, MenuItem, FormControl, InputLabel, Chip,
   Stack, ToggleButton, ToggleButtonGroup, Card, CardContent, 
-  FormHelperText, Tooltip, Checkbox, Fade 
+  FormHelperText, Tooltip 
 } from '@mui/material';
 import { 
   CheckCircle, Cancel, Send, AccessTime, Autorenew, 
-  Assignment, AddCircle, Warning, ListAlt, Inventory2, Delete, 
-  DeleteSweep
+  Assignment, AddCircle, Warning, ListAlt, Inventory2
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
-import { sendNotification } from '../utils/notificationUtil'; // ✅ Import Utility
+import { sendNotification } from '../utils/notificationUtil'; 
 
 const Requests: React.FC = () => {
   // --- States ---
@@ -26,9 +25,6 @@ const Requests: React.FC = () => {
   const [wards, setWards] = useState<any[]>([]);
   const [reasons, setReasons] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
-
-  // Selection
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   // Stock
   const [currentStock, setCurrentStock] = useState<number | null>(null);
@@ -52,8 +48,10 @@ const Requests: React.FC = () => {
     if (userStr) {
         const currentUser = JSON.parse(userStr);
         setUser(currentUser);
-        const canApprove = currentUser.roleId === 1 || currentUser.roleId === 2;
-        setIsAdmin(canApprove); 
+        // Role 1 = Admin (Can Approve/Reject)
+        const adminRole = currentUser.roleId === 1 || currentUser.roleId === 2; // ให้สิทธิ์ทั้ง Admin และ Head ในการอนุมัติ
+        setIsAdmin(adminRole); 
+
         if (currentUser.wardId) {
             setFormData(prev => ({ ...prev, wardId: currentUser.wardId }));
         }
@@ -102,60 +100,6 @@ const Requests: React.FC = () => {
     } catch (err) { console.error(err); }
   };
 
-  // --- Handlers ---
-  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
-      const newSelecteds = requests.map((n) => n.requestId);
-      setSelectedIds(newSelecteds);
-    } else {
-      setSelectedIds([]);
-    }
-  };
-
-  const handleClick = (event: React.MouseEvent<unknown>, id: number) => {
-    const selectedIndex = selectedIds.indexOf(id);
-    let newSelected: number[] = [];
-    if (selectedIndex === -1) newSelected = newSelected.concat(selectedIds, id);
-    else if (selectedIndex === 0) newSelected = newSelected.concat(selectedIds.slice(1));
-    else if (selectedIndex === selectedIds.length - 1) newSelected = newSelected.concat(selectedIds.slice(0, -1));
-    else if (selectedIndex > 0) newSelected = newSelected.concat(selectedIds.slice(0, selectedIndex), selectedIds.slice(selectedIndex + 1));
-    setSelectedIds(newSelected);
-  };
-
-  const handleBulkDelete = async () => {
-    Swal.fire({
-      title: 'ยืนยันการลบหมู่?',
-      text: `ต้องการลบ ${selectedIds.length} รายการที่เลือกใช่หรือไม่?`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      confirmButtonText: 'ยืนยันลบ',
-      cancelButtonText: 'ยกเลิก'
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        try {
-          const deletePromises = selectedIds.map(id => axiosClient.delete(`/Request/${id}`));
-          await Promise.all(deletePromises);
-          
-          Swal.fire({
-            icon: 'success',
-            title: 'ลบสำเร็จ!',
-            text: `ลบ ${selectedIds.length} รายการเรียบร้อยแล้ว`,
-            timer: 1500,
-            showConfirmButton: false
-          });
-          
-          setSelectedIds([]);
-          if(formData.productId) checkStock(parseInt(formData.productId));
-          fetchRequests(); 
-        } catch (err: any) {
-          Swal.fire('Error', 'เกิดข้อผิดพลาดในการลบ', 'error');
-          fetchRequests();
-        }
-      }
-    });
-  };
-
   const handleSubmit = async () => {
     if (!user || !user.userId) return Swal.fire('Error', 'ไม่พบข้อมูลผู้ใช้งาน', 'error');
     if (!formData.productId || !formData.quantity || !formData.wardId) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
@@ -191,7 +135,6 @@ const Requests: React.FC = () => {
           showConfirmButton: false
       });
 
-      // 🔔 Notify Admin (Role ID 1) about new request
       const typeText = typeId === 1 ? 'เบิกผ้า' : 'เปลี่ยนผ้า';
       const productName = products.find(p => p.productId === productId)?.productName || 'สินค้า';
       
@@ -200,8 +143,8 @@ const Requests: React.FC = () => {
           `${user.firstName} ได้ขอ${typeText} ${productName} จำนวน ${quantity} ชิ้น`,
           'INFO',
           '/requests',
-          undefined, // No specific user
-          1 // Send to Admin Group
+          undefined, 
+          1 
       );
 
       setFormData(prev => ({ ...prev, quantity: '', damageReasonId: '' }));
@@ -243,7 +186,6 @@ const Requests: React.FC = () => {
                         showConfirmButton: false
                     });
                     
-                    // 🔔 Notify the Requester about the decision
                     const statusText = isApprove ? 'ได้รับการอนุมัติแล้ว' : 'ถูกปฏิเสธ';
                     const notiType = isApprove ? 'SUCCESS' : 'DANGER'; 
 
@@ -252,7 +194,7 @@ const Requests: React.FC = () => {
                         `คำร้องของคุณ${statusText} โดย ${user.firstName}`,
                         notiType,
                         '/requests',
-                        currentReq.requestedByUserId // Send to the specific user who requested
+                        currentReq.requestedByUserId 
                     );
 
                     fetchRequests(); 
@@ -261,46 +203,6 @@ const Requests: React.FC = () => {
                 Swal.fire('Error', 'ไม่สามารถบันทึกสถานะได้', 'error'); 
             }
         }
-    });
-  };
-
-  const handleDelete = async (reqId: number, code: string) => {
-    Swal.fire({
-      title: 'ยืนยันการลบ?',
-      text: `ต้องการลบ ${code} ใช่หรือไม่?`,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      confirmButtonText: 'ลบรายการ',
-      cancelButtonText: 'ยกเลิก'
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        try {
-          await axiosClient.delete(`/Request/${reqId}`);
-          
-          Swal.fire({
-              icon: 'success',
-              title: 'ลบรายการเรียบร้อย',
-              timer: 1500,
-              showConfirmButton: false
-          });
-
-          // 🔔 Notify Admin about deletion (Audit)
-          await sendNotification(
-            "มีการลบคำร้อง", 
-            `คำร้องเลขที่ ${code} ถูกลบออกจากระบบ`,
-            'WARNING',
-            '/requests',
-            undefined,
-            1 // Send to Admin
-          );
-
-          if(formData.productId) checkStock(parseInt(formData.productId));
-          fetchRequests();
-        } catch (err: any) {
-          Swal.fire('Error', 'ไม่สามารถลบรายการได้', 'error');
-        }
-      }
     });
   };
 
@@ -452,34 +354,14 @@ const Requests: React.FC = () => {
                 </Typography>
                 <Chip label={`${requests.length} รายการ`} size="small" color="default" />
             </Box>
-
-            <Fade in={selectedIds.length > 0}>
-                <Button 
-                    variant="contained" 
-                    color="error" 
-                    startIcon={<DeleteSweep />}
-                    onClick={handleBulkDelete}
-                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 'bold' }}
-                >
-                    ลบ {selectedIds.length} รายการที่เลือก
-                </Button>
-            </Fade>
         </Box>
         
         <TableContainer>
             <Table>
                 <TableHead sx={{ bgcolor: '#f1f5f9' }}>
                     <TableRow>
-                        <TableCell padding="checkbox">
-                            <Checkbox
-                                color="primary"
-                                indeterminate={selectedIds.length > 0 && selectedIds.length < requests.length}
-                                checked={requests.length > 0 && selectedIds.length === requests.length}
-                                onChange={handleSelectAll}
-                            />
-                        </TableCell>
                         <TableCell sx={{ fontWeight: 'bold', width: '15%' }}>เลขที่ / วันที่</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', width: '15%' }}>ผู้เบิก / แผนก</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: '20%' }}>ผู้เบิก / แผนก</TableCell>
                         <TableCell sx={{ fontWeight: 'bold', width: '35%' }}>รายการสินค้า</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 'bold', width: '15%' }}>สถานะ</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 'bold', width: '15%' }}>จัดการ</TableCell>
@@ -487,24 +369,10 @@ const Requests: React.FC = () => {
                 </TableHead>
                 <TableBody>
                     {requests.length === 0 ? (
-                        <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5, color: '#94a3b8' }}>ไม่พบข้อมูลคำร้อง</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={5} align="center" sx={{ py: 5, color: '#94a3b8' }}>ไม่พบข้อมูลคำร้อง</TableCell></TableRow>
                     ) : requests.map((req) => {
-                        const isSelected = selectedIds.indexOf(req.requestId) !== -1;
                         return (
-                        <TableRow 
-                            key={req.requestId} 
-                            hover 
-                            selected={isSelected} 
-                            sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                        >
-                            <TableCell padding="checkbox">
-                                <Checkbox
-                                    color="primary"
-                                    checked={isSelected}
-                                    onChange={(event) => handleClick(event, req.requestId)}
-                                />
-                            </TableCell>
-
+                        <TableRow key={req.requestId} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                             <TableCell>
                                 <Typography variant="body2" color="primary" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
                                     {req.requestCode}
@@ -552,7 +420,7 @@ const Requests: React.FC = () => {
                             </TableCell>
                             <TableCell align="center">
                                 <Stack direction="row" spacing={1} justifyContent="center">
-                                    {isAdmin && req.currentStatusId === 1 && (
+                                    {isAdmin && req.currentStatusId === 1 ? (
                                         <>
                                             <Tooltip title="อนุมัติ">
                                                 <IconButton 
@@ -573,16 +441,9 @@ const Requests: React.FC = () => {
                                                 </IconButton>
                                             </Tooltip>
                                         </>
+                                    ) : (
+                                        <Typography variant="caption" color="textSecondary">-</Typography>
                                     )}
-                                    <Tooltip title="ลบรายการ">
-                                        <IconButton 
-                                            size="small" 
-                                            sx={{ color: '#ef4444', bgcolor: '#fef2f2', border: '1px solid #ef4444', '&:hover':{ bgcolor: '#fee2e2' } }}
-                                            onClick={() => handleDelete(req.requestId, req.requestCode)}
-                                        >
-                                            <Delete fontSize="small" />
-                                        </IconButton>
-                                    </Tooltip>
                                 </Stack>
                             </TableCell>
                         </TableRow>

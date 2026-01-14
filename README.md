@@ -262,12 +262,15 @@ RFID
 │  │  │  ├─ Notifications.tsx
 │  │  │  ├─ Reports.tsx
 │  │  │  ├─ Requests.tsx
+│  │  │  ├─ RfidConnect.tsx
 │  │  │  ├─ Settings.tsx
 │  │  │  ├─ Transport.tsx
 │  │  │  ├─ Users.tsx
 │  │  │  └─ Vendor.tsx
-│  │  └─ theme
-│  │     └─ theme.ts
+│  │  ├─ theme
+│  │  │  └─ theme.ts
+│  │  └─ utils
+│  │     └─ notificationUtil.ts
 │  ├─ tsconfig.app.json
 │  ├─ tsconfig.json
 │  ├─ tsconfig.node.json
@@ -278,6 +281,7 @@ RFID
 │  ├─ sessions
 │  │  ├─ 0688c59a-d6a9-4007-835f-afa9464bc503
 │  │  ├─ 0cc50b7b-83b6-46dc-a151-0a3af6fa9fb0
+│  │  ├─ 1f182243-7dea-4feb-971b-9b34886a1de4
 │  │  ├─ 2a9b2821-bf5f-4618-b748-cf00186a615e
 │  │  ├─ 2b534bbe-b0c5-460e-ad66-0dfe40bb55f8
 │  │  ├─ 3e57cf44-b7f6-4037-8a1a-88536514c300

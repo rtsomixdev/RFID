@@ -22,9 +22,10 @@ import Laundry from './pages/Laundry';
 import Reports from './pages/Reports';
 import Transport from './pages/Transport';
 import Settings from './pages/Settings';
-
-// ✅ เพิ่ม Import หน้า Notification ที่สร้างใหม่
 import NotificationsPage from './pages/Notifications';
+
+// ✅ Import หน้า RfidConnect ที่สร้างใหม่
+import RfidConnect from './pages/RfidConnect';
 
 const ComingSoon = ({ title }: { title: string }) => (
   <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
@@ -100,10 +101,12 @@ function App() {
             <Route path="/transport" element={<ProtectedRoute><Transport /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
-            {/* ✅ เพิ่ม Route สำหรับหน้า Notification */}
             <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
             
-            <Route path="/rfid-connect" element={<ProtectedRoute><ComingSoon title="เชื่อมต่อ RFID" /></ProtectedRoute>} />
+            {/* ✅ อัปเดต Route: เชื่อมต่อ RFID */}
+            <Route path="/rfid-connect" element={<ProtectedRoute><RfidConnect /></ProtectedRoute>} />
+            
+            {/* หน้าอื่นๆ ที่ยังไม่มี */}
             <Route path="/readers" element={<ProtectedRoute><ComingSoon title="เพิ่มอุปกรณ์ RFID" /></ProtectedRoute>} />
           
           </Route>

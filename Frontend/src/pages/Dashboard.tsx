@@ -7,7 +7,7 @@ import {
   PieChart, Pie, Cell, AreaChart, Area, Legend
 } from 'recharts';
 import { 
-  Inventory, ShoppingCart, Warning, CheckCircle, TrendingUp, Assessment, DonutLarge, InsertChartOutlined, DashboardCustomize
+  Inventory, ShoppingCart, Warning, CheckCircle, TrendingUp, Assessment, DonutLarge, InsertChartOutlined, DashboardCustomize, NewReleases
 } from '@mui/icons-material';
 import axiosClient from '../api/axiosClient';
 
@@ -19,6 +19,7 @@ const COLORS = {
   danger: '#ef4444',      
   info: '#06b6d4',        
   purple: '#8b5cf6',      
+  new: '#0ea5e9', // สีสำหรับ New Item
   textPrimary: '#1e293b',
   textSecondary: '#64748b',
   border: '#e2e8f0',
@@ -38,9 +39,8 @@ const Dashboard: React.FC = () => {
   const [dailyData, setDailyData] = useState<any[]>([]);
   const [requestData, setRequestData] = useState<any[]>([]);
   const [damagedData, setDamagedData] = useState<any[]>([]);
-  
-  // ✅ แก้ไข 1: เปลี่ยนจากตัวแปร Mockup เป็น State เพื่อรอรับค่าจาก API
   const [yearlyData, setYearlyData] = useState<any[]>([]);
+  const [newLinensToday, setNewLinensToday] = useState(0); // ✅ เพิ่ม State นี้
 
   useEffect(() => {
     fetchDashboardData();
@@ -49,19 +49,29 @@ const Dashboard: React.FC = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const statRes = await axiosClient.get('/Dashboard/Stats');
+      
+      // 1. Parallel Requests เพื่อความเร็ว
+      const [statRes, chartRes, monitorRes] = await Promise.all([
+          axiosClient.get('/Dashboard/Stats'),
+          axiosClient.get('/Dashboard/ChartData'),
+          axiosClient.get('/Linen/Monitor/Latest') // ใช้ Endpoint นี้เพื่อดึงรายการผ้ามานับยอดใหม่วันนี้
+      ]);
+
       setStats(statRes.data);
 
-      const chartRes = await axiosClient.get('/Dashboard/ChartData');
+      // 2. จัดการข้อมูลกราฟ
       const data = chartRes.data;
-
       setPieData(data.pieData || []);
       setDailyData(data.dailyData || []);
       setRequestData(data.requestData || []);
       setDamagedData(data.damagedData || []);
-      
-      // ✅ แก้ไข 2: รับค่า yearlyData จาก API มาใส่ State
       setYearlyData(data.yearlyData || []);
+
+      // 3. ✅ คำนวณผ้าใหม่วันนี้ (New Linens Today)
+      const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const linenData = monitorRes.data || [];
+      const newCount = linenData.filter((d: any) => d.createdAt && d.createdAt.startsWith(todayStr)).length;
+      setNewLinensToday(newCount);
 
     } catch (error) {
       console.error("Dashboard Fetch Error:", error);
@@ -148,17 +158,31 @@ const Dashboard: React.FC = () => {
         <Typography variant="h6" fontWeight="bold" sx={{ mb: 3, color: COLORS.textPrimary, display: 'flex', alignItems: 'center', gap: 1 }}>
             <Assessment fontSize="small" color="primary"/> สรุปสถานะรายวัน
         </Typography>
+        
+        {/* ✅ ปรับ Grid ให้รองรับ 5 การ์ด (ใช้ lg={2.4} ไม่ได้ใน Default MUI Grid จึงใช้แบบ wrap หรือผสม) */}
         <Grid container spacing={3}>
-            <Grid item xs={12} sm={6} lg={3}>
+            {/* 1. ✅ New Linens Today */}
+            <Grid item xs={12} sm={6} md={4} lg={2.4}> 
+                <StatCard title="ผ้าใหม่วันนี้" value={newLinensToday} icon={<NewReleases />} color={COLORS.new} />
+            </Grid>
+
+            {/* 2. Total Linens */}
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
                 <StatCard title="ผ้าทั้งหมดในระบบ" value={stats.totalLinens} icon={<Inventory />} color={COLORS.primary} />
             </Grid>
-            <Grid item xs={12} sm={6} lg={3}>
+
+            {/* 3. Pending Requests */}
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
                 <StatCard title="คำร้องรออนุมัติ" value={stats.pendingRequests} icon={<ShoppingCart />} color={COLORS.warning} />
             </Grid>
-            <Grid item xs={12} sm={6} lg={3}>
+
+            {/* 4. Approved Today */}
+            <Grid item xs={12} sm={6} md={6} lg={2.4}>
                 <StatCard title="เบิกจ่ายวันนี้" value={stats.approvedToday} icon={<CheckCircle />} color={COLORS.success} />
             </Grid>
-            <Grid item xs={12} sm={6} lg={3}>
+
+            {/* 5. Damaged Items */}
+            <Grid item xs={12} sm={6} md={6} lg={2.4}>
                 <StatCard title="แจ้งชำรุดสะสม" value={stats.damagedItems} icon={<Warning />} color={COLORS.danger} />
             </Grid>
         </Grid>
@@ -175,7 +199,7 @@ const Dashboard: React.FC = () => {
 
         <Grid container spacing={3}>
             
-            {/* ROW 1 */}
+            {/* ROW 1: Bar Chart & Pie Chart */}
             <Grid item xs={12} lg={8}>
                 <ChartContainer title="การเคลื่อนไหวของผ้า (7 วันล่าสุด)" subtitle="เปรียบเทียบยอดเบิกใช้ vs ส่งซัก" icon={<Assessment fontSize="small" />}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -191,7 +215,6 @@ const Dashboard: React.FC = () => {
                 </ChartContainer>
             </Grid>
 
-            {/* Pie Chart */}
             <Grid item xs={12} lg={4}>
                 <ChartContainer title="สัดส่วนประเภทผ้า" subtitle="จำแนกตามชนิดสินค้า Top 5" icon={<DonutLarge fontSize="small" />}>
                     <Box sx={{ height: '100%', width: '100%', px: 1 }}> 
@@ -223,8 +246,6 @@ const Dashboard: React.FC = () => {
                             </PieChart>
                         </ResponsiveContainer>
                     </Box>
-
-                    {/* Text Overlay */}
                     <Box sx={{ 
                         position: 'absolute', 
                         top: '45%', 
@@ -239,7 +260,7 @@ const Dashboard: React.FC = () => {
                 </ChartContainer>
             </Grid>
 
-            {/* ROW 2 */}
+            {/* ROW 2: Monthly Request & Damaged */}
             <Grid item xs={12} md={6}>
                 <ChartContainer title="สถิติคำร้องรายเดือน" subtitle="ปริมาณคำร้องเบิกผ้าตลอดปี" height={350} icon={<InsertChartOutlined fontSize="small" />}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -274,7 +295,7 @@ const Dashboard: React.FC = () => {
                 </ChartContainer>
             </Grid>
 
-            {/* ROW 3 */}
+            {/* ROW 3: Yearly Overview */}
             <Grid item xs={12}>
                 <ChartContainer title="ภาพรวมการหมุนเวียนตลอดปี" subtitle="Yearly Transaction Volume Overview" height={400} icon={<TrendingUp fontSize="small" />}>
                     <ResponsiveContainer width="100%" height="100%">
