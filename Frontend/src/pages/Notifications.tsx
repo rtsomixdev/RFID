@@ -25,7 +25,7 @@ const NotificationsPage = () => {
     return (
         <Box>
             <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
-                🔔 รายการแจ้งเตือนทั้งหมด
+                 รายการแจ้งเตือนทั้งหมด
             </Typography>
             
             <Paper sx={{ borderRadius: 3 }}>

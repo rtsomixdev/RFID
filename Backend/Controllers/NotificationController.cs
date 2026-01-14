@@ -4,6 +4,13 @@ using Backend.Models;
 
 namespace Backend.Controllers
 {
+    // Class สำหรับรับค่าตอนกด "อ่านทั้งหมด"
+    public class MarkAllRequest
+    {
+        public int UserId { get; set; }
+        public int RoleId { get; set; }
+    }
+
     [Route("api/[controller]")]
     [ApiController]
     public class NotificationController : ControllerBase
@@ -15,15 +22,15 @@ namespace Backend.Controllers
             _context = context;
         }
 
-        // GET: ดึงแจ้งเตือนของ "ฉัน" (User หรือ Role ของฉัน)
+        // GET: api/Notification/MyNotifications?userId=1&roleId=2
         [HttpGet("MyNotifications")]
         public async Task<IActionResult> GetMyNotifications([FromQuery] int userId, [FromQuery] int roleId)
         {
-            // Logic: ดึงของที่ระบุ UserId ตรงตัว OR ของที่ระบุ RoleId ตรงกับฉัน
             var notis = await _context.Notifications
+                // Logic: ดึงของฉัน (UserId ตรง) OR ของแผนกฉัน (RoleId ตรง)
                 .Where(n => n.UserId == userId || (n.UserId == null && n.RoleId == roleId))
                 .OrderByDescending(n => n.CreatedAt)
-                .Take(20) // ดึงมาแค่ 20 อันล่าสุดพอ
+                .Take(20)
                 .ToListAsync();
 
             var unreadCount = await _context.Notifications
@@ -33,7 +40,7 @@ namespace Backend.Controllers
             return Ok(new { notifications = notis, unreadCount });
         }
 
-        // POST: อ่านแล้ว (Mark as Read)
+        // POST: api/Notification/Read/5
         [HttpPost("Read/{id}")]
         public async Task<IActionResult> MarkAsRead(int id)
         {
@@ -45,31 +52,34 @@ namespace Backend.Controllers
             return Ok();
         }
 
-        // POST: อ่านทั้งหมด
+        // POST: api/Notification/ReadAll
         [HttpPost("ReadAll")]
-        public async Task<IActionResult> MarkAllAsRead([FromBody] dynamic data)
+        public async Task<IActionResult> MarkAllAsRead([FromBody] MarkAllRequest data)
         {
-            int userId = data.userId;
-            int roleId = data.roleId;
-
             var notis = await _context.Notifications
-                .Where(n => (n.UserId == userId || (n.UserId == null && n.RoleId == roleId)) && !n.IsRead)
+                .Where(n => (n.UserId == data.UserId || (n.UserId == null && n.RoleId == data.RoleId)) && !n.IsRead)
                 .ToListAsync();
 
-            foreach (var n in notis) n.IsRead = true;
-            await _context.SaveChangesAsync();
+            if (notis.Any())
+            {
+                foreach (var n in notis) n.IsRead = true;
+                await _context.SaveChangesAsync();
+            }
 
-            return Ok();
+            return Ok(new { message = "Marked all as read" });
         }
         
-        // POST: สร้าง Notification (เอาไว้ให้ Controller อื่นเรียกใช้ หรือ Test)
+        // POST: api/Notification/Create (สำหรับ System เรียกใช้)
         [HttpPost("Create")]
-        public async Task<IActionResult> CreateNotification(Notification noti)
+        public async Task<IActionResult> CreateNotification([FromBody] Notification noti)
         {
-            noti.CreatedAt = DateTime.UtcNow.AddHours(7);
+            // แปลงเวลาให้เป็นปัจจุบัน (หรือ +7 ชั่วโมงถ้า Server เป็น UTC แต่เราอยากเก็บ Local time)
+            noti.CreatedAt = DateTime.UtcNow.AddHours(7); 
+            noti.IsRead = false;
+            
             _context.Notifications.Add(noti);
             await _context.SaveChangesAsync();
-            return Ok();
+            return Ok(noti);
         }
     }
 }

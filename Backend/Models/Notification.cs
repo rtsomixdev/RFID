@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Backend.Models
 {
-    [Table("notifications")]
+    [Table("notifications")] // ตั้งชื่อตารางใน DB เป็นตัวเล็ก (Good Practice)
     public class Notification
     {
         [Key]
@@ -28,6 +28,8 @@ namespace Backend.Models
 
         public string? LinkUrl { get; set; } // เผื่อกดแล้วเด้งไปหน้านั้น (เช่น /requests)
 
+        // หมายเหตุ: การบวกเวลาใน Model แบบนี้สะดวกดีแต่อาจมีปัญหาถ้า Server ย้าย Timezone 
+        // แต่ถ้าใช้ในไทยตลอดก็โอเคครับ
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow.AddHours(7);
     }
 }

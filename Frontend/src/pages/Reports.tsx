@@ -11,14 +11,15 @@ import axiosClient from '../api/axiosClient';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { sendNotification } from '../utils/notificationUtil'; // ✅ Import Utility
 
 // *** ไม่ต้อง Import Font ***
 
 interface ReportItem {
-    date: string;
-    product: string;
-    rfid: string;
-    status: string;
+  date: string;
+  product: string;
+  rfid: string;
+  status: string;
 }
 
 const Reports: React.FC = () => {
@@ -26,6 +27,10 @@ const Reports: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [reportData, setReportData] = useState<ReportItem[]>([]);
+
+  // ดึงข้อมูล User ปัจจุบันเพื่อใช้ระบุใน Notification
+  const userStr = localStorage.getItem('currentUser');
+  const currentUser = userStr ? JSON.parse(userStr) : null;
 
   const handlePreview = async () => {
     try {
@@ -126,14 +131,25 @@ const Reports: React.FC = () => {
 
         doc.save(`Report_${reportType}.pdf`);
 
+        // 🔔 แจ้งเตือนเมื่อมีการ Export PDF (Audit Log)
+        await sendNotification(
+            "มีการดาวน์โหลดรายงาน PDF",
+            `ผู้ใช้ ${currentUser?.firstName || 'Unknown'} ได้ดาวน์โหลดรายงาน ${reportType}`,
+            "INFO",
+            "/reports",
+            undefined,
+            1 // ส่งหา Admin
+        );
+
     } catch (error) {
         console.error("PDF Error:", error);
         alert("เกิดข้อผิดพลาดในการสร้าง PDF");
     }
   };
 
-  const handleExportExcel = () => {
-    // ... (ส่วน Excel เหมือนเดิม)
+  const handleExportExcel = async () => {
+    if (reportData.length === 0) return alert("ไม่มีข้อมูลสำหรับ Export");
+
     const excelData = reportData.map(item => ({
         "วัน/เวลา": new Date(item.date).toLocaleString('th-TH'),
         "ชื่อสินค้า": item.product,
@@ -144,6 +160,16 @@ const Reports: React.FC = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
     XLSX.writeFile(workbook, `report_${reportType}.xlsx`);
+
+    // 🔔 แจ้งเตือนเมื่อมีการ Export Excel (Audit Log)
+    await sendNotification(
+        "มีการดาวน์โหลดรายงาน Excel",
+        `ผู้ใช้ ${currentUser?.firstName || 'Unknown'} ได้ดาวน์โหลดรายงาน ${reportType} (Excel)`,
+        "INFO",
+        "/reports",
+        undefined,
+        1 // ส่งหา Admin
+    );
   };
 
   return (

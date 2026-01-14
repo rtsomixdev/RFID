@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   AppBar, Toolbar, IconButton, Typography, Box, Badge, Stack,
-  Menu, MenuItem, List, ListItem, ListItemText, ListItemAvatar, Avatar, Divider, Button 
+  Menu, Button, MenuItem, Avatar, ListItemButton, ListItemAvatar, ListItemText
 } from '@mui/material';
 import { 
-  Menu as MenuIcon, Notifications, CheckCircle, Info, Warning 
+  Menu as MenuIcon, Notifications, CheckCircle, Info, Warning, Error as ErrorIcon, AccessTime
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from '../api/axiosClient';
@@ -29,13 +29,12 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   const userStr = localStorage.getItem('currentUser');
   const user = userStr ? JSON.parse(userStr) : null;
 
-  // --- 1. Logic นาฬิกา ---
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // --- 2. Logic Notification ---
+  // --- Logic Notification ---
   const fetchNotifications = async () => {
     if (!user) return;
     try {
@@ -49,7 +48,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // Poll ทุก 30 วิ
+    const interval = setInterval(fetchNotifications, 30000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -62,32 +61,41 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   };
 
   const handleRead = async (noti: any) => {
-    if (!noti.isRead) {
-      await axios.post(`/Notification/Read/${noti.id}`);
-      fetchNotifications(); 
-    }
     handleCloseMenu();
+    if (!noti.isRead) {
+      try {
+        await axios.post(`/Notification/Read/${noti.id}`);
+        setUnreadCount(prev => Math.max(0, prev - 1));
+        setNotifications(prev => prev.map(n => n.id === noti.id ? { ...n, isRead: true } : n));
+      } catch (err) { console.error(err); }
+    }
     if (noti.linkUrl) navigate(noti.linkUrl);
   };
 
   const handleReadAll = async () => {
     if(!user) return;
-    await axios.post('/Notification/ReadAll', { userId: user.userId, roleId: user.roleId });
-    fetchNotifications();
+    try {
+        await axios.post('/Notification/ReadAll', { userId: user.userId, roleId: user.roleId });
+        fetchNotifications();
+    } catch (err) { console.error(err); }
   };
 
   const getIcon = (type: string) => {
-    if (type === 'SUCCESS') return <CheckCircle sx={{ color: 'success.main' }} />;
-    if (type === 'WARNING') return <Warning sx={{ color: 'warning.main' }} />;
-    return <Info sx={{ color: 'info.main' }} />;
+    switch (type?.toUpperCase()) {
+        case 'SUCCESS': return <CheckCircle sx={{ color: 'success.main' }} />;
+        case 'WARNING': return <Warning sx={{ color: 'warning.main' }} />;
+        case 'DANGER': 
+        case 'ERROR': return <ErrorIcon sx={{ color: 'error.main' }} />;
+        default: return <Info sx={{ color: 'info.main' }} />;
+    }
   };
 
-  // --- 3. Logic ชื่อหน้า (เพิ่มหน้าใหม่เข้าไป) ---
   const getPageTitle = (path: string) => {
-    switch (path) {
+    const basePath = path.split('?')[0]; 
+    if (basePath.startsWith('/requests')) return 'รายการคำร้องเบิกผ้า';
+    switch (basePath) {
       case '/': return 'หน้าหลัก (Monitor)';
       case '/stats': return 'สถิติภาพรวม (Dashboard)';
-      case '/requests': return 'รายการคำร้องเบิกผ้า';
       case '/laundry': return 'ระบบซักรีด (Laundry Management)';
       case '/discard': return 'แจ้งผ้าชำรุด / สูญหาย';
       case '/linens': return 'จัดการสต็อกผ้า (Linen Inventory)';
@@ -96,12 +104,9 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
       case '/rfid-connect': return 'ตั้งค่าการเชื่อมต่อ RFID';
       case '/vendors': return 'จัดการข้อมูลบริษัทคู่ค้า';
       case '/reports': return 'ระบบออกรายงาน (Reports Center)';
-      
-      // ✅ เพิ่มหน้าใหม่
       case '/transport': return 'ระบบขนส่ง (Transport Logistics)';
       case '/settings': return 'ตั้งค่าระบบ (System Configuration)';
       case '/notifications': return 'ประวัติการแจ้งเตือน';
-      
       default: return 'Smart RFID System';
     }
   };
@@ -121,7 +126,6 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
     >
       <Toolbar sx={{ justifyContent: 'space-between' }}>
         
-        {/* Left: Menu & Title */}
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <IconButton
             color="inherit"
@@ -139,20 +143,17 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
           </Box>
         </Box>
 
-        {/* Right: Clock & Notification */}
         <Stack direction="row" alignItems="center" spacing={2}>
            
-           {/* Digital Clock */}
            <Box sx={{ textAlign: 'right', display: { xs: 'none', md: 'block' }, mr: 2 }}>
-              <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: 'monospace', color: '#3b82f6', lineHeight: 1 }}>
-                {time.toLocaleTimeString('th-TH')}
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#64748b' }}>
-                {time.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </Typography>
+             <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: 'monospace', color: '#3b82f6', lineHeight: 1 }}>
+               {time.toLocaleTimeString('th-TH')}
+             </Typography>
+             <Typography variant="caption" sx={{ color: '#64748b' }}>
+               {time.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+             </Typography>
            </Box>
 
-           {/* Notification Bell */}
            <IconButton 
               onClick={handleOpenMenu}
               sx={{ bgcolor: '#f1f5f9', '&:hover':{ bgcolor: '#e2e8f0' } }}
@@ -162,7 +163,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
               </Badge>
            </IconButton>
 
-           {/* Dropdown Menu */}
+           {/* ✅ Menu (โครงสร้างใหม่) */}
            <Menu
               anchorEl={anchorEl}
               open={Boolean(anchorEl)}
@@ -170,64 +171,81 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
               PaperProps={{
                 elevation: 0,
                 sx: {
-                  overflow: 'visible',
+                  overflow: 'hidden',
                   filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
                   mt: 1.5,
-                  width: 320,
-                  maxHeight: 400,
-                  borderRadius: 3
+                  width: 360, 
+                  borderRadius: 3,
                 },
               }}
+              // ใช้ padding 0 เพื่อให้เราจัด Layout เอง
+              MenuListProps={{ style: { padding: 0 } }}
               transformOrigin={{ horizontal: 'right', vertical: 'top' }}
               anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
            >
-              <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9' }}>
+              {/* 1. ส่วนหัว (Header) - ติดอยู่ด้านบนเสมอ */}
+              <Box sx={{ p: 2, borderBottom: '1px solid #f1f5f9', bgcolor: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="subtitle1" fontWeight="bold">การแจ้งเตือน</Typography>
                 {unreadCount > 0 && (
                     <Button size="small" onClick={handleReadAll}>อ่านทั้งหมด</Button>
                 )}
               </Box>
               
-              <List sx={{ p: 0 }}>
+              {/* 2. ส่วนรายการ (Content List) - กำหนด MaxHeight และ Scroll ที่นี่ */}
+              <Box sx={{ maxHeight: 400, overflowY: 'auto' }}> 
                 {notifications.length === 0 ? (
                     <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
                         ไม่มีการแจ้งเตือนใหม่
                     </Box>
                 ) : (
                     notifications.map((noti) => (
-                    <ListItem 
+                    <ListItemButton 
                         key={noti.id} 
-                        button 
                         onClick={() => handleRead(noti)}
                         sx={{ 
                             bgcolor: noti.isRead ? 'transparent' : '#f0f9ff',
-                            borderBottom: '1px solid #f8fafc'
+                            borderBottom: '1px solid #f8fafc',
+                            alignItems: 'flex-start',
+                            py: 1.5
                         }}
                     >
-                        <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: 'transparent' }}>
-                            {getIcon(noti.type)}
-                        </Avatar>
+                        <ListItemAvatar sx={{ minWidth: 40, mt: 0.5 }}>
+                            <Avatar sx={{ bgcolor: 'transparent', width: 32, height: 32 }}>
+                                {getIcon(noti.type)}
+                            </Avatar>
                         </ListItemAvatar>
                         <ListItemText 
-                        primary={<Typography variant="subtitle2" fontWeight="bold">{noti.title}</Typography>}
-                        secondary={
-                            <React.Fragment>
-                                <Typography component="span" variant="body2" color="text.primary" display="block" noWrap>
-                                    {noti.message}
+                            primary={
+                                <Typography variant="subtitle2" fontWeight="bold" sx={{ lineHeight: 1.2, mb: 0.5 }}>
+                                    {noti.title}
                                 </Typography>
-                                <Typography component="span" variant="caption" color="text.secondary">
-                                    {new Date(noti.createdAt).toLocaleString('th-TH')}
-                                </Typography>
-                            </React.Fragment>
-                        }
+                            }
+                            secondary={
+                                <Box>
+                                    <Typography variant="body2" color="text.secondary" sx={{ 
+                                        display: '-webkit-box', 
+                                        WebkitLineClamp: 2, 
+                                        WebkitBoxOrient: 'vertical', 
+                                        overflow: 'hidden', 
+                                        lineHeight: 1.4,
+                                        wordBreak: 'break-word' 
+                                    }}>
+                                        {noti.message}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <AccessTime fontSize="inherit"/>
+                                        {new Date(noti.createdAt).toLocaleString('th-TH')}
+                                    </Typography>
+                                </Box>
+                            }
                         />
-                    </ListItem>
+                    </ListItemButton>
                     ))
                 )}
-              </List>
+              </Box>
               
-              <Box sx={{ p: 1.5, textAlign: 'center', borderTop: '1px solid #f1f5f9' }}>
+              {/* 3. ส่วนท้าย (Footer) - ติดอยู่ด้านล่างเสมอ */}
+              <Box sx={{ p: 1.5, textAlign: 'center', borderTop: '1px solid #f1f5f9', bgcolor: '#fff' }}>
                 <Button fullWidth onClick={() => { handleCloseMenu(); navigate('/notifications'); }}>
                     ดูประวัติทั้งหมด
                 </Button>

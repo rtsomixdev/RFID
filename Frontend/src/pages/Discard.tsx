@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
+import { sendNotification } from '../utils/notificationUtil'; // ✅ Import Utility
 
 // Interface
 interface CandidateItem {
@@ -25,7 +26,7 @@ const Discard: React.FC = () => {
   const [searchSelection, setSearchSelection] = useState<CandidateItem | null>(null);
 
   // Form State
-  const [selectedReason, setSelectedReason] = useState<string>(''); // ✅ เริ่มต้นเป็นค่าว่าง
+  const [selectedReason, setSelectedReason] = useState<string>(''); // ✅ Start empty
   const [note, setNote] = useState('');
   const [scannedItems, setScannedItems] = useState<CandidateItem[]>([]); 
   
@@ -53,17 +54,17 @@ const Discard: React.FC = () => {
 
   const fetchHistory = async () => {
       try {
-          // ถ้า Backend รวม API แล้วใช้ /DeleteHistory ก็ได้ แต่ถ้าแยก ให้ใช้ /DiscardHistory เพื่อดูผลลัพธ์ทันที
+          // Can use /DeleteHistory if merged, or /DiscardHistory if separated
           const res = await axiosClient.get('/Linen/DeleteHistory'); 
           setDeleteHistory(res.data);
       } catch (err) { console.error(err); }
   };
 
-  // ✅ ฟังก์ชันเลือกรายการ (แก้กันเบิ้ล 100%)
+  // ✅ Item Selection (Prevents Duplicates)
   const handleSelectItem = (item: CandidateItem | null) => {
       if (!item) return;
 
-      // 1. UI Check: แจ้งเตือนถ้ามีอยู่แล้ว
+      // 1. UI Check: Alert if duplicate
       if (scannedItems.find(s => s.rfidCode === item.rfidCode)) {
           const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1000 });
           Toast.fire({ icon: 'warning', title: 'รายการนี้เลือกไปแล้ว' });
@@ -71,7 +72,7 @@ const Discard: React.FC = () => {
           return;
       }
 
-      // 2. Data Check: กันเบิ้ลจริงๆ (ใช้ค่าล่าสุดจาก State)
+      // 2. Data Check: Double check in state update
       setScannedItems(prev => {
           if (prev.find(s => s.rfidCode === item.rfidCode)) return prev;
           return [item, ...prev];
@@ -100,18 +101,29 @@ const Discard: React.FC = () => {
             try {
                 await axiosClient.post('/Linen/DiscardBatch', {
                     rfidCodes: scannedItems.map(i => i.rfidCode),
-                    damageReasonId: parseInt(selectedReason), // แปลงกลับเป็น Int
+                    damageReasonId: parseInt(selectedReason),
                     note: note,
                     reportedByUserId: 1
                 });
                 Swal.fire('สำเร็จ', 'บันทึกเรียบร้อย', 'success');
                 
-                // เคลียร์ค่า
+                // 🔔 Notify Admin about damaged/lost items
+                const reasonName = reasons.find(r => String(r.reasonId || r.id) === selectedReason)?.reasonName || 'ไม่ระบุสาเหตุ';
+                await sendNotification(
+                    "แจ้งผ้าชำรุด/สูญหาย",
+                    `มีการแจ้งผ้าชำรุด/สูญหาย จำนวน ${scannedItems.length} รายการ (สาเหตุ: ${reasonName})`,
+                    "WARNING", // Use Warning for damage reports
+                    "/discard",
+                    undefined,
+                    1 // Admin
+                );
+
+                // Clear form
                 setScannedItems([]);
                 setNote('');
                 setSelectedReason(''); 
                 
-                // อัปเดตข้อมูล
+                // Refresh data
                 fetchHistory(); 
                 fetchCandidates(); 
             } catch (err: any) {
@@ -136,6 +148,17 @@ const Discard: React.FC = () => {
             try {
                 await axiosClient.post('/Linen/DeleteBatch', scannedItems.map(i => i.rfidCode));
                 Swal.fire('ลบแล้ว', 'ข้อมูลถูกลบออกจากระบบ', 'success');
+
+                // 🔔 Notify Admin about permanent deletion (High Priority)
+                await sendNotification(
+                    "ลบข้อมูลผ้าถาวร",
+                    `มีการลบข้อมูลผ้าออกจากระบบถาวร จำนวน ${scannedItems.length} รายการ`,
+                    "DANGER", // Use Danger/Error color for deletion
+                    "/discard",
+                    undefined,
+                    1 // Admin
+                );
+
                 setScannedItems([]);
                 fetchHistory();
                 fetchCandidates();
@@ -177,7 +200,7 @@ const Discard: React.FC = () => {
                         options={candidates.filter(c => !scannedItems.find(s => s.rfidCode === c.rfidCode))} 
                         getOptionLabel={(option) => `${option.productName} (${option.rfidCode})`} 
                         
-                        // ✅ Option สำหรับ Scanner
+                        // ✅ Option for Scanner
                         autoHighlight 
                         autoSelect
                         blurOnSelect
@@ -225,7 +248,7 @@ const Discard: React.FC = () => {
                                     onChange={(e) => setSelectedReason(e.target.value)}
                                 >
                                     {reasons.map((r: any) => (
-                                        // ✅ ใช้ String เพื่อแก้ปัญหาเลือกไม่ได้
+                                        // ✅ Use String to fix selection issue
                                         <MenuItem key={r.reasonId || r.id} value={String(r.reasonId || r.id)}>
                                             {r.reasonName}
                                         </MenuItem>

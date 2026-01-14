@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
+import { sendNotification } from '../utils/notificationUtil'; // ✅ Import Utility
 
 const Requests: React.FC = () => {
   // --- States ---
@@ -136,7 +137,6 @@ const Requests: React.FC = () => {
           const deletePromises = selectedIds.map(id => axiosClient.delete(`/Request/${id}`));
           await Promise.all(deletePromises);
           
-          // ✅ Success Popup แบบมีติ๊กถูก ตรงกลางจอ
           Swal.fire({
             icon: 'success',
             title: 'ลบสำเร็จ!',
@@ -184,13 +184,25 @@ const Requests: React.FC = () => {
     try {
       await axiosClient.post('/Request', payload);
       
-      // ✅ Success Popup แบบมีติ๊กถูก ตรงกลางจอ
       Swal.fire({
           icon: 'success',
           title: 'ส่งคำร้องเรียบร้อย',
           timer: 1500,
           showConfirmButton: false
       });
+
+      // 🔔 Notify Admin (Role ID 1) about new request
+      const typeText = typeId === 1 ? 'เบิกผ้า' : 'เปลี่ยนผ้า';
+      const productName = products.find(p => p.productId === productId)?.productName || 'สินค้า';
+      
+      await sendNotification(
+          `มีคำร้อง${typeText}ใหม่`, 
+          `${user.firstName} ได้ขอ${typeText} ${productName} จำนวน ${quantity} ชิ้น`,
+          'INFO',
+          '/requests',
+          undefined, // No specific user
+          1 // Send to Admin Group
+      );
 
       setFormData(prev => ({ ...prev, quantity: '', damageReasonId: '' }));
       checkStock(productId); 
@@ -224,7 +236,6 @@ const Requests: React.FC = () => {
                         requestCode: currentReq.requestCode
                     });
                     
-                    // ✅ Success Popup แบบมีติ๊กถูก ตรงกลางจอ
                     Swal.fire({
                         icon: 'success',
                         title: 'บันทึกสถานะเรียบร้อย',
@@ -232,6 +243,18 @@ const Requests: React.FC = () => {
                         showConfirmButton: false
                     });
                     
+                    // 🔔 Notify the Requester about the decision
+                    const statusText = isApprove ? 'ได้รับการอนุมัติแล้ว' : 'ถูกปฏิเสธ';
+                    const notiType = isApprove ? 'SUCCESS' : 'DANGER'; 
+
+                    await sendNotification(
+                        `คำร้อง ${currentReq.requestCode} ${action}แล้ว`,
+                        `คำร้องของคุณ${statusText} โดย ${user.firstName}`,
+                        notiType,
+                        '/requests',
+                        currentReq.requestedByUserId // Send to the specific user who requested
+                    );
+
                     fetchRequests(); 
                 }
             } catch (apiErr: any) { 
@@ -255,13 +278,22 @@ const Requests: React.FC = () => {
         try {
           await axiosClient.delete(`/Request/${reqId}`);
           
-          // ✅ Success Popup แบบมีติ๊กถูก ตรงกลางจอ
           Swal.fire({
               icon: 'success',
               title: 'ลบรายการเรียบร้อย',
               timer: 1500,
               showConfirmButton: false
           });
+
+          // 🔔 Notify Admin about deletion (Audit)
+          await sendNotification(
+            "มีการลบคำร้อง", 
+            `คำร้องเลขที่ ${code} ถูกลบออกจากระบบ`,
+            'WARNING',
+            '/requests',
+            undefined,
+            1 // Send to Admin
+          );
 
           if(formData.productId) checkStock(parseInt(formData.productId));
           fetchRequests();

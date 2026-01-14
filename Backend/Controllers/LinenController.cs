@@ -257,62 +257,97 @@ namespace Backend.Controllers
         }
 
         // ==========================================
-        // 4. GET: Monitor
+        // 4. GET: Monitor (✅✅ แก้ไขบั๊ก 500 ตรงนี้แล้ว ✅✅)
         // ==========================================
         [HttpGet("Monitor/Latest")]
         public async Task<IActionResult> GetLatestMonitor()
         {
-            var recentLinens = await _context.Linens
-                .Include(l => l.Product)
-                .Where(l => l.IsActive == true)
-                .OrderByDescending(l => l.UpdatedAt)
-                .Take(30) 
-                .ToListAsync();
-
-            var recentUnknowns = await _context.SystemLogs
-                .Where(x => x.ActionType == "SCAN_UNKNOWN")
-                .OrderByDescending(x => x.CreatedAt)
-                .Take(10)
-                .ToListAsync();
-
-            var result = new List<object>();
-
-            foreach (var l in recentLinens)
+            try 
             {
-                result.Add(new 
+                // 1. ดึงรายการผ้าที่เคลื่อนไหวล่าสุด
+                var recentLinens = await _context.Linens
+                    .Include(l => l.Product)
+                    .Where(l => l.IsActive == true)
+                    .OrderByDescending(l => l.UpdatedAt)
+                    .Take(30) 
+                    .ToListAsync();
+
+                // 2. ดึง Log ของแปลกปลอม (Unknown/Alien)
+                var recentUnknowns = await _context.SystemLogs
+                    .Where(x => x.ActionType == "SCAN_UNKNOWN" || x.ActionType == "SCAN_DISPOSED")
+                    .OrderByDescending(x => x.CreatedAt)
+                    .Take(10)
+                    .ToListAsync();
+
+                var result = new List<object>();
+
+                // แปลงข้อมูล Linen ปกติ
+                foreach (var l in recentLinens)
                 {
-                    rfid = l.RfidCode,
-                    productName = l.Product?.ProductName ?? "Unknown Product",
-                    location = l.CurrentLocation ?? "ไม่ระบุ", 
-                    status = l.Status,
-                    timestamp = l.UpdatedAt.HasValue ? l.UpdatedAt.Value.ToString("HH:mm:ss") : "-"
-                });
-            }
+                    result.Add(new 
+                    {
+                        rfid = l.RfidCode ?? "-",
+                        productName = l.Product?.ProductName ?? "Unknown Product",
+                        location = l.CurrentLocation ?? "ไม่ระบุ", 
+                        status = l.Status ?? "Unknown",
+                        timestamp = l.UpdatedAt.HasValue ? l.UpdatedAt.Value.ToString("HH:mm:ss") : "-"
+                    });
+                }
 
-            foreach (var log in recentUnknowns)
-            {
-                string rfid = "Unknown";
-                string loc = "Unknown Point";
-                try {
-                    var parts = log.Description.Split(':');
-                    if (parts.Length > 1) {
-                        var subParts = parts[1].Trim().Split(' '); 
-                        rfid = subParts[0]; 
-                        if (log.Description.Contains("ที่จุด")) loc = log.Description.Split("ที่จุด")[1].Trim();
+                // แปลงข้อมูล Unknown Log (แบบปลอดภัย - ไม่ Error แม้ข้อมูลไม่ครบ)
+                foreach (var log in recentUnknowns)
+                {
+                    string rfid = "Unknown";
+                    string loc = "Unknown Point";
+                    string status = log.ActionType == "SCAN_DISPOSED" ? "Disposed" : "Alien";
+
+                    try 
+                    {
+                        if (!string.IsNullOrEmpty(log.Description))
+                        {
+                            // พยายามแกะ RFID จากข้อความ "พบ RFID ...: XXXX ..."
+                            var parts = log.Description.Split(':');
+                            if (parts.Length > 1) 
+                            {
+                                var subParts = parts[1].Trim().Split(' ');
+                                rfid = subParts[0]; 
+                            }
+
+                            // พยายามแกะ Location จากข้อความ "... ที่จุด YYYY"
+                            if (log.Description.Contains("ที่จุด")) 
+                            {
+                                var locParts = log.Description.Split(new[] { "ที่จุด" }, StringSplitOptions.None);
+                                if (locParts.Length > 1)
+                                {
+                                    loc = locParts[1].Trim();
+                                }
+                            }
+                        }
+                    } 
+                    catch 
+                    { 
+                        // ถ้าแกะไม่ออก ให้ใช้ค่า Default ไปเลย ไม่ต้อง Throw Error
+                        rfid = "Parse Error"; 
                     }
-                } catch { rfid = "Parse Error"; }
 
-                result.Add(new 
-                {
-                    rfid = rfid,
-                    productName = "Unknown", 
-                    location = loc,
-                    status = "Alien",
-                    timestamp = log.CreatedAt.ToString("HH:mm:ss")
-                });
+                    result.Add(new 
+                    {
+                        rfid = rfid,
+                        productName = status == "Disposed" ? "จำหน่ายแล้ว" : "ไม่พบในระบบ", 
+                        location = loc,
+                        status = status,
+                        timestamp = log.CreatedAt.ToString("HH:mm:ss")
+                    });
+                }
+
+                // เรียงลำดับตามเวลาล่าสุด
+                return Ok(result.OrderByDescending(x => ((dynamic)x).timestamp));
             }
-
-            return Ok(result.OrderByDescending(x => ((dynamic)x).timestamp));
+            catch (Exception ex)
+            {
+                // ถ้ายังพังอีก ให้ส่ง Error กลับไปดู (แต่ไม่ควรพังแล้ว)
+                return StatusCode(500, new { message = "Server Error", error = ex.Message });
+            }
         }
 
         // ==========================================
@@ -545,8 +580,7 @@ namespace Backend.Controllers
             // 1. ผ้าทั้งหมดที่ยังไม่ถูกจำหน่าย
             var total = await _context.Linens.CountAsync(l => l.IsActive == true);
 
-            // 2. 🔥 แก้ไขแล้ว: ตัด .HasValue และ .Value ออก
-            // เช็คว่า RegisteredAt (DateTime) เท่ากับ วันนี้ (DateTime)
+            // 2. เช็คว่า RegisteredAt (DateTime) เท่ากับ วันนี้ (DateTime)
             var newToday = await _context.Linens
                 .CountAsync(l => l.IsActive == true && 
                                  l.RegisteredAt.Date == today);

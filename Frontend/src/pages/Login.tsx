@@ -6,6 +6,7 @@ import { Login as LoginIcon, Visibility, VisibilityOff, Person, Lock } from '@mu
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
+import { sendNotification } from '../utils/notificationUtil'; // ✅ Import Utility
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -26,10 +27,22 @@ const Login: React.FC = () => {
 
       if (user) {
         localStorage.setItem('currentUser', JSON.stringify(user));
+        
         Swal.fire({
           icon: 'success', title: 'ยินดีต้อนรับ', text: `สวัสดีคุณ ${user.firstName}`,
           timer: 1500, showConfirmButton: false
         }).then(() => navigate('/dashboard'));
+
+        // 🔔 แจ้งเตือน Admin เมื่อมีผู้ใช้งาน Login สำเร็จ (Audit Log)
+        await sendNotification(
+            "มีการเข้าสู่ระบบ (Login)",
+            `ผู้ใช้งาน ${user.firstName} ${user.lastName} (${user.username}) ได้เข้าสู่ระบบ`,
+            "INFO",
+            "/users", // ลิงก์ไปหน้าจัดการ User หรือ Dashboard ก็ได้
+            undefined,
+            1 // ส่งหา Admin (Role ID 1)
+        );
+
       } else {
         Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบไม่สำเร็จ', text: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
       }

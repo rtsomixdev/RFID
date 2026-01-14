@@ -7,10 +7,11 @@ import {
 } from '@mui/material';
 import { 
   AppRegistration, Delete, PlaylistAddCheck, QrCodeScanner, RestartAlt,
-  AutoFixHigh // ไอคอนสำหรับปุ่ม Test
+  AutoFixHigh // Icon for Test button
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
+import { sendNotification } from '../utils/notificationUtil'; // ✅ Import Utility
 
 const RegisterLinen: React.FC = () => {
   // --- Master Data ---
@@ -66,17 +67,17 @@ const RegisterLinen: React.FC = () => {
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  // 🎲 ฟังก์ชันสุ่ม RFID เพื่อ Test (กดทีเดียวมา 5 อัน)
+  // 🎲 Random RFID function for Testing (Generate 5 items)
   const handleSimulateScan = () => {
     if(!selectedProduct) return Swal.fire('เตือน', 'เลือกสินค้าก่อนสุ่มนะจ๊ะ', 'warning');
 
     const newMockTags: string[] = [];
     for(let i=0; i<5; i++) {
-        // สุ่มเลข Hex 20 หลัก ต่อท้าย E200
+        // Random Hex 20 digits after E200
         const randomHex = Array.from({length: 20}, () => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase();
         const mockRfid = `E200${randomHex}`;
         
-        // เช็คว่าซ้ำกับที่มีอยู่ไหม
+        // Check duplication
         if(!scannedRfids.includes(mockRfid) && !newMockTags.includes(mockRfid)) {
             newMockTags.push(mockRfid);
         }
@@ -119,6 +120,18 @@ const RegisterLinen: React.FC = () => {
                 await axiosClient.post('/Linen/RegisterBatch', payload);
 
                 Swal.fire('สำเร็จ', `บันทึก ${scannedRfids.length} รายการเรียบร้อย`, 'success');
+
+                // 🔔 Notify Admin about new stock registration
+                const productName = products.find(p => p.productId === parseInt(selectedProduct))?.productName || 'สินค้า';
+                await sendNotification(
+                    "ลงทะเบียนผ้าใหม่",
+                    `มีการลงทะเบียน ${productName} จำนวน ${scannedRfids.length} ชิ้น เข้าสู่ระบบ`,
+                    "INFO",
+                    "/linens", // Link to inventory page
+                    undefined,
+                    1 // Send to Admin
+                );
+
                 setScannedRfids([]);
                 setRfidInput('');
                 inputRef.current?.focus();
@@ -206,7 +219,7 @@ const RegisterLinen: React.FC = () => {
                     </Grid>
                     <Grid item xs={12} md={5}>
                         <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
-                            {/* 🔥 ปุ่ม Test สุ่มข้อมูล */}
+                            {/* 🔥 Test Button */}
                             <Tooltip title="กดเพื่อสุ่ม RFID 5 ชิ้น (สำหรับ Test)">
                                 <Button 
                                     variant="outlined" 

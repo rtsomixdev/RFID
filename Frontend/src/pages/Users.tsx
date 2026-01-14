@@ -11,8 +11,9 @@ import {
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
+import { sendNotification } from '../utils/notificationUtil'; // Import notification utility
 
-// Helper: สร้างสี Avatar จากชื่อ
+// Helper: Create avatar color from name
 function stringToColor(string: string) {
   let hash = 0;
   for (let i = 0; i < string.length; i++) {
@@ -37,7 +38,7 @@ function stringAvatar(name: string) {
 }
 
 const Users: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<any>(null); // ✅ เก็บข้อมูลคน Login
+  const [currentUser, setCurrentUser] = useState<any>(null); // Store logged-in user data
   const [users, setUsers] = useState<any[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,7 +55,7 @@ const Users: React.FC = () => {
   });
 
   useEffect(() => {
-    // ✅ 1. ดึงข้อมูลคน Login ออกมาเพื่อเช็คว่า "ฉันคือใคร"
+    // Get logged-in user data to check identity
     const userStr = localStorage.getItem('currentUser');
     if (userStr) {
         setCurrentUser(JSON.parse(userStr));
@@ -137,10 +138,30 @@ const Users: React.FC = () => {
         if (!payload.passwordHash) payload.passwordHash = null;
         await axiosClient.put(`/User/${editId}`, payload);
         Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'แก้ไขข้อมูลเรียบร้อย', timer: 1500, showConfirmButton: false });
+        
+        // 🔔 Notification when user info is edited
+        await sendNotification(
+            "ข้อมูลผู้ใช้งานถูกแก้ไข",
+            `ข้อมูลของ ${formData.firstName} ${formData.lastName} ถูกแก้ไขโดย Admin`,
+            "WARNING",
+            "/users",
+            editId // Send to the owner of the edited account (optional) or undefined
+        );
+
       } else {
         if(!formData.passwordHash) return Swal.fire('แจ้งเตือน', 'กรุณากำหนดรหัสผ่าน', 'warning');
         await axiosClient.post('/User', payload);
         Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'เพิ่มผู้ใช้งานเรียบร้อย', timer: 1500, showConfirmButton: false });
+
+        // 🔔 Notification to Admin when a new user is added
+        await sendNotification(
+            "มีการเพิ่มผู้ใช้งานใหม่",
+            `ผู้ใช้งาน ${formData.firstName} ${formData.lastName} (${formData.username}) ถูกเพิ่มเข้าสู่ระบบแล้ว`,
+            "INFO",
+            "/users",
+            undefined,
+            1 // Send to Role ID 1 (Super Admin)
+        );
       }
 
       handleCancelEdit();
@@ -174,7 +195,7 @@ const Users: React.FC = () => {
     });
   };
 
-  // Helper เลือกสี Chip ของ Role
+  // Helper to choose Role Chip color
   const getRoleColor = (roleId: number) => {
     switch(roleId) {
         case 1: return 'error'; // Admin
@@ -210,7 +231,7 @@ const Users: React.FC = () => {
         </Box>
         <CardContent sx={{ p: 3 }}>
             <Grid container spacing={3}>
-                {/* 1. ข้อมูลส่วนตัว */}
+                {/* 1. Personal Info */}
                 <Grid item xs={12}>
                     <Typography variant="caption" fontWeight="bold" color="textSecondary" sx={{ mb: 1, display: 'block' }}>ข้อมูลส่วนตัว (Personal Info)</Typography>
                     <Divider sx={{ mb: 2 }} />
@@ -239,7 +260,7 @@ const Users: React.FC = () => {
                     />
                 </Grid>
 
-                 {/* 2. ข้อมูลเข้าระบบ */}
+                 {/* 2. Account & Security */}
                  <Grid item xs={12} sx={{ mt: 1 }}>
                     <Typography variant="caption" fontWeight="bold" color="textSecondary" sx={{ mb: 1, display: 'block' }}>ข้อมูลเข้าระบบ (Account & Security)</Typography>
                     <Divider sx={{ mb: 2 }} />
@@ -312,7 +333,7 @@ const Users: React.FC = () => {
                           <Box>
                               <Typography variant="body2" fontWeight="bold">
                                 {u.firstName} {u.lastName} 
-                                {/* ✅ ถ้าเป็นตัวเอง ใส่ (Me) ต่อท้าย */}
+                                {/* ✅ If it's myself, add (Me) suffix */}
                                 {currentUser?.userId === u.userId && <span style={{color: '#3b82f6'}}> (Me)</span>}
                               </Typography>
                               <Typography variant="caption" color="textSecondary">ID: {u.userId}</Typography>
@@ -342,7 +363,7 @@ const Users: React.FC = () => {
                         </IconButton>
                       </Tooltip>
                       
-                      {/* ✅✅✅ ซ่อนปุ่มลบ ถ้าเป็น User ของตัวเอง */}
+                      {/* ✅✅✅ Hide delete button if it's the current user */}
                       {currentUser?.userId !== u.userId && (
                           <Tooltip title="ลบ">
                             <IconButton size="small" color="error" onClick={() => handleDelete(u.userId)} sx={{ bgcolor: '#fef2f2', '&:hover': { bgcolor: '#fee2e2' } }}>

@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
+import { sendNotification } from '../utils/notificationUtil'; // ✅ Import Utility
 
 const HospitalPage: React.FC = () => {
   // --- States ---
@@ -40,7 +41,7 @@ const HospitalPage: React.FC = () => {
     setTabValue(newValue);
   };
 
-  // --- Logic โรงพยาบาล ---
+  // --- Logic Hospital ---
   const handleAddHospital = async () => {
     if (!hospitalForm.name) return Swal.fire('แจ้งเตือน', 'กรุณาระบุชื่อโรงพยาบาล', 'warning');
     
@@ -51,6 +52,17 @@ const HospitalPage: React.FC = () => {
         contactInfo: hospitalForm.contact
       });
       Swal.fire('สำเร็จ', 'เพิ่มโรงพยาบาลเรียบร้อย', 'success');
+
+      // 🔔 Notify Admin about new Hospital
+      await sendNotification(
+        "เพิ่มโรงพยาบาลใหม่",
+        `โรงพยาบาล ${hospitalForm.name} ถูกเพิ่มเข้าสู่ระบบแล้ว`,
+        "INFO",
+        "/hospital",
+        undefined,
+        1 // Admin
+      );
+
       setHospitalForm({ name: '', address: '', contact: '' });
       fetchData();
     } catch (err: any) {
@@ -72,6 +84,17 @@ const HospitalPage: React.FC = () => {
             try {
                 await axiosClient.delete(`/Hospital/${id}`);
                 Swal.fire('ลบแล้ว', 'ข้อมูลถูกลบเรียบร้อย', 'success');
+
+                // 🔔 Notify Admin about deletion
+                await sendNotification(
+                    "ลบข้อมูลโรงพยาบาล",
+                    `ข้อมูลโรงพยาบาล ${name} ถูกลบออกจากระบบ`,
+                    "WARNING",
+                    "/hospital",
+                    undefined,
+                    1 // Admin
+                );
+
                 fetchData();
             } catch (err) {
                 Swal.fire('Error', 'ลบไม่สำเร็จ (อาจมีข้อมูลอ้างอิงอยู่)', 'error');
@@ -80,7 +103,7 @@ const HospitalPage: React.FC = () => {
     });
   };
 
-  // --- Logic วอร์ด (Ward) ---
+  // --- Logic Ward ---
   const handleAddWard = async () => {
     if (!wardForm.name || !wardForm.hospitalId) return Swal.fire('แจ้งเตือน', 'กรุณาระบุชื่อวอร์ดและโรงพยาบาล', 'warning');
 
@@ -91,7 +114,19 @@ const HospitalPage: React.FC = () => {
         isActive: true
       });
       Swal.fire('สำเร็จ', 'เพิ่มวอร์ดเรียบร้อย', 'success');
-      setWardForm({ ...wardForm, name: '' }); // Clear แค่ชื่อ
+
+      // 🔔 Notify Admin about new Ward
+      const hospitalName = hospitals.find(h => h.hospitalId === parseInt(wardForm.hospitalId))?.hospitalName || 'ไม่ระบุ';
+      await sendNotification(
+        "เพิ่มแผนก/วอร์ดใหม่",
+        `แผนก ${wardForm.name} (สังกัด: ${hospitalName}) ถูกเพิ่มแล้ว`,
+        "INFO",
+        "/hospital",
+        undefined,
+        1 // Admin
+      );
+
+      setWardForm({ ...wardForm, name: '' }); // Clear name only
       fetchData();
     } catch (err: any) {
       console.error(err);
@@ -99,7 +134,7 @@ const HospitalPage: React.FC = () => {
     }
   };
 
-  // ฟังก์ชันลบวอร์ด (SweetAlert Integration)
+  // Function to delete Ward (SweetAlert Integration)
   const handleDeleteWard = (id: number, name: string) => {
     Swal.fire({
         title: 'ยืนยันการลบ?',
@@ -114,6 +149,17 @@ const HospitalPage: React.FC = () => {
             try {
                 await axiosClient.delete(`/Ward/${id}`);
                 Swal.fire('ลบแล้ว', 'ข้อมูลถูกลบเรียบร้อย', 'success');
+
+                // 🔔 Notify Admin about deletion
+                await sendNotification(
+                    "ลบข้อมูลแผนก/วอร์ด",
+                    `ข้อมูลแผนก ${name} ถูกลบออกจากระบบ`,
+                    "WARNING",
+                    "/hospital",
+                    undefined,
+                    1 // Admin
+                );
+
                 fetchData();
             } catch (err) {
                 Swal.fire('Error', 'ลบไม่สำเร็จ', 'error');

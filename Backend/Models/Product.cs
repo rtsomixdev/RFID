@@ -19,6 +19,11 @@ public partial class Product
 
     public decimal? StandardWeightKg { get; set; }
 
+    // ✅✅ เพิ่ม 2 บรรทัดนี้ครับ (ตั้งค่าเริ่มต้นไว้กัน Error) ✅✅
+    public int MaxWashCount { get; set; } = 100;
+    
+    public int MaxLifespanDays { get; set; } = 365;
+
     public int? DefaultRoomId { get; set; }
 
     public virtual Category Category { get; set; } = null!;

@@ -12,31 +12,32 @@ import {
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
+import { sendNotification } from '../utils/notificationUtil'; // ✅ Import Utility
 
 // Interface
 interface Vendor {
-    vendorId: number;
-    vendorName: string;
+  vendorId: number;
+  vendorName: string;
 }
 
 interface ScannedItem {
-    rfid: string;
-    productName: string;
-    timestamp: Date;
+  rfid: string;
+  productName: string;
+  timestamp: Date;
 }
 
 interface WashingItem {
-    rfidCode: string;
-    productName: string;
-    vendorName: string;
-    sentDate: string;
+  rfidCode: string;
+  productName: string;
+  vendorName: string;
+  sentDate: string;
 }
 
-// Interface สำหรับรายการใน Dropdown
+// Interface for items in Dropdown
 interface CandidateItem {
-    rfidCode: string;
-    productName: string;
-    status: string;
+  rfidCode: string;
+  productName: string;
+  status: string;
 }
 
 const Laundry: React.FC = () => {
@@ -47,7 +48,7 @@ const Laundry: React.FC = () => {
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
   const [washingList, setWashingList] = useState<WashingItem[]>([]);
 
-  // State สำหรับ Dropdown
+  // State for Dropdown
   const [candidates, setCandidates] = useState<CandidateItem[]>([]);
   const [searchValue, setSearchValue] = useState<CandidateItem | null>(null);
 
@@ -56,7 +57,7 @@ const Laundry: React.FC = () => {
     fetchWashingHistory();
   }, []);
 
-  // โหลดรายการเข้า Dropdown ทุกครั้งที่เปลี่ยน Tab หรือมีการยืนยันรายการ
+  // Load items into Dropdown whenever Tab changes or transaction confirmed
   useEffect(() => {
     fetchCandidates();
   }, [tabValue, washingList]); 
@@ -89,20 +90,19 @@ const Laundry: React.FC = () => {
     setSearchValue(null);
   };
 
-  // ✅ ฟังก์ชันเลือกจาก Dropdown แล้วเพิ่มเข้าตารางทันที
+  // ✅ Select from Dropdown and add to table immediately
   const handleSelectFromDropdown = (item: CandidateItem | null) => {
       if (!item) return;
 
-      // เช็คซ้ำ
+      // Check duplicate
       if (scannedItems.find(s => s.rfid === item.rfidCode)) {
-          // ใช้ Toast แจ้งเตือนเบาๆ แทน Modal ใหญ่ จะได้สแกนต่อได้เลย
           const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1000 });
           Toast.fire({ icon: 'warning', title: 'รายการนี้เลือกไปแล้ว' });
           setSearchValue(null);
           return;
       }
 
-      // เพิ่มเข้าตาราง
+      // Add to table
       const newItem: ScannedItem = {
           rfid: item.rfidCode,
           productName: item.productName,
@@ -110,7 +110,7 @@ const Laundry: React.FC = () => {
       };
       setScannedItems(prev => [newItem, ...prev]);
       
-      // เคลียร์ค่าในช่องเลือก เพื่อให้เลือกตัวต่อไปได้ง่ายๆ
+      // Clear input for next selection
       setTimeout(() => setSearchValue(null), 100);
   };
 
@@ -137,12 +137,36 @@ const Laundry: React.FC = () => {
             try {
                 const payload = tabValue === 0 
                     ? { vendorId: selectedVendor ? parseInt(selectedVendor) : 0, rfidCodes: scannedItems.map(item => item.rfid) }
-                    : { rfidCodes: scannedItems.map(item => item.rfid) }; // รับกลับไม่ต้องส่ง VendorId
+                    : { rfidCodes: scannedItems.map(item => item.rfid) }; // Receive back doesn't need VendorId
 
                 await axiosClient.post(apiEndpoint, payload);
                 
                 Swal.fire('สำเร็จ', `บันทึกเรียบร้อย`, 'success');
                 
+                // 🔔 Notify Admin about Laundry Action
+                if (tabValue === 0) {
+                    // Send to Laundry
+                    const vendorName = vendors.find(v => v.vendorId === parseInt(selectedVendor))?.vendorName || 'บริษัทรับซัก';
+                    await sendNotification(
+                        "ส่งผ้าซัก (Send to Laundry)",
+                        `มีการส่งผ้าจำนวน ${scannedItems.length} ชิ้น ไปยัง ${vendorName}`,
+                        "WARNING", // Use Warning color for outbound
+                        "/laundry",
+                        undefined,
+                        1 // Admin
+                    );
+                } else {
+                    // Receive from Laundry
+                    await sendNotification(
+                        "รับผ้ากลับจากซัก (Receive from Laundry)",
+                        `รับผ้าสะอาดกลับเข้าคลังจำนวน ${scannedItems.length} ชิ้น`,
+                        "SUCCESS", // Use Success color for inbound
+                        "/laundry",
+                        undefined,
+                        1 // Admin
+                    );
+                }
+
                 setScannedItems([]);
                 setSelectedVendor('');
                 fetchWashingHistory(); 
@@ -211,7 +235,7 @@ const Laundry: React.FC = () => {
                         options={candidates.filter(c => !scannedItems.find(s => s.rfid === c.rfidCode))} 
                         getOptionLabel={(option) => `${option.productName} (${option.rfidCode}) - ${option.status}`}
                         
-                        // ✅ เพิ่ม Option สำหรับ Scanner
+                        // ✅ Add Option for Scanner
                         autoHighlight
                         autoSelect
                         blurOnSelect
@@ -220,9 +244,9 @@ const Laundry: React.FC = () => {
                             <TextField 
                                 {...params} 
                                 label={tabValue === 0 ? "ค้นหาผ้าที่จะส่งซัก..." : "ค้นหาผ้าที่กำลังซัก..."} 
-                                placeholder="พิมพ์ชื่อสินค้า หรือยิง Scan RFID..." // เปลี่ยนข้อความให้ชัดเจน
+                                placeholder="พิมพ์ชื่อสินค้า หรือยิง Scan RFID..." 
                                 size="small"
-                                autoFocus // ให้ Focus รอรับการสแกนทันที
+                                autoFocus 
                                 InputProps={{
                                     ...params.InputProps,
                                     startAdornment: <Search color="action" sx={{ mr: 1 }} />

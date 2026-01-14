@@ -9,6 +9,7 @@ import {
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
+import { sendNotification } from '../utils/notificationUtil'; // ✅ Import Utility
 
 const Vendor: React.FC = () => {
   const [vendors, setVendors] = useState<any[]>([]);
@@ -49,6 +50,16 @@ const Vendor: React.FC = () => {
           timer: 1500,
           showConfirmButton: false
       });
+
+      // 🔔 แจ้งเตือน Admin ว่ามี Vendor ใหม่
+      await sendNotification(
+        "เพิ่มบริษัทคู่ค้าใหม่",
+        `บริษัท ${formData.vendorName} ถูกเพิ่มเข้าสู่ระบบแล้ว`,
+        "INFO",
+        "/vendors",
+        undefined,
+        1 // ส่งหา Admin
+      );
       
       setFormData({ vendorName: '', registrationNumber: '' });
       fetchVendors();
@@ -71,8 +82,23 @@ const Vendor: React.FC = () => {
     }).then(async (result) => {
         if (result.isConfirmed) {
             try {
+                // เก็บชื่อบริษัทไว้ก่อนลบ เพื่อเอามาโชว์ใน Noti
+                const vendorName = vendors.find(v => v.vendorId === id)?.vendorName || 'ไม่ระบุชื่อ';
+
                 await axiosClient.delete(`/Vendor/${id}`);
+                
                 Swal.fire('ลบสำเร็จ', 'ข้อมูลถูกลบแล้ว', 'success');
+
+                // 🔔 แจ้งเตือนการลบข้อมูล
+                await sendNotification(
+                    "ลบบริษัทคู่ค้า",
+                    `ข้อมูลของบริษัท ${vendorName} ถูกลบออกจากระบบ`,
+                    "WARNING",
+                    "/vendors",
+                    undefined,
+                    1 // Admin
+                );
+
                 fetchVendors();
             } catch (err) {
                 Swal.fire('Error', 'ไม่สามารถลบข้อมูลได้', 'error');
@@ -167,11 +193,11 @@ const Vendor: React.FC = () => {
                 </TableHead>
                 <TableBody>
                   {vendors.length === 0 ? (
-                     <TableRow>
-                        <TableCell colSpan={3} align="center" sx={{ py: 4, color: '#94a3b8' }}>
+                      <TableRow>
+                         <TableCell colSpan={3} align="center" sx={{ py: 4, color: '#94a3b8' }}>
                             ไม่พบข้อมูล
-                        </TableCell>
-                     </TableRow>
+                         </TableCell>
+                      </TableRow>
                   ) : (
                       vendors.map((v) => (
                         <TableRow key={v.vendorId} hover>

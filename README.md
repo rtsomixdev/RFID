@@ -1,3 +1,4 @@
+
 ```
 RFID
 ├─ Backend
@@ -131,6 +132,7 @@ RFID
 │  │  ├─ LaundryController.cs
 │  │  ├─ LinenController.cs
 │  │  ├─ LinenLogController.cs
+│  │  ├─ NotificationController.cs
 │  │  ├─ ProductController.cs
 │  │  ├─ ReaderController.cs
 │  │  ├─ ReportController.cs
@@ -139,7 +141,9 @@ RFID
 │  │  ├─ RequestStatusController.cs
 │  │  ├─ RoleController.cs
 │  │  ├─ RoomController.cs
+│  │  ├─ SettingController.cs
 │  │  ├─ TitleController.cs
+│  │  ├─ TransportController.cs
 │  │  ├─ UserController.cs
 │  │  ├─ VendorController.cs
 │  │  └─ WardController.cs
@@ -147,6 +151,14 @@ RFID
 │  ├─ Migrations
 │  │  ├─ 20260105105122_InitialCreate.cs
 │  │  ├─ 20260105105122_InitialCreate.Designer.cs
+│  │  ├─ 20260114133307_UpdateRequirements.cs
+│  │  ├─ 20260114133307_UpdateRequirements.Designer.cs
+│  │  ├─ 20260114143018_AddNotificationSystem_Final.cs
+│  │  ├─ 20260114143018_AddNotificationSystem_Final.Designer.cs
+│  │  ├─ 20260114184320_AddProductRules.cs
+│  │  ├─ 20260114184320_AddProductRules.Designer.cs
+│  │  ├─ 20260114190808_UpdateNotificationSchema.cs
+│  │  ├─ 20260114190808_UpdateNotificationSchema.Designer.cs
 │  │  └─ LinenDbContextModelSnapshot.cs
 │  ├─ Models
 │  │  ├─ Category.cs
@@ -155,6 +167,7 @@ RFID
 │  │  ├─ Linen.cs
 │  │  ├─ LinenDbContext.cs
 │  │  ├─ LinenLog.cs
+│  │  ├─ Notification.cs
 │  │  ├─ Product.cs
 │  │  ├─ Reader.cs
 │  │  ├─ Request.cs
@@ -162,6 +175,7 @@ RFID
 │  │  ├─ RequestStatus.cs
 │  │  ├─ Role.cs
 │  │  ├─ Room.cs
+│  │  ├─ Setting.cs
 │  │  ├─ SystemLog.cs
 │  │  ├─ Title.cs
 │  │  ├─ User.cs
@@ -245,8 +259,11 @@ RFID
 │  │  │  ├─ Laundry.tsx
 │  │  │  ├─ Linen.tsx
 │  │  │  ├─ Login.tsx
+│  │  │  ├─ Notifications.tsx
 │  │  │  ├─ Reports.tsx
 │  │  │  ├─ Requests.tsx
+│  │  │  ├─ Settings.tsx
+│  │  │  ├─ Transport.tsx
 │  │  │  ├─ Users.tsx
 │  │  │  └─ Vendor.tsx
 │  │  └─ theme
@@ -264,6 +281,7 @@ RFID
 │  │  ├─ 2a9b2821-bf5f-4618-b748-cf00186a615e
 │  │  ├─ 2b534bbe-b0c5-460e-ad66-0dfe40bb55f8
 │  │  ├─ 3e57cf44-b7f6-4037-8a1a-88536514c300
+│  │  ├─ 691b051f-a8b5-406c-b250-387d83a8363a
 │  │  ├─ 9da5e0b3-23fe-4be1-9a97-f5334a494c9e
 │  │  ├─ a5d9e157-29a9-49dc-bed9-a92b7b5030f9
 │  │  ├─ ce68f4f0-328f-49f9-b806-e2b3375650d4
