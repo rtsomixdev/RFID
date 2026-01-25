@@ -19,8 +19,6 @@ import Reports from './pages/Reports';
 import Transport from './pages/Transport';
 import Settings from './pages/Settings';
 import NotificationsPage from './pages/Notifications';
-
-// ✅ Import หน้า RfidConnect ที่สร้างใหม่
 import RfidConnect from './pages/RfidConnect';
 
 import MainLayout from './layouts/MainLayout';
@@ -31,7 +29,7 @@ const ComingSoon = ({ title }: { title: string }) => (
   </div>
 );
 
-// New wrapper for Auth checks only, Layout is handled by MainLayout
+// Wrapper สำหรับตรวจสอบสิทธิ์ (Auth Check)
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const userStr = localStorage.getItem('currentUser');
   if (!userStr) return <Navigate to="/login" replace />;
@@ -44,39 +42,42 @@ function App() {
       <CssBaseline />
       <Router>
         <Routes>
-          {/* 1. Public Pages (No Layout) */}
+          {/* 1. Public Pages (หน้า Login แยกต่างหาก ไม่มี Layout) */}
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* 2. Protected Pages (With Main Layout) */}
-          <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+          {/* 2. Main Layout Structure */}
+          <Route element={<MainLayout />}>
+
+            {/* 🟢 PUBLIC ACCESS: หน้า Home (Monitor) เข้าได้ทุกคน ไม่ต้อง Login */}
             <Route path="/" element={<Home />} />
 
-            {/* Admin & Functional Pages */}
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/stats" element={<Dashboard />} />
+            {/* 🔒 PROTECTED AREA: ส่วนจัดการระบบ ต้อง Login ก่อน */}
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/stats" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
-            <Route path="/hospital" element={<Hospital />} />
-            <Route path="/linens" element={<Linen />} />
-            <Route path="/vendors" element={<Vendor />} />
-            <Route path="/users" element={<Users />} />
-            <Route path="/requests" element={<Requests />} />
+            <Route path="/hospital" element={<ProtectedRoute><Hospital /></ProtectedRoute>} />
+            <Route path="/linens" element={<ProtectedRoute><Linen /></ProtectedRoute>} />
+            <Route path="/vendors" element={<ProtectedRoute><Vendor /></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
+            <Route path="/requests" element={<ProtectedRoute><Requests /></ProtectedRoute>} />
 
-            <Route path="/laundry" element={<Laundry />} />
-            <Route path="/discard" element={<Discard />} />
-            <Route path="/reports" element={<Reports />} />
+            <Route path="/laundry" element={<ProtectedRoute><Laundry /></ProtectedRoute>} />
+            <Route path="/discard" element={<ProtectedRoute><Discard /></ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
 
-            <Route path="/transport" element={<Transport />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/transport" element={<ProtectedRoute><Transport /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
-            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+            <Route path="/rfid-connect" element={<ProtectedRoute><RfidConnect /></ProtectedRoute>} />
 
-            <Route path="/rfid-connect" element={<RfidConnect />} />
+            <Route path="/readers" element={<ProtectedRoute><ComingSoon title="เพิ่มอุปกรณ์ RFID" /></ProtectedRoute>} />
 
-            <Route path="/readers" element={<ComingSoon title="เพิ่มอุปกรณ์ RFID" />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/" />} />
+          {/* Fallback: ถ้า URL ไม่ตรงกับอะไรเลย ให้กลับไปหน้า Home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </ThemeProvider>

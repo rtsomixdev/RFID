@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Box, Toolbar, CssBaseline } from '@mui/material';
-import { Outlet } from 'react-router-dom';
+import { Box, CssBaseline } from '@mui/material';
+import { Outlet, useLocation } from 'react-router-dom'; // ✅ เพิ่ม useLocation
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 
@@ -10,10 +10,27 @@ const drawerWidth = 280;
 const MainLayout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // 🔍 ตรวจสอบ Path ปัจจุบัน
+  const location = useLocation();
+
+  // กำหนดเงื่อนไข: ถ้าเป็นหน้าแรก ('/') หรือ Login ให้เป็น Full Screen (ไม่เอา Sidebar)
+  const isFullScreenPage = location.pathname === '/' || location.pathname === '/login';
+
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
+  // 🟢 CASE 1: ถ้าเป็นหน้า Monitor (Home) หรือ Login -> แสดงเต็มจอโล่งๆ
+  if (isFullScreenPage) {
+    return (
+      <Box sx={{ minHeight: '100vh', bgcolor: '#f8fafc' }}>
+        <CssBaseline />
+        <Outlet /> {/* แสดงผลหน้า Home.tsx หรือ Login.tsx เต็มจอ */}
+      </Box>
+    );
+  }
+
+  // 🔒 CASE 2: ถ้าเป็นหน้า Admin (Dashboard ฯลฯ) -> แสดง Sidebar + Navbar ปกติ
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
@@ -36,8 +53,6 @@ const MainLayout: React.FC = () => {
           marginTop: '64px' // Add top margin for the fixed Navbar
         }}
       >
-        {/* We can remove Toolbar here if we use marginTop, or keep it for spacer */}
-        {/* <Toolbar /> */}
         <Outlet />
       </Box>
     </Box>
