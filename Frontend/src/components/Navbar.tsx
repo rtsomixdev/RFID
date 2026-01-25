@@ -1,21 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   AppBar, Toolbar, IconButton, Typography, Box, Badge, Stack,
   Menu, Button, MenuItem, Avatar, ListItemButton, ListItemAvatar, ListItemText
 } from '@mui/material';
-import { 
+import {
   Menu as MenuIcon, Notifications, CheckCircle, Info, Warning, Error as ErrorIcon, AccessTime
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from '../api/axiosClient';
 
-const drawerWidth = 280; 
+const drawerWidth = 280;
 
 interface NavbarProps {
   onMenuClick: () => void;
+  // Support either prop name just in case
+  onSidebarOpen?: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
+const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
+  // Handle both prop names for compatibility during refactor
+  const handleToggle = onMenuClick || onSidebarOpen;
+
   const location = useLocation();
   const navigate = useNavigate();
   const [time, setTime] = useState(new Date());
@@ -48,7 +53,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); 
+    const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -73,25 +78,25 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   };
 
   const handleReadAll = async () => {
-    if(!user) return;
+    if (!user) return;
     try {
-        await axios.post('/Notification/ReadAll', { userId: user.userId, roleId: user.roleId });
-        fetchNotifications();
+      await axios.post('/Notification/ReadAll', { userId: user.userId, roleId: user.roleId });
+      fetchNotifications();
     } catch (err) { console.error(err); }
   };
 
   const getIcon = (type: string) => {
     switch (type?.toUpperCase()) {
-        case 'SUCCESS': return <CheckCircle sx={{ color: 'success.main' }} />;
-        case 'WARNING': return <Warning sx={{ color: 'warning.main' }} />;
-        case 'DANGER': 
-        case 'ERROR': return <ErrorIcon sx={{ color: 'error.main' }} />;
-        default: return <Info sx={{ color: 'info.main' }} />;
+      case 'SUCCESS': return <CheckCircle sx={{ color: 'success.main' }} />;
+      case 'WARNING': return <Warning sx={{ color: 'warning.main' }} />;
+      case 'DANGER':
+      case 'ERROR': return <ErrorIcon sx={{ color: 'error.main' }} />;
+      default: return <Info sx={{ color: 'info.main' }} />;
     }
   };
 
   const getPageTitle = (path: string) => {
-    const basePath = path.split('?')[0]; 
+    const basePath = path.split('?')[0];
     if (basePath.startsWith('/requests')) return 'รายการคำร้องเบิกผ้า';
     switch (basePath) {
       case '/': return 'หน้าหลัก (Monitor)';
@@ -112,145 +117,152 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   };
 
   return (
-    <AppBar 
-      position="fixed" 
+    <AppBar
+      position="fixed"
       sx={{
         width: { sm: `calc(100% - ${drawerWidth}px)` },
         ml: { sm: `${drawerWidth}px` },
-        bgcolor: 'rgba(255, 255, 255, 0.9)', 
-        backdropFilter: 'blur(8px)',       
-        boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
-        color: '#1e293b', 
-        borderBottom: '1px solid #f1f5f9'
+        bgcolor: 'rgba(255, 255, 255, 0.8)', // Glassmorphism
+        backdropFilter: 'blur(12px)',
+        boxShadow: 'none', // Remove shadow
+        borderBottom: '1px solid rgba(241, 245, 249, 0.8)', // Subtle border
+        color: '#1e293b',
+        zIndex: (theme) => theme.zIndex.drawer + 1
       }}
     >
       <Toolbar sx={{ justifyContent: 'space-between' }}>
-        
+
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <IconButton
             color="inherit"
             edge="start"
-            onClick={onMenuClick}
+            onClick={handleToggle}
             sx={{ mr: 2, display: { sm: 'none' }, color: '#64748b' }}
           >
             <MenuIcon />
           </IconButton>
-          
+
           <Box>
-             <Typography variant="h6" fontWeight="bold" sx={{ color: '#0f172a' }}>
-               {getPageTitle(location.pathname)}
-             </Typography>
+            <Typography variant="h6" fontWeight="700" sx={{ color: '#0f172a', letterSpacing: -0.5 }}>
+              {getPageTitle(location.pathname)}
+            </Typography>
           </Box>
         </Box>
 
         <Stack direction="row" alignItems="center" spacing={2}>
-           
-           <Box sx={{ textAlign: 'right', display: { xs: 'none', md: 'block' }, mr: 2 }}>
-             <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: 'monospace', color: '#3b82f6', lineHeight: 1 }}>
-               {time.toLocaleTimeString('th-TH')}
-             </Typography>
-             <Typography variant="caption" sx={{ color: '#64748b' }}>
-               {time.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
-             </Typography>
-           </Box>
 
-           <IconButton 
-              onClick={handleOpenMenu}
-              sx={{ bgcolor: '#f1f5f9', '&:hover':{ bgcolor: '#e2e8f0' } }}
-           >
-              <Badge badgeContent={unreadCount} color="error">
-                <Notifications sx={{ color: '#64748b' }} />
-              </Badge>
-           </IconButton>
+          <Box sx={{ textAlign: 'right', display: { xs: 'none', md: 'block' }, mr: 1 }}>
+            <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: '"Inter", monospace', color: '#4f46e5', lineHeight: 1 }}>
+              {time.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+            </Typography>
+            <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 500 }}>
+              {time.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </Typography>
+          </Box>
 
-           {/* ✅ Menu (โครงสร้างใหม่) */}
-           <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleCloseMenu}
-              PaperProps={{
-                elevation: 0,
-                sx: {
-                  overflow: 'hidden',
-                  filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
-                  mt: 1.5,
-                  width: 360, 
-                  borderRadius: 3,
-                },
-              }}
-              // ใช้ padding 0 เพื่อให้เราจัด Layout เอง
-              MenuListProps={{ style: { padding: 0 } }}
-              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-           >
-              {/* 1. ส่วนหัว (Header) - ติดอยู่ด้านบนเสมอ */}
-              <Box sx={{ p: 2, borderBottom: '1px solid #f1f5f9', bgcolor: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="subtitle1" fontWeight="bold">การแจ้งเตือน</Typography>
-                {unreadCount > 0 && (
-                    <Button size="small" onClick={handleReadAll}>อ่านทั้งหมด</Button>
-                )}
-              </Box>
-              
-              {/* 2. ส่วนรายการ (Content List) - กำหนด MaxHeight และ Scroll ที่นี่ */}
-              <Box sx={{ maxHeight: 400, overflowY: 'auto' }}> 
-                {notifications.length === 0 ? (
-                    <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
-                        ไม่มีการแจ้งเตือนใหม่
-                    </Box>
-                ) : (
-                    notifications.map((noti) => (
-                    <ListItemButton 
-                        key={noti.id} 
-                        onClick={() => handleRead(noti)}
-                        sx={{ 
-                            bgcolor: noti.isRead ? 'transparent' : '#f0f9ff',
-                            borderBottom: '1px solid #f8fafc',
-                            alignItems: 'flex-start',
-                            py: 1.5
-                        }}
-                    >
-                        <ListItemAvatar sx={{ minWidth: 40, mt: 0.5 }}>
-                            <Avatar sx={{ bgcolor: 'transparent', width: 32, height: 32 }}>
-                                {getIcon(noti.type)}
-                            </Avatar>
-                        </ListItemAvatar>
-                        <ListItemText 
-                            primary={
-                                <Typography variant="subtitle2" fontWeight="bold" sx={{ lineHeight: 1.2, mb: 0.5 }}>
-                                    {noti.title}
-                                </Typography>
-                            }
-                            secondary={
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary" sx={{ 
-                                        display: '-webkit-box', 
-                                        WebkitLineClamp: 2, 
-                                        WebkitBoxOrient: 'vertical', 
-                                        overflow: 'hidden', 
-                                        lineHeight: 1.4,
-                                        wordBreak: 'break-word' 
-                                    }}>
-                                        {noti.message}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                        <AccessTime fontSize="inherit"/>
-                                        {new Date(noti.createdAt).toLocaleString('th-TH')}
-                                    </Typography>
-                                </Box>
-                            }
-                        />
-                    </ListItemButton>
-                    ))
-                )}
-              </Box>
-              
-              {/* 3. ส่วนท้าย (Footer) - ติดอยู่ด้านล่างเสมอ */}
-              <Box sx={{ p: 1.5, textAlign: 'center', borderTop: '1px solid #f1f5f9', bgcolor: '#fff' }}>
-                <Button fullWidth onClick={() => { handleCloseMenu(); navigate('/notifications'); }}>
-                    ดูประวัติทั้งหมด
-                </Button>
-              </Box>
-           </Menu>
+          <IconButton
+            onClick={handleOpenMenu}
+            sx={{
+              bgcolor: '#f1f5f9',
+              border: '1px solid #e2e8f0',
+              '&:hover': { bgcolor: '#e2e8f0' }
+            }}
+          >
+            <Badge badgeContent={unreadCount} color="error">
+              <Notifications sx={{ color: '#64748b' }} />
+            </Badge>
+          </IconButton>
+
+          {/* ✅ Menu (โครงสร้างใหม่) */}
+          <Menu
+            anchorEl={anchorEl}
+            open={Boolean(anchorEl)}
+            onClose={handleCloseMenu}
+            PaperProps={{
+              elevation: 0,
+              sx: {
+                overflow: 'hidden',
+                filter: 'drop-shadow(0px 10px 30px rgba(0,0,0,0.1))',
+                mt: 1.5,
+                width: 360,
+                borderRadius: 3,
+                border: '1px solid #f1f5f9'
+              },
+            }}
+            // ใช้ padding 0 เพื่อให้เราจัด Layout เอง
+            MenuListProps={{ style: { padding: 0 } }}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          >
+            {/* 1. ส่วนหัว (Header) - ติดอยู่ด้านบนเสมอ */}
+            <Box sx={{ p: 2, borderBottom: '1px solid #f1f5f9', bgcolor: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle1" fontWeight="bold">การแจ้งเตือน</Typography>
+              {unreadCount > 0 && (
+                <Button size="small" onClick={handleReadAll} sx={{ fontSize: '0.8rem' }}>อ่านทั้งหมด</Button>
+              )}
+            </Box>
+
+            {/* 2. ส่วนรายการ (Content List) - กำหนด MaxHeight และ Scroll ที่นี่ */}
+            <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
+              {notifications.length === 0 ? (
+                <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
+                  ไม่มีการแจ้งเตือนใหม่
+                </Box>
+              ) : (
+                notifications.map((noti) => (
+                  <ListItemButton
+                    key={noti.id}
+                    onClick={() => handleRead(noti)}
+                    sx={{
+                      bgcolor: noti.isRead ? 'transparent' : '#f8fafc',
+                      borderBottom: '1px solid #f8fafc',
+                      alignItems: 'flex-start',
+                      py: 1.5
+                    }}
+                  >
+                    <ListItemAvatar sx={{ minWidth: 40, mt: 0.5 }}>
+                      <Avatar sx={{ bgcolor: 'transparent', width: 32, height: 32 }}>
+                        {getIcon(noti.type)}
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={
+                        <Typography variant="subtitle2" fontWeight="bold" sx={{ lineHeight: 1.2, mb: 0.5, color: '#1e293b' }}>
+                          {noti.title}
+                        </Typography>
+                      }
+                      secondary={
+                        <Box>
+                          <Typography variant="body2" color="text.secondary" sx={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            lineHeight: 1.4,
+                            wordBreak: 'break-word',
+                            fontSize: '0.85rem'
+                          }}>
+                            {noti.message}
+                          </Typography>
+                          <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <AccessTime fontSize="inherit" />
+                            {new Date(noti.createdAt).toLocaleString('th-TH')}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                  </ListItemButton>
+                ))
+              )}
+            </Box>
+
+            {/* 3. ส่วนท้าย (Footer) - ติดอยู่ด้านล่างเสมอ */}
+            <Box sx={{ p: 1.5, textAlign: 'center', borderTop: '1px solid #f1f5f9', bgcolor: '#fff' }}>
+              <Button fullWidth onClick={() => { handleCloseMenu(); navigate('/notifications'); }}>
+                ดูประวัติทั้งหมด
+              </Button>
+            </Box>
+          </Menu>
 
         </Stack>
 

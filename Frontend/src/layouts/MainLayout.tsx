@@ -4,8 +4,8 @@ import { Outlet } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 
-// ✅ ต้องตรงกับ Sidebar.tsx (260px)
-const drawerWidth = 260; 
+// ✅ Updated to match Sidebar.tsx
+const drawerWidth = 280;
 
 const MainLayout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -17,26 +17,28 @@ const MainLayout: React.FC = () => {
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
-      
-      {/* 1. Navbar: อยู่บนสุดเสมอ */}
-      <Navbar onSidebarOpen={handleDrawerToggle} />
-      
-      {/* 2. Sidebar: อยู่ทางซ้าย */}
+
+      {/* 1. Navbar: Fixed at top */}
+      <Navbar onMenuClick={handleDrawerToggle} />
+
+      {/* 2. Sidebar: Permanent on desktop, temporary on mobile */}
       <Sidebar open={mobileOpen} onClose={handleDrawerToggle} />
-      
-      {/* 3. Main Content: เนื้อหาหลักตรงกลาง */}
+
+      {/* 3. Main Content */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` }, // คำนวณความกว้างที่เหลือจาก Sidebar
+          width: { sm: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
-          bgcolor: '#f8fafc' // สีพื้นหลังเทาอ่อน
+          bgcolor: '#f8fafc',
+          marginTop: '64px' // Add top margin for the fixed Navbar
         }}
       >
-        <Toolbar /> {/* ดันเนื้อหาลงมาไม่ให้โดน Navbar ทับ */}
-        <Outlet />  {/* จุดแสดงผลของหน้าต่างๆ (Dashboard, Hospital, etc.) */}
+        {/* We can remove Toolbar here if we use marginTop, or keep it for spacer */}
+        {/* <Toolbar /> */}
+        <Outlet />
       </Box>
     </Box>
   );
