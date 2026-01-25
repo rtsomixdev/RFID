@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, CssBaseline } from '@mui/material';
-import { Outlet, useLocation } from 'react-router-dom'; // ✅ เพิ่ม useLocation
+import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 
@@ -9,39 +9,43 @@ const drawerWidth = 280;
 
 const MainLayout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  // 🔍 ตรวจสอบ Path ปัจจุบัน
   const location = useLocation();
 
-  // กำหนดเงื่อนไข: ถ้าเป็นหน้าแรก ('/') หรือ Login ให้เป็น Full Screen (ไม่เอา Sidebar)
-  const isFullScreenPage = location.pathname === '/' || location.pathname === '/login';
+  // 1️⃣ ดึงข้อมูล User จาก LocalStorage (หรือ Context)
+  const userStr = localStorage.getItem('currentUser');
+  const user = userStr ? JSON.parse(userStr) : null;
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  // 🟢 CASE 1: ถ้าเป็นหน้า Monitor (Home) หรือ Login -> แสดงเต็มจอโล่งๆ
-  if (isFullScreenPage) {
+  // 2️⃣ กำหนดเงื่อนไขใหม่:
+  // - หน้า Login: ซ่อน Sidebar เสมอ
+  // - หน้า Home ('/'): ซ่อน Sidebar "เฉพาะตอนที่ยังไม่ Login"
+  const isLoginPage = location.pathname === '/login';
+  const isGuestHome = location.pathname === '/' && !user; 
+
+  const shouldHideSidebar = isLoginPage || isGuestHome;
+
+  // 🟢 CASE 1: ซ่อน Sidebar (หน้า Login หรือ หน้า Home แบบ Guest)
+  if (shouldHideSidebar) {
     return (
       <Box sx={{ minHeight: '100vh', bgcolor: '#f8fafc' }}>
         <CssBaseline />
-        <Outlet /> {/* แสดงผลหน้า Home.tsx หรือ Login.tsx เต็มจอ */}
+        <Outlet />
       </Box>
     );
   }
 
-  // 🔒 CASE 2: ถ้าเป็นหน้า Admin (Dashboard ฯลฯ) -> แสดง Sidebar + Navbar ปกติ
+  // 🔒 CASE 2: แสดง Sidebar ปกติ (หน้า Admin หรือ หน้า Home แบบ Login แล้ว)
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
 
-      {/* 1. Navbar: Fixed at top */}
       <Navbar onMenuClick={handleDrawerToggle} />
 
-      {/* 2. Sidebar: Permanent on desktop, temporary on mobile */}
       <Sidebar open={mobileOpen} onClose={handleDrawerToggle} />
 
-      {/* 3. Main Content */}
       <Box
         component="main"
         sx={{
@@ -50,7 +54,7 @@ const MainLayout: React.FC = () => {
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
           bgcolor: '#f8fafc',
-          marginTop: '64px' // Add top margin for the fixed Navbar
+          marginTop: '64px'
         }}
       >
         <Outlet />
