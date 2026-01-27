@@ -34,7 +34,22 @@ services:
     networks:
       - linen_network
 
-  # 3. Cloudflare Tunnel (แก้ให้วิ่งหา Windows ของคุณ)
+  # 3. MQTT Broker (Mosquitto) - ✅ เพิ่มใหม่
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: linen_mosquitto
+    ports:
+      - "1883:1883" # Port สำหรับ Hardware (ESP32) และ Backend
+      - "9001:9001" # Port สำหรับ WebSocket
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    restart: always
+    networks:
+      - linen_network
+
+  # 4. Cloudflare Tunnel (แก้ให้วิ่งหา Windows ของคุณ)
   tunnel:
     image: cloudflare/cloudflared:latest
     container_name: linen_tunnel

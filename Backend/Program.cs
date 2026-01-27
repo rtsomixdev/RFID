@@ -1,6 +1,7 @@
 using Backend.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
+using Backend.Services; // ✅ 1. เพิ่มบรรทัดนี้เพื่อเรียกใช้ Folder Services
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +17,11 @@ builder.Services.AddControllers().AddJsonOptions(x =>
 // Connect Database
 builder.Services.AddDbContext<LinenDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// ✅ 2. ลงทะเบียน MQTT Background Service ตรงนี้ (สำคัญ!)
+// บรรทัดนี้จะทำให้ MqttListenerService ทำงานทันทีที่ Backend เริ่มรัน
+builder.Services.AddHostedService<MqttListenerService>();
+builder.Services.AddSingleton<MqttPublisherService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

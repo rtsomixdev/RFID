@@ -51,6 +51,14 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "dependencies": {
+            "MQTTnet": {
+              "target": "Package",
+              "version": "[4.3.3.952, )"
+            },
+            "MQTTnet.Extensions.ManagedClient": {
+              "target": "Package",
+              "version": "[4.3.3.952, )"
+            },
             "Microsoft.AspNetCore.OpenApi": {
               "target": "Package",
               "version": "[9.0.0, )"

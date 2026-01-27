@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "xD2ewGIV5II=",
+  "dgSpecHash": "1FHwsZk2xeA=",
   "success": true,
   "projectFilePath": "C:\\Users\\rtsom\\OneDrive\\Desktop\\RFID\\backend\\Backend.csproj",
   "expectedPackageFiles": [
@@ -33,6 +33,8 @@
     "C:\\Users\\rtsom\\.nuget\\packages\\microsoft.extensions.primitives\\9.0.0\\microsoft.extensions.primitives.9.0.0.nupkg.sha512",
     "C:\\Users\\rtsom\\.nuget\\packages\\microsoft.openapi\\1.6.22\\microsoft.openapi.1.6.22.nupkg.sha512",
     "C:\\Users\\rtsom\\.nuget\\packages\\mono.texttemplating\\3.0.0\\mono.texttemplating.3.0.0.nupkg.sha512",
+    "C:\\Users\\rtsom\\.nuget\\packages\\mqttnet\\4.3.3.952\\mqttnet.4.3.3.952.nupkg.sha512",
+    "C:\\Users\\rtsom\\.nuget\\packages\\mqttnet.extensions.managedclient\\4.3.3.952\\mqttnet.extensions.managedclient.4.3.3.952.nupkg.sha512",
     "C:\\Users\\rtsom\\.nuget\\packages\\npgsql\\9.0.0\\npgsql.9.0.0.nupkg.sha512",
     "C:\\Users\\rtsom\\.nuget\\packages\\npgsql.entityframeworkcore.postgresql\\9.0.0\\npgsql.entityframeworkcore.postgresql.9.0.0.nupkg.sha512",
     "C:\\Users\\rtsom\\.nuget\\packages\\swashbuckle.aspnetcore\\7.0.0\\swashbuckle.aspnetcore.7.0.0.nupkg.sha512",

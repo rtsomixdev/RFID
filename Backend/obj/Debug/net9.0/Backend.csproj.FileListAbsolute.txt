@@ -122,3 +122,5 @@ C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\Backend.pdb
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\Backend.genruntimeconfig.cache
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\ref\Backend.dll
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\Backend.sourcelink.json
+C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\MQTTnet.dll
+C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\MQTTnet.Extensions.ManagedClient.dll

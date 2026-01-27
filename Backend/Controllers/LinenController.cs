@@ -257,14 +257,14 @@ namespace Backend.Controllers
         }
 
         // ==========================================
-        // 4. GET: Monitor (✅✅ แก้ไขบั๊ก 500 ตรงนี้แล้ว ✅✅)
+        // 4. GET: Monitor (✅ แก้ไขชื่อตัวแปรและ Format เวลาแล้ว)
         // ==========================================
         [HttpGet("Monitor/Latest")]
         public async Task<IActionResult> GetLatestMonitor()
         {
             try 
             {
-                // 1. ดึงรายการผ้าที่เคลื่อนไหวล่าสุด
+                // 1. ดึงข้อมูลดิบ (Entity) ออกมาก่อน (เพื่อแก้ปัญหาชื่อสินค้าหาย)
                 var recentLinens = await _context.Linens
                     .Include(l => l.Product)
                     .Where(l => l.IsActive == true)
@@ -272,7 +272,7 @@ namespace Backend.Controllers
                     .Take(30) 
                     .ToListAsync();
 
-                // 2. ดึง Log ของแปลกปลอม (Unknown/Alien)
+                // 2. ดึง Log ของแปลกปลอม
                 var recentUnknowns = await _context.SystemLogs
                     .Where(x => x.ActionType == "SCAN_UNKNOWN" || x.ActionType == "SCAN_DISPOSED")
                     .OrderByDescending(x => x.CreatedAt)
@@ -281,7 +281,7 @@ namespace Backend.Controllers
 
                 var result = new List<object>();
 
-                // แปลงข้อมูล Linen ปกติ
+                // 3. แปลงข้อมูล (Mapping)
                 foreach (var l in recentLinens)
                 {
                     result.Add(new 
@@ -290,11 +290,12 @@ namespace Backend.Controllers
                         productName = l.Product?.ProductName ?? "Unknown Product",
                         location = l.CurrentLocation ?? "ไม่ระบุ", 
                         status = l.Status ?? "Unknown",
-                        timestamp = l.UpdatedAt.HasValue ? l.UpdatedAt.Value.ToString("HH:mm:ss") : "-"
+                        // ✅ แก้ไข: ส่งเป็น updatedAt (ตรงกับ Frontend) และส่งเป็น DateTime เต็มๆ
+                        updatedAt = l.UpdatedAt
                     });
                 }
 
-                // แปลงข้อมูล Unknown Log (แบบปลอดภัย - ไม่ Error แม้ข้อมูลไม่ครบ)
+                // 4. แปลงข้อมูล Unknown Log
                 foreach (var log in recentUnknowns)
                 {
                     string rfid = "Unknown";
@@ -305,7 +306,6 @@ namespace Backend.Controllers
                     {
                         if (!string.IsNullOrEmpty(log.Description))
                         {
-                            // พยายามแกะ RFID จากข้อความ "พบ RFID ...: XXXX ..."
                             var parts = log.Description.Split(':');
                             if (parts.Length > 1) 
                             {
@@ -313,22 +313,14 @@ namespace Backend.Controllers
                                 rfid = subParts[0]; 
                             }
 
-                            // พยายามแกะ Location จากข้อความ "... ที่จุด YYYY"
                             if (log.Description.Contains("ที่จุด")) 
                             {
                                 var locParts = log.Description.Split(new[] { "ที่จุด" }, StringSplitOptions.None);
-                                if (locParts.Length > 1)
-                                {
-                                    loc = locParts[1].Trim();
-                                }
+                                if (locParts.Length > 1) loc = locParts[1].Trim();
                             }
                         }
                     } 
-                    catch 
-                    { 
-                        // ถ้าแกะไม่ออก ให้ใช้ค่า Default ไปเลย ไม่ต้อง Throw Error
-                        rfid = "Parse Error"; 
-                    }
+                    catch { rfid = "Parse Error"; }
 
                     result.Add(new 
                     {
@@ -336,16 +328,16 @@ namespace Backend.Controllers
                         productName = status == "Disposed" ? "จำหน่ายแล้ว" : "ไม่พบในระบบ", 
                         location = loc,
                         status = status,
-                        timestamp = log.CreatedAt.ToString("HH:mm:ss")
+                        // ✅ แก้ไข: ส่งเป็น updatedAt เหมือนกัน
+                        updatedAt = log.CreatedAt 
                     });
                 }
 
                 // เรียงลำดับตามเวลาล่าสุด
-                return Ok(result.OrderByDescending(x => ((dynamic)x).timestamp));
+                return Ok(result.OrderByDescending(x => ((dynamic)x).updatedAt));
             }
             catch (Exception ex)
             {
-                // ถ้ายังพังอีก ให้ส่ง Error กลับไปดู (แต่ไม่ควรพังแล้ว)
                 return StatusCode(500, new { message = "Server Error", error = ex.Message });
             }
         }

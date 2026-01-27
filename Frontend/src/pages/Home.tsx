@@ -54,23 +54,25 @@ const Home: React.FC = () => {
         const fetchData = async () => {
             try {
                 // 1. Fetch Monitor Data
-                // Ensure this endpoint matches your backend API
                 const resMonitor = await axiosClient.get('/Linen/Monitor/Latest');
                 const rawData = resMonitor.data || [];
 
-                // 2. Data Mapping (Crucial Step)
+                // 2. Data Mapping (Crucial Step - FIXED HERE)
                 const mappedData: MonitorItem[] = rawData.map((item: any) => {
-                    // Location: Check multiple possible property names from backend
-                    const loc = item.readerLocation || item.currentLocation || item.current_location || item.location;
+                    // ✅ Fix Location: Check PascalCase (CurrentLocation) from C# Backend
+                    const loc = item.CurrentLocation || item.currentLocation || item.current_location || item.location || item.readerLocation;
 
-                    // Timestamp: Check multiple possible property names
-                    const time = item.updatedAt || item.updated_at || item.registeredAt || item.registered_at || new Date().toISOString();
+                    // ✅ Fix Time Moving Bug: REMOVED "|| new Date().toISOString()"
+                    // Only use time from DB. If null, let it be null (formatDate will show '-')
+                    const time = item.UpdatedAt || item.updatedAt || item.updated_at || 
+                                 item.RegisteredAt || item.registeredAt || item.registered_at;
 
                     return {
-                        rfid: item.rfidCode || item.rfid || 'Unknown ID',
-                        productName: item.productName || item.product_name || item.item_name || 'Unknown Item',
-                        location: loc || '-', // Default to '-' if location is null/undefined/empty
-                        status: item.status || 'Unknown',
+                        rfid: item.RfidCode || item.rfidCode || item.rfid || 'Unknown ID',
+                        // ✅ Fix Name: Check ItemName from C#
+                        productName: item.ItemName || item.productName || item.product_name || item.item_name || 'Unknown Item',
+                        location: loc || '-', 
+                        status: item.Status || item.status || 'Unknown',
                         timestamp: time
                     };
                 });
@@ -101,12 +103,12 @@ const Home: React.FC = () => {
                 setLoading(false);
             } catch (err) {
                 console.error("Fetch Error:", err);
-                setLoading(false); // Stop loading even on error so UI doesn't freeze
+                setLoading(false); 
             }
         };
 
         fetchData();
-        const interval = setInterval(fetchData, 2000);
+        const interval = setInterval(fetchData, 2000); // Poll every 2 seconds
         return () => clearInterval(interval);
     }, []);
 
@@ -125,11 +127,11 @@ const Home: React.FC = () => {
 
     return (
         <Box sx={{
-            height: '100vh', // Ensure full viewport height
+            height: '100vh', 
             display: 'flex',
             flexDirection: 'column',
             bgcolor: '#f8fafc',
-            overflow: 'hidden' // Main container doesn't scroll, inner content does
+            overflow: 'hidden' 
         }}>
 
             {/* --- Header & Stats (Fixed Top) --- */}
@@ -189,7 +191,6 @@ const Home: React.FC = () => {
             </Box>
 
             {/* --- Main Content Split (Flex Row) --- */}
-            {/* Using minHeight: 0 is CRITICAL for nested scrolling flex children */}
             <Box sx={{
                 flexGrow: 1,
                 p: 3,
@@ -197,14 +198,14 @@ const Home: React.FC = () => {
                 display: 'flex',
                 flexDirection: { xs: 'column', md: 'row' },
                 gap: 3,
-                overflow: 'hidden', // Prevent main scrollbar
-                minHeight: 0        // Allow flex items to shrink properly
+                overflow: 'hidden', 
+                minHeight: 0     
             }}>
 
                 {/* 🟢 Left: Registered Items Table */}
                 <Paper sx={{
                     flex: { xs: 'none', md: 2 },
-                    height: '100%', // Take full available height
+                    height: '100%', 
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
@@ -266,14 +267,14 @@ const Home: React.FC = () => {
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 3,
-                    overflow: 'hidden' // Prevent container scroll
+                    overflow: 'hidden' 
                 }}>
 
                     {/* Unknown Objects Card - Fixed Minimum Height & Scrollable */}
                     <Paper sx={{
-                        flexShrink: 0, // IMPORTANT: Prevents this card from being squashed
-                        minHeight: '300px', // Ensure it has visible height
-                        maxHeight: '50%', // Don't take more than half the column
+                        flexShrink: 0, 
+                        minHeight: '300px', 
+                        maxHeight: '50%', 
                         display: 'flex',
                         flexDirection: 'column',
                         bgcolor: '#fff1f2',
@@ -313,7 +314,7 @@ const Home: React.FC = () => {
 
                     {/* System Activity Card - Takes Remaining Space */}
                     <Paper sx={{
-                        flexGrow: 1, // Expands to fill remaining vertical space
+                        flexGrow: 1, 
                         minHeight: '200px',
                         display: 'flex',
                         flexDirection: 'column',
