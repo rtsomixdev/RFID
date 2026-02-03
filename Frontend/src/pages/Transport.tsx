@@ -4,7 +4,7 @@ import {
   MenuItem, Select, FormControl, InputLabel,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Chip, Alert, Stack, Card, CardContent, Tabs, Tab, Divider, Autocomplete,
-  List, ListItem, ListItemText, ListItemAvatar, Avatar
+  List, ListItem, ListItemText, ListItemAvatar, Avatar, Tooltip
 } from '@mui/material';
 import {
   LocalShipping, QrCodeScanner, CheckCircle, ErrorOutline,
@@ -246,10 +246,10 @@ const Transport: React.FC = () => {
       <Grid container spacing={3}>
         {/* Left Panel: Controls */}
         <Grid size={{ xs: 12, md: 4 }}>
-          <Card elevation={3} sx={{ borderRadius: 3, mb: 3, borderTop: tabValue === 0 ? '5px solid #1976d2' : '5px solid #2e7d32' }}>
+          <Card elevation={2} sx={{ borderRadius: 3, mb: 3, borderTop: tabValue === 0 ? '5px solid #1976d2' : '5px solid #2e7d32', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
             <CardContent>
               <Typography variant="h6" fontWeight="bold" gutterBottom color={tabValue === 0 ? "primary" : "success.main"}>
-                {tabValue === 0 ? "📤 เตรียมส่งของ (ตามใบเบิก)" : "📥 เตรียมรับของเข้า"}
+                {tabValue === 0 ? "เตรียมส่งของ (ตามใบเบิก)" : "เตรียมรับของเข้า"}
               </Typography>
 
               <FormControl fullWidth sx={{ mb: 2 }} size="small">
@@ -278,6 +278,7 @@ const Transport: React.FC = () => {
                       getOptionLabel={(option) => `${option.requestCode} - ${option.targetWard?.wardName}`}
                       value={selectedRequest}
                       onChange={(e, newVal) => setSelectedRequest(newVal)}
+                      size="small"
                       renderInput={(params) => (
                         <TextField {...params} label="ค้นหาใบคำร้อง..." size="small" placeholder="พิมพ์เลขที่เอกสาร" />
                       )}
@@ -303,8 +304,12 @@ const Transport: React.FC = () => {
                         <TableBody>
                           {selectedRequest.requestItems.map((item) => (
                             <TableRow key={item.id}>
-                              <TableCell sx={{ fontSize: '0.85rem' }}>
-                                {item.product.productName}
+                              <TableCell sx={{ fontSize: '0.85rem', maxWidth: 150 }}>
+                                <Tooltip title={item.product.productName}>
+                                  <Typography variant="body2" fontSize="0.85rem" noWrap>
+                                    {item.product.productName}
+                                  </Typography>
+                                </Tooltip>
                                 <Typography variant="caption" display="block" color="textSecondary">{item.product.sizeSpec}</Typography>
                               </TableCell>
                               <TableCell align="center" sx={{ fontWeight: 'bold', color: '#1e293b' }}>
@@ -326,6 +331,7 @@ const Transport: React.FC = () => {
               <TextField
                 inputRef={inputRef}
                 fullWidth
+                size="small"
                 label={tabValue === 0 ? "สแกนของที่จะส่ง..." : "สแกนของที่จะรับ..."}
                 variant="outlined"
                 value={inputRfid}
@@ -360,7 +366,7 @@ const Transport: React.FC = () => {
 
         {/* Right Panel: List */}
         <Grid size={{ xs: 12, md: 8 }}>
-          <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+          <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
             <Box sx={{ p: 2, bgcolor: '#f1f5f9', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="h6" fontWeight="bold" color="text.primary">
                 รายการสแกน ({scannedList.length})
@@ -396,8 +402,20 @@ const Transport: React.FC = () => {
                     scannedList.map((item, index) => (
                       <TableRow key={index} hover>
                         <TableCell>{scannedList.length - index}</TableCell>
-                        <TableCell sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{item.rfid}</TableCell>
-                        <TableCell sx={{ color: 'text.secondary' }}>{item.productName || '-'}</TableCell>
+                        <TableCell sx={{ maxWidth: 150 }}>
+                          <Tooltip title={item.rfid}>
+                            <Typography variant="body2" fontFamily="monospace" fontWeight="bold" noWrap>
+                              {item.rfid}
+                            </Typography>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 200, color: 'text.secondary' }}>
+                          <Tooltip title={item.productName || '-'}>
+                            <Typography variant="body2" noWrap>
+                              {item.productName || '-'}
+                            </Typography>
+                          </Tooltip>
+                        </TableCell>
                         <TableCell>
                           {item.status === 'pending' && <Chip label="รอ..." size="small" />}
                           {item.status === 'success' && <Chip label="สำเร็จ" size="small" color="success" icon={<CheckCircle />} />}

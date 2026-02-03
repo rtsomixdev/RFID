@@ -234,7 +234,7 @@ const Requests: React.FC = () => {
             </Box>
 
             {/* 1. ส่วน Form */}
-            <Card sx={{ mb: 4 }}>
+            <Card elevation={2} sx={{ mb: 4, borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                 <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Send color="primary" />
                     <Typography variant="subtitle1" fontWeight="bold" color="primary.main">
@@ -300,7 +300,7 @@ const Requests: React.FC = () => {
                             </FormControl>
                         </Grid>
 
-                        <Grid size={{ xs: 12, md: 4 }}>
+                        <Grid size={{ xs: 12, md: 2 }}>
                             <TextField
                                 fullWidth
                                 type="number"
@@ -346,7 +346,7 @@ const Requests: React.FC = () => {
             </Card>
 
             {/* 2. ส่วน Table */}
-            <Card>
+            <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                 <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <ListAlt color="action" />

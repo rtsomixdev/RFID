@@ -204,7 +204,7 @@ const Discard: React.FC = () => {
             </Box>
 
             {/* Main Card */}
-            <Card sx={{ mb: 3 }}>
+            <Card elevation={2} sx={{ mb: 3, borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                 <CardContent sx={{ p: 3 }}>
                     <Grid container spacing={3}>
                         {/* 1. Search (Full Width) */}
@@ -216,6 +216,7 @@ const Discard: React.FC = () => {
                                 options={candidates.filter(c => !scannedItems.find(s => s.rfidCode === c.rfidCode))}
                                 getOptionLabel={(option) => `${option.productName} (${option.rfidCode})`}
                                 autoHighlight autoSelect blurOnSelect
+                                size="small"
                                 renderInput={(params) => (
                                     <TextField
                                         {...params}
@@ -234,7 +235,7 @@ const Discard: React.FC = () => {
                             <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>2. ระบุสาเหตุ</Typography>
                             <Grid container spacing={3}>
                                 <Grid size={{ xs: 12, md: 6 }}>
-                                    <FormControl fullWidth>
+                                    <FormControl fullWidth size="small">
                                         <InputLabel>สาเหตุ</InputLabel>
                                         <Select value={selectedReason} label="สาเหตุ" onChange={(e) => setSelectedReason(e.target.value)}>
                                             {reasons.map((r: any) => (
@@ -244,7 +245,7 @@ const Discard: React.FC = () => {
                                     </FormControl>
                                 </Grid>
                                 <Grid size={{ xs: 12, md: 6 }}>
-                                    <TextField fullWidth label="หมายเหตุ" value={note} onChange={e => setNote(e.target.value)} />
+                                    <TextField fullWidth size="small" label="หมายเหตุ" value={note} onChange={e => setNote(e.target.value)} />
                                 </Grid>
                             </Grid>
 
@@ -278,8 +279,20 @@ const Discard: React.FC = () => {
                                 <TableBody>
                                     {scannedItems.map((item, idx) => (
                                         <TableRow key={idx} hover>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>{item.productName}</TableCell>
-                                            <TableCell sx={{ fontFamily: 'monospace', color: '#64748b' }}>{item.rfidCode}</TableCell>
+                                            <TableCell sx={{ fontWeight: 'bold', maxWidth: 200 }}>
+                                                <Tooltip title={item.productName}>
+                                                    <Typography variant="body2" fontWeight="bold" noWrap>
+                                                        {item.productName}
+                                                    </Typography>
+                                                </Tooltip>
+                                            </TableCell>
+                                            <TableCell sx={{ maxWidth: 150 }}>
+                                                <Tooltip title={item.rfidCode}>
+                                                    <Typography variant="body2" fontFamily="monospace" color="#64748b" noWrap>
+                                                        {item.rfidCode}
+                                                    </Typography>
+                                                </Tooltip>
+                                            </TableCell>
                                             <TableCell>{item.status}</TableCell>
                                             <TableCell align="center">
                                                 <IconButton size="small" color="default" onClick={() => handleRemoveItem(item.rfidCode)}>
@@ -309,7 +322,7 @@ const Discard: React.FC = () => {
                             </Stack>
                             <Grid container spacing={3} alignItems="center">
                                 <Grid size={{ xs: 12, md: 8 }}>
-                                    <TextField fullWidth placeholder="ใส่รหัส RFID ที่มีปัญหาที่นี่ (เช่น E200...)" value={manualRfid} onChange={e => setManualRfid(e.target.value)} sx={{ bgcolor: '#fff' }} />
+                                    <TextField fullWidth size="small" placeholder="ใส่รหัส RFID ที่มีปัญหาที่นี่ (เช่น E200...)" value={manualRfid} onChange={e => setManualRfid(e.target.value)} sx={{ bgcolor: '#fff' }} />
                                 </Grid>
                                 <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', gap: 2 }}>
                                     <Button variant="contained" onClick={handleManualCheck} disabled={!manualRfid} sx={{ height: 56 }}>ตรวจสอบ</Button>
@@ -322,7 +335,7 @@ const Discard: React.FC = () => {
             </Box>
 
             {/* History */}
-            <Card>
+            <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                 <Box sx={{ p: 2, borderBottom: '1px solid #f1f5f9' }}>
                     <Typography variant="subtitle2" fontWeight="bold" sx={{ color: '#475569' }}>ประวัติการดำเนินการล่าสุด</Typography>
                 </Box>
@@ -331,7 +344,13 @@ const Discard: React.FC = () => {
                         <TableBody>
                             {deleteHistory.map((log: any) => (
                                 <TableRow key={log.id}>
-                                    <TableCell sx={{ color: '#334155' }}>{log.item}</TableCell>
+                                    <TableCell sx={{ color: '#334155', maxWidth: 250 }}>
+                                        <Tooltip title={log.item}>
+                                            <Typography variant="body2" noWrap>
+                                                {log.item}
+                                            </Typography>
+                                        </Tooltip>
+                                    </TableCell>
                                     <TableCell align="right" sx={{ color: '#64748b', fontSize: '0.85rem' }}>{log.time}</TableCell>
                                 </TableRow>
                             ))}

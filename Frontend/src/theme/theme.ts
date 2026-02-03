@@ -38,10 +38,11 @@ const theme = createTheme({
     MuiButton: {
       styleOverrides: {
         root: {
-          borderRadius: 10,
+          borderRadius: 8, // Professional look
           textTransform: 'none',
           fontWeight: 600,
           padding: '10px 24px',
+          minWidth: '100px', // ✅ Prevent text truncation (ex. "ห..")
           boxShadow: 'none',
           transition: 'all 0.2s ease-in-out',
           '&:hover': {
@@ -67,24 +68,35 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 16,
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+          borderRadius: 12, // Professional radius
+          boxShadow: '0 4px 20px rgba(0,0,0,0.08)', // Soft shadow
           border: 'none',
+          overflow: 'visible', // Ensure dropdowns don't get clipped if z-index issues
+        },
+      },
+    },
+    MuiCardContent: {
+      styleOverrides: {
+        root: {
+          padding: '24px', // Increased padding for breathing room
+          '&:last-child': {
+            paddingBottom: '24px',
+          },
         },
       },
     },
     // --- Global Defaults ---
     MuiTextField: {
       defaultProps: {
-        fullWidth: true,
+        fullWidth: true, // ✅ Global Default
         size: 'small',
         variant: 'outlined',
       },
       styleOverrides: {
         root: {
-          minWidth: 120, // Prevent collapse
           '& .MuiInputBase-root': {
-            backgroundColor: '#ffffff', // Ensure white background
+            backgroundColor: '#ffffff',
+            // lineHeight: 1.6, // Optional: for better Thai font rendering
           }
         }
       }
@@ -94,16 +106,12 @@ const theme = createTheme({
         fullWidth: true,
         size: 'small',
       },
-      styleOverrides: {
-        root: {
-          minWidth: 120, // Prevent collapse
-        }
-      }
     },
     MuiSelect: {
       defaultProps: {
         fullWidth: true,
         size: 'small',
+        variant: 'outlined',
       }
     },
     // --- Form & Input Standardization ---
@@ -115,68 +123,60 @@ const theme = createTheme({
           '&.Mui-focused': {
             color: '#4f46e5',
           },
-          // Fix label overlap or cutoff
-          transform: 'translate(14px, 10px) scale(1)',
-          '&.MuiInputLabel-shrink': {
-            transform: 'translate(14px, -9px) scale(0.75)',
-            backgroundColor: 'white',
-            padding: '0 4px',
-          }
         },
-        shrink: {
-          // Additional safety
-          transform: 'translate(14px, -9px) scale(0.75)',
-        }
       }
     },
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
-          backgroundColor: '#f8fafc', // Light background
+          borderRadius: 8,
+          backgroundColor: '#f8fafc',
           transition: 'all 0.2s ease-in-out',
           '&:hover': {
             backgroundColor: '#f1f5f9',
           },
           '&.Mui-focused': {
             backgroundColor: '#ffffff',
-            boxShadow: '0 0 0 4px rgba(79, 70, 229, 0.1)', // Focus ring
-          },
-          '&.MuiInputBase-sizeSmall': {
-            minHeight: '44px', // Standard height validation
+            boxShadow: '0 0 0 3px rgba(79, 70, 229, 0.1)',
           },
         },
         notchedOutline: {
-          borderColor: '#e2e8f0', // Subtle default border
-          borderWidth: '1px',
+          borderColor: '#e2e8f0',
         },
         input: {
-          padding: '10px 14px', // Adjusted for better alignment
+          padding: '12px 14px', // ✅ Increased Vertical Padding for Thai Ascenders/Descenders
           fontSize: '0.95rem',
           color: '#1e293b',
-          '&::placeholder': {
-            color: '#94a3b8',
-            opacity: 1,
-          },
         },
       },
     },
     MuiAutocomplete: {
+      defaultProps: {
+        fullWidth: true,
+      },
       styleOverrides: {
         root: {
           '& .MuiOutlinedInput-root': {
-            padding: '4px 8px', // Adjust for autocomplete
+            padding: '4px 8px',
           },
         },
         paper: {
-          borderRadius: 12,
+          borderRadius: 8,
           marginTop: 8,
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
           border: '1px solid #e2e8f0',
+          minWidth: 250, // Ensure listbox is wide enough
+        },
+        listbox: {
+          padding: 4,
         },
         option: {
           fontSize: '0.9rem',
-          padding: '10px 16px',
+          padding: '8px 16px',
+          whiteSpace: 'nowrap', // Prevent wrapping
+          overflow: 'hidden',
+          textOverflow: 'ellipsis', // Ellipsis for overflow
+          display: 'block', // Required for textOverflow
           '&:hover': {
             backgroundColor: '#f1f5f9',
           },

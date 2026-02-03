@@ -220,7 +220,7 @@ const Users: React.FC = () => {
       </Box>
 
       {/* Form Section */}
-      <Card sx={{ mb: 4 }}>
+      <Card elevation={2} sx={{ mb: 4, borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
         <Box sx={{ p: 2, bgcolor: isEdit ? '#fff7ed' : '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1 }}>
           {isEdit ? <Edit color="warning" /> : <PersonAdd color="primary" />}
           <Typography variant="subtitle1" fontWeight="bold" color={isEdit ? 'warning.main' : 'primary.main'}>
@@ -305,7 +305,7 @@ const Users: React.FC = () => {
       </Card>
 
       {/* Table Section */}
-      <Card sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
+      <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
           <Typography variant="h6" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <SupervisorAccount color="primary" /> รายชื่อบุคลากรทั้งหมด <Chip label={filteredUsers.length} size="small" color="primary" sx={{ ml: 1, borderRadius: 1 }} />
@@ -341,18 +341,23 @@ const Users: React.FC = () => {
                   <TableCell>
                     <Stack direction="row" spacing={2} alignItems="center">
                       <Avatar {...stringAvatar(`${u.firstName} ${u.lastName}`)} />
-                      <Box>
-                        <Typography variant="body2" fontWeight="bold">
-                          {u.firstName} {u.lastName}
-                          {currentUser?.userId === u.userId && <span style={{ color: '#3b82f6' }}> (Me)</span>}
-                        </Typography>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Tooltip title={`${u.firstName} ${u.lastName}`}>
+                          <Typography variant="body2" fontWeight="bold" noWrap>
+                            {u.firstName} {u.lastName}
+                            {currentUser?.userId === u.userId && <span style={{ color: '#3b82f6' }}> (Me)</span>}
+                          </Typography>
+                        </Tooltip>
                         <Typography variant="caption" color="textSecondary">ID: {u.userId}</Typography>
                       </Box>
                     </Stack>
                   </TableCell>
                   <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#475569' }}>
-                      <Mail fontSize="inherit" /> <Typography variant="body2">{u.email || '-'}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#475569', minWidth: 0 }}>
+                      <Mail fontSize="inherit" />
+                      <Tooltip title={u.email || '-'}>
+                        <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>{u.email || '-'}</Typography>
+                      </Tooltip>
                     </Box>
                   </TableCell>
                   <TableCell>

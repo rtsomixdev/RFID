@@ -4,7 +4,7 @@ import {
     TableBody, TableCell, TableContainer, TableHead, TableRow,
     IconButton, Tabs, Tab, Card, CardContent, Chip,
     FormControl, InputLabel, Select, MenuItem,
-    Alert, Stack, Autocomplete, TextField
+    Alert, Stack, Autocomplete, TextField, Tooltip
 } from '@mui/material';
 import {
     LocalLaundryService, Outbound, MoveToInbox,
@@ -202,7 +202,7 @@ const Laundry: React.FC = () => {
             </Box>
 
             {/* Main Card (Operations) */}
-            <Card sx={{ mb: 4 }}>
+            <Card elevation={2} sx={{ mb: 4, borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                 <Tabs
                     value={tabValue}
                     onChange={handleTabChange}
@@ -217,7 +217,7 @@ const Laundry: React.FC = () => {
                     <Grid container spacing={3} alignItems="center" sx={{ mb: 2 }}>
                         {tabValue === 0 && (
                             <Grid size={{ xs: 12, md: 6 }}>
-                                <FormControl fullWidth>
+                                <FormControl fullWidth size="small">
                                     <InputLabel>เลือกบริษัทคู่ค้า</InputLabel>
                                     <Select value={selectedVendor} label="เลือกบริษัทคู่ค้า" onChange={(e) => setSelectedVendor(e.target.value)}>
                                         {vendors.map(v => <MenuItem key={v.vendorId} value={v.vendorId}>{v.vendorName}</MenuItem>)}
@@ -235,6 +235,8 @@ const Laundry: React.FC = () => {
                         {/* 🔥 Autocomplete Dropdown (Full Width) 🔥 */}
                         <Grid size={{ xs: 12 }}>
                             <Autocomplete
+                                fullWidth
+                                size="small"
                                 value={searchValue}
                                 onChange={(event, newValue) => handleSelectFromDropdown(newValue)}
                                 options={candidates.filter(c => !scannedItems.find(s => s.rfid === c.rfidCode))}
@@ -255,7 +257,6 @@ const Laundry: React.FC = () => {
                                     />
                                 )}
                                 noOptionsText="ไม่พบรายการที่ตรงเงื่อนไข"
-                                fullWidth
                             />
                         </Grid>
                     </Grid>
@@ -290,8 +291,20 @@ const Laundry: React.FC = () => {
                                         scannedItems.map((item, index) => (
                                             <TableRow key={item.rfid}>
                                                 <TableCell>{scannedItems.length - index}</TableCell>
-                                                <TableCell sx={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#0284c7' }}>{item.rfid}</TableCell>
-                                                <TableCell>{item.productName}</TableCell>
+                                                <TableCell sx={{ maxWidth: 200 }}>
+                                                    <Tooltip title={item.rfid}>
+                                                        <Typography variant="body2" fontFamily="monospace" fontWeight="bold" color="primary" noWrap>
+                                                            {item.rfid}
+                                                        </Typography>
+                                                    </Tooltip>
+                                                </TableCell>
+                                                <TableCell sx={{ maxWidth: 250 }}>
+                                                    <Tooltip title={item.productName}>
+                                                        <Typography variant="body2" noWrap>
+                                                            {item.productName}
+                                                        </Typography>
+                                                    </Tooltip>
+                                                </TableCell>
                                                 <TableCell>{item.timestamp.toLocaleTimeString('th-TH')}</TableCell>
                                                 <TableCell align="center">
                                                     <IconButton size="small" color="error" onClick={() => handleRemoveItem(item.rfid)}><Delete /></IconButton>
@@ -319,7 +332,7 @@ const Laundry: React.FC = () => {
             </Card>
 
             {/* Monitor Table */}
-            <Card>
+            <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                 <CardContent sx={{ p: 3 }}>
                     <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2 }}>
                         <History color="action" />
@@ -350,9 +363,27 @@ const Laundry: React.FC = () => {
                                 ) : (
                                     washingList.map((item) => (
                                         <TableRow key={item.rfidCode} hover>
-                                            <TableCell sx={{ fontFamily: 'monospace' }}>{item.rfidCode}</TableCell>
-                                            <TableCell>{item.productName}</TableCell>
-                                            <TableCell>{item.vendorName}</TableCell>
+                                            <TableCell sx={{ maxWidth: 150 }}>
+                                                <Tooltip title={item.rfidCode}>
+                                                    <Typography variant="body2" fontFamily="monospace" noWrap>
+                                                        {item.rfidCode}
+                                                    </Typography>
+                                                </Tooltip>
+                                            </TableCell>
+                                            <TableCell sx={{ maxWidth: 200 }}>
+                                                <Tooltip title={item.productName}>
+                                                    <Typography variant="body2" noWrap>
+                                                        {item.productName}
+                                                    </Typography>
+                                                </Tooltip>
+                                            </TableCell>
+                                            <TableCell sx={{ maxWidth: 200 }}>
+                                                <Tooltip title={item.vendorName}>
+                                                    <Typography variant="body2" noWrap>
+                                                        {item.vendorName}
+                                                    </Typography>
+                                                </Tooltip>
+                                            </TableCell>
                                             <TableCell>{item.sentDate ? new Date(item.sentDate).toLocaleString('th-TH') : '-'}</TableCell>
                                             <TableCell align="center">
                                                 <Chip label="Washing" color="warning" size="small" variant="outlined" />

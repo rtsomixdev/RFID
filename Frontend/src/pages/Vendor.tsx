@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Box, Paper, Typography, TextField, Button, Grid, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton,
-  Card, CardContent, InputAdornment, Stack, Chip
+  Card, CardContent, InputAdornment, Stack, Chip, Tooltip
 } from '@mui/material';
 import {
   Delete, AddCircle, Business, Edit, Storefront, Badge, Phone, ListAlt
@@ -125,7 +125,7 @@ const Vendor: React.FC = () => {
       </Box>
 
       {/* Content Card */}
-      <Card sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
+      <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
 
         {/* Form Section */}
         <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
@@ -201,11 +201,19 @@ const Vendor: React.FC = () => {
                 ) : (
                   vendors.map((v) => (
                     <TableRow key={v.vendorId} hover>
-                      <TableCell sx={{ fontWeight: 500, color: '#1e293b' }}>
-                        {v.vendorName}
+                      <TableCell sx={{ fontWeight: 500, color: '#1e293b', maxWidth: 200 }}>
+                        <Tooltip title={v.vendorName}>
+                          <Typography variant="body2" fontWeight={500} noWrap>
+                            {v.vendorName}
+                          </Typography>
+                        </Tooltip>
                       </TableCell>
-                      <TableCell sx={{ color: '#64748b' }}>
-                        {v.registrationNumber || '-'}
+                      <TableCell sx={{ color: '#64748b', maxWidth: 200 }}>
+                        <Tooltip title={v.registrationNumber || '-'}>
+                          <Typography variant="body2" noWrap>
+                            {v.registrationNumber || '-'}
+                          </Typography>
+                        </Tooltip>
                       </TableCell>
                       <TableCell align="center">
                         <Stack direction="row" spacing={1} justifyContent="center">

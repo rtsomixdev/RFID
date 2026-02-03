@@ -1,24 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { 
+import {
   Grid, Paper, Typography, Box, CircularProgress, Card, CardContent, Stack, Avatar, Container, useTheme, useMediaQuery, Divider
 } from '@mui/material';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend
 } from 'recharts';
-import { 
+import {
   Inventory, ShoppingCart, Warning, CheckCircle, TrendingUp, Assessment, DonutLarge, InsertChartOutlined, DashboardCustomize, NewReleases
 } from '@mui/icons-material';
 import axiosClient from '../api/axiosClient';
 
 // --- Theme Colors ---
 const COLORS = {
-  primary: '#2563eb',     
-  success: '#10b981',     
-  warning: '#f59e0b',     
-  danger: '#ef4444',      
-  info: '#06b6d4',        
-  purple: '#8b5cf6',      
+  primary: '#2563eb',
+  success: '#10b981',
+  warning: '#f59e0b',
+  danger: '#ef4444',
+  info: '#06b6d4',
+  purple: '#8b5cf6',
   new: '#0ea5e9', // สีสำหรับ New Item
   textPrimary: '#1e293b',
   textSecondary: '#64748b',
@@ -32,7 +32,7 @@ const Dashboard: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [loading, setLoading] = useState(true);
-  
+
   // --- STATE ---
   const [stats, setStats] = useState<any>({});
   const [pieData, setPieData] = useState<any[]>([]);
@@ -49,12 +49,12 @@ const Dashboard: React.FC = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      
+
       // 1. Parallel Requests เพื่อความเร็ว
       const [statRes, chartRes, monitorRes] = await Promise.all([
-          axiosClient.get('/Dashboard/Stats'),
-          axiosClient.get('/Dashboard/ChartData'),
-          axiosClient.get('/Linen/Monitor/Latest') // ใช้ Endpoint นี้เพื่อดึงรายการผ้ามานับยอดใหม่วันนี้
+        axiosClient.get('/Dashboard/Stats'),
+        axiosClient.get('/Dashboard/ChartData'),
+        axiosClient.get('/Linen/Monitor/Latest') // ใช้ Endpoint นี้เพื่อดึงรายการผ้ามานับยอดใหม่วันนี้
       ]);
 
       setStats(statRes.data);
@@ -82,19 +82,32 @@ const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-            <CircularProgress size={60} thickness={4} />
-        </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+        <CircularProgress size={60} thickness={4} />
+      </Box>
     );
   }
 
   // --- COMPONENTS ---
+  /* ✅ UPDATED: StatCard with Text Overflow Protection */
   const StatCard = ({ title, value, icon, color }: any) => (
-    <Card sx={{ height: '100%', borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: `1px solid ${COLORS.border}`, transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-4px)' } }}>
+    <Card sx={{ height: '100%', transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-4px)' } }}>
       <CardContent sx={{ p: 3 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="start">
-          <Box>
-            <Typography variant="body2" color="textSecondary" fontWeight="600" sx={{ mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</Typography>
+          <Box sx={{ minWidth: 0, flex: 1, mr: 1 }}> {/* Added minWidth: 0 for Flex children overflow */}
+            <Tooltip title={title}>
+              <Typography variant="body2" color="textSecondary" fontWeight="600" sx={{
+                mb: 1,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                minHeight: '20px' // ✅ Fixed height for alignment
+              }}>
+                {title}
+              </Typography>
+            </Tooltip>
             <Typography variant="h4" fontWeight="800" color="textPrimary">
               {value?.toLocaleString() || 0}
             </Typography>
@@ -107,23 +120,21 @@ const Dashboard: React.FC = () => {
     </Card>
   );
 
-  const ChartContainer = ({ title, subtitle, icon, children, height = 400 }: any) => (
-    <Paper sx={{ 
-        p: 3, 
-        height: '100%', 
-        minHeight: height,
-        borderRadius: 4, 
-        boxShadow: '0 4px 20px rgba(0,0,0,0.05)', 
-        border: `1px solid ${COLORS.border}`,
-        display: 'flex',
-        flexDirection: 'column',
-        bgcolor: '#fff'
+  const ChartContainer = ({ title, subtitle, icon, children, height = 350 }: any) => ( // Changed default to 350
+    <Paper sx={{
+      p: 3,
+      height: '100%',
+      minHeight: height,
+      maxHeight: height,
+      display: 'flex',
+      flexDirection: 'column',
+      bgcolor: '#fff'
     }}>
       <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 3, pb: 2, borderBottom: `1px dashed ${COLORS.border}` }}>
         {icon && <Box sx={{ color: COLORS.primary, display: 'flex', p: 1, bgcolor: `${COLORS.primary}10`, borderRadius: 2 }}>{icon}</Box>}
         <Box>
-            <Typography variant="h6" fontWeight="bold" color="textPrimary" lineHeight={1.2}>{title}</Typography>
-            {subtitle && <Typography variant="caption" color="textSecondary" fontWeight={500}>{subtitle}</Typography>}
+          <Typography variant="h6" fontWeight="bold" color="textPrimary" lineHeight={1.2}>{title}</Typography>
+          {subtitle && <Typography variant="caption" color="textSecondary" fontWeight={500}>{subtitle}</Typography>}
         </Box>
       </Stack>
       <Box sx={{ flexGrow: 1, position: 'relative' }}>
@@ -137,12 +148,12 @@ const Dashboard: React.FC = () => {
       return (
         <Box sx={{ bgcolor: 'rgba(255, 255, 255, 0.95)', p: 2, border: `1px solid ${COLORS.border}`, borderRadius: 3, boxShadow: '0 8px 32px rgba(0,0,0,0.1)', backdropFilter: 'blur(8px)' }}>
           <Typography variant="subtitle2" fontWeight="bold" color="textPrimary" sx={{ mb: 1 }}>{label}</Typography>
-          {payload.map((entry: any, index: number) => (
+          {payload?.map((entry: any, index: number) => (
             <Stack key={index} direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: entry.color }} />
-                <Typography variant="body2" sx={{ color: COLORS.textSecondary, fontSize: '0.85rem' }}>
-                    {entry.name}: <span style={{ fontWeight: 'bold', color: COLORS.textPrimary }}>{entry.value.toLocaleString()}</span>
-                </Typography>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: entry.color }} />
+              <Typography variant="body2" sx={{ color: COLORS.textSecondary, fontSize: '0.85rem' }}>
+                {entry.name}: <span style={{ fontWeight: 'bold', color: COLORS.textPrimary }}>{entry.value.toLocaleString()}</span>
+              </Typography>
             </Stack>
           ))}
         </Box>
@@ -156,165 +167,188 @@ const Dashboard: React.FC = () => {
       {/* SECTION 1: KPI Summary */}
       <Box sx={{ mb: 5 }}>
         <Typography variant="h6" fontWeight="bold" sx={{ mb: 3, color: COLORS.textPrimary, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Assessment fontSize="small" color="primary"/> สรุปสถานะรายวัน
+          <Assessment fontSize="small" color="primary" /> สรุปสถานะรายวัน
         </Typography>
-        
-        {/* ✅ ปรับ Grid ให้รองรับ 5 การ์ด (ใช้ lg={2.4} ไม่ได้ใน Default MUI Grid จึงใช้แบบ wrap หรือผสม) */}
-        <Grid container spacing={3}>
-            {/* 1. ✅ New Linens Today */}
-            <Grid item xs={12} sm={6} md={4} lg={2.4}> 
-                <StatCard title="ผ้าใหม่วันนี้" value={newLinensToday} icon={<NewReleases />} color={COLORS.new} />
-            </Grid>
 
-            {/* 2. Total Linens */}
-            <Grid item xs={12} sm={6} md={4} lg={2.4}>
-                <StatCard title="ผ้าทั้งหมดในระบบ" value={stats.totalLinens} icon={<Inventory />} color={COLORS.primary} />
-            </Grid>
+        {/* ✅ Dynamic Grid: Auto-Flow (xs=12, sm=6, md=3) -> Wraps if > 4 items */}
+        <Grid container spacing={3} alignItems="stretch">
+          {/* 1. ✅ New Linens Today */}
+          <Grid key="stat-new" size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard title="ผ้าใหม่วันนี้" value={newLinensToday} icon={<NewReleases />} color={COLORS.new} />
+          </Grid>
 
-            {/* 3. Pending Requests */}
-            <Grid item xs={12} sm={6} md={4} lg={2.4}>
-                <StatCard title="คำร้องรออนุมัติ" value={stats.pendingRequests} icon={<ShoppingCart />} color={COLORS.warning} />
-            </Grid>
+          {/* 2. Total Linens */}
+          <Grid key="stat-total" size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard title="ผ้าทั้งหมดในระบบ" value={stats.totalLinens} icon={<Inventory />} color={COLORS.primary} />
+          </Grid>
 
-            {/* 4. Approved Today */}
-            <Grid item xs={12} sm={6} md={6} lg={2.4}>
-                <StatCard title="เบิกจ่ายวันนี้" value={stats.approvedToday} icon={<CheckCircle />} color={COLORS.success} />
-            </Grid>
+          {/* 3. Pending Requests */}
+          <Grid key="stat-pending" size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard title="คำร้องรออนุมัติ" value={stats.pendingRequests} icon={<ShoppingCart />} color={COLORS.warning} />
+          </Grid>
 
-            {/* 5. Damaged Items */}
-            <Grid item xs={12} sm={6} md={6} lg={2.4}>
-                <StatCard title="แจ้งชำรุดสะสม" value={stats.damagedItems} icon={<Warning />} color={COLORS.danger} />
-            </Grid>
+          {/* 4. Approved Today */}
+          <Grid key="stat-approved" size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard title="เบิกจ่ายวันนี้" value={stats.approvedToday} icon={<CheckCircle />} color={COLORS.success} />
+          </Grid>
+
+          {/* 5. Damaged Items (Wraps to next row automatically) */}
+          <Grid key="stat-damaged" size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard title="แจ้งชำรุดสะสม" value={stats.damagedItems} icon={<Warning />} color={COLORS.danger} />
+          </Grid>
         </Grid>
       </Box>
 
       {/* SECTION 2: Charts & Analytics */}
       <Box>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
-            <DashboardCustomize sx={{ color: COLORS.primary }} />
-            <Typography variant="h6" fontWeight="bold" sx={{ color: COLORS.textPrimary }}>
-                สถิติและการวิเคราะห์เชิงลึก
-            </Typography>
+          <DashboardCustomize sx={{ color: COLORS.primary }} />
+          <Typography variant="h6" fontWeight="bold" sx={{ color: COLORS.textPrimary }}>
+            สถิติและการวิเคราะห์เชิงลึก
+          </Typography>
         </Stack>
 
-        <Grid container spacing={3}>
-            
-            {/* ROW 1: Bar Chart & Pie Chart */}
-            <Grid item xs={12} lg={8}>
-                <ChartContainer title="การเคลื่อนไหวของผ้า (7 วันล่าสุด)" subtitle="เปรียบเทียบยอดเบิกใช้ vs ส่งซัก" icon={<Assessment fontSize="small" />}>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barGap={8}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: COLORS.textSecondary, fontSize: 12, fontWeight: 500}} dy={10} />
-                            <YAxis axisLine={false} tickLine={false} tick={{fill: COLORS.textSecondary, fontSize: 12}} />
-                            <Tooltip content={<CustomTooltip />} cursor={{fill: COLORS.bgLight, opacity: 0.5}} />
-                            <Bar dataKey="use" name="เบิกใช้" fill={COLORS.primary} radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 24} />
-                            <Bar dataKey="wash" name="ส่งซัก" fill={COLORS.info} radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 24} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartContainer>
-            </Grid>
+        <Grid container spacing={3} alignItems="stretch">
 
-            <Grid item xs={12} lg={4}>
-                <ChartContainer title="สัดส่วนประเภทผ้า" subtitle="จำแนกตามชนิดสินค้า Top 5" icon={<DonutLarge fontSize="small" />}>
-                    <Box sx={{ height: '100%', width: '100%', px: 1 }}> 
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart margin={{ top: 0, left: 0, right: 0, bottom: 0 }}>
-                                <Pie
-                                    data={pieData}
-                                    cx="50%"
-                                    cy="45%" 
-                                    innerRadius="65%" 
-                                    outerRadius="85%" 
-                                    paddingAngle={3}
-                                    dataKey="value"
-                                    stroke="none"
-                                    cornerRadius={4}
-                                >
-                                    {pieData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip content={<CustomTooltip />} />
-                                <Legend 
-                                    verticalAlign="bottom" 
-                                    height={36} 
-                                    iconType="circle" 
-                                    iconSize={8}
-                                    wrapperStyle={{ fontSize: '12px', paddingTop: '20px', fontWeight: 500, color: COLORS.textSecondary }} 
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </Box>
-                    <Box sx={{ 
-                        position: 'absolute', 
-                        top: '45%', 
-                        left: '50%', 
-                        transform: 'translate(-50%, -50%)', 
-                        textAlign: 'center', 
-                        pointerEvents: 'none' 
-                    }}>
-                        <Typography variant="h3" fontWeight="800" color="textPrimary" sx={{ lineHeight: 1 }}>{pieData.length}</Typography>
-                        <Typography variant="caption" color="textSecondary" fontWeight="600" sx={{ textTransform: 'uppercase' }}>Types</Typography>
-                    </Box>
-                </ChartContainer>
-            </Grid>
+          {/* ROW 1: Bar Chart & Pie Chart */}
+          <Grid size={{ xs: 12, lg: 8 }}>
+            <ChartContainer title="การเคลื่อนไหวของผ้า (7 วันล่าสุด)" subtitle="เปรียบเทียบยอดเบิกใช้ vs ส่งซัก" icon={<Assessment fontSize="small" />} height={350}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barGap={8}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: COLORS.textSecondary, fontSize: 12, fontWeight: 500 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: COLORS.textSecondary, fontSize: 12 }} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: COLORS.bgLight, opacity: 0.5 }} />
+                  <Bar dataKey="use" name="เบิกใช้" fill={COLORS.primary} radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 24} />
+                  <Bar dataKey="wash" name="ส่งซัก" fill={COLORS.info} radius={[6, 6, 0, 0]} barSize={isMobile ? 12 : 24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </Grid>
 
-            {/* ROW 2: Monthly Request & Damaged */}
-            <Grid item xs={12} md={6}>
-                <ChartContainer title="สถิติคำร้องรายเดือน" subtitle="ปริมาณคำร้องเบิกผ้าตลอดปี" height={350} icon={<InsertChartOutlined fontSize="small" />}>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={requestData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: COLORS.textSecondary, fontSize: 12}} dy={10} />
-                            <YAxis axisLine={false} tickLine={false} tick={{fill: COLORS.textSecondary, fontSize: 12}} />
-                            <Tooltip content={<CustomTooltip />} cursor={{fill: 'transparent'}} />
-                            <Bar dataKey="count" name="คำร้อง" fill={COLORS.purple} radius={[6, 6, 6, 6]} barSize={36} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartContainer>
-            </Grid>
+          {/* ✅ UPDATED: Pie Chart with Fixed Height & Scrolled Legend */}
+          <Grid size={{ xs: 12, lg: 4 }}>
+            <ChartContainer title="สัดส่วนประเภทผ้า" subtitle="จำแนกตามชนิดสินค้า Top 5" icon={<DonutLarge fontSize="small" />} height={350}>
+              <Box sx={{ height: '100%', width: '100%', px: 0, display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
+                <Box sx={{ width: '50%', height: '100%', position: 'relative' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart margin={{ top: 0, left: 0, right: 0, bottom: 0 }}>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="60%"
+                        outerRadius="80%"
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                        cornerRadius={4}
+                      >
+                        {pieData?.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
 
-            <Grid item xs={12} md={6}>
-                <ChartContainer title="แนวโน้มผ้าชำรุด" subtitle="สถิติการแจ้งชำรุดรายเดือน" height={350} icon={<Warning sx={{ color: COLORS.danger }} fontSize="small" />}>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={damagedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id="colorDamaged" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={COLORS.danger} stopOpacity={0.15}/>
-                                    <stop offset="95%" stopColor={COLORS.danger} stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: COLORS.textSecondary, fontSize: 12}} dy={10} />
-                            <YAxis axisLine={false} tickLine={false} tick={{fill: COLORS.textSecondary, fontSize: 12}} />
-                            <Tooltip content={<CustomTooltip />} />
-                            <Area type="monotone" dataKey="count" name="ชำรุด" stroke={COLORS.danger} strokeWidth={3} fillOpacity={1} fill="url(#colorDamaged)" />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </ChartContainer>
-            </Grid>
+                  {/* Center Label */}
+                  <Box sx={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    textAlign: 'center',
+                    pointerEvents: 'none'
+                  }}>
+                    <Typography variant="h3" fontWeight="800" color="textPrimary" sx={{ lineHeight: 1 }}>{pieData?.length || 0}</Typography>
+                    <Typography variant="caption" color="textSecondary" fontWeight="600" sx={{ textTransform: 'uppercase' }}>Types</Typography>
+                  </Box>
+                </Box>
 
-            {/* ROW 3: Yearly Overview */}
-            <Grid item xs={12}>
-                <ChartContainer title="ภาพรวมการหมุนเวียนตลอดปี" subtitle="Yearly Transaction Volume Overview" height={400} icon={<TrendingUp fontSize="small" />}>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={yearlyData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.25}/>
-                                    <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: COLORS.textSecondary, fontSize: 12}} dy={10} />
-                            <YAxis axisLine={false} tickLine={false} tick={{fill: COLORS.textSecondary, fontSize: 12}} />
-                            <Tooltip content={<CustomTooltip />} />
-                            <Area type="monotone" dataKey="value" name="จำนวนธุรกรรม" stroke={COLORS.primary} strokeWidth={3} fill="url(#colorValue)" animationDuration={1500} />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </ChartContainer>
-            </Grid>
+                {/* Custom Legend (Right Side - Vertical Scroll) */}
+                <Box sx={{
+                  flex: 1, // Let legend take remaining space (approx 60%)
+                  pl: 2,
+                  maxHeight: 280,
+                  overflowY: 'auto', // Keep scroll for vertical overflow
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center'
+                }}>
+                  {pieData?.map((entry, index) => (
+                    <Stack key={index} direction="row" alignItems="flex-start" spacing={1.5} sx={{ mb: 1.5 }}>
+                      <Box sx={{ mt: 0.5, width: 12, height: 12, borderRadius: '50%', bgcolor: PIE_COLORS[index % PIE_COLORS.length], flexShrink: 0 }} />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.3, wordBreak: 'break-word' }}>
+                          {entry.name || 'Unknown'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {entry.value?.toLocaleString()} ชิ้น
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  ))}
+                </Box>
+              </Box>
+            </ChartContainer>
+          </Grid>
+
+          {/* ROW 2: Monthly Request & Damaged */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <ChartContainer title="สถิติคำร้องรายเดือน" subtitle="ปริมาณคำร้องเบิกผ้าตลอดปี" height={350} icon={<InsertChartOutlined fontSize="small" />}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={requestData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: COLORS.textSecondary, fontSize: 12 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: COLORS.textSecondary, fontSize: 12 }} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
+                  <Bar dataKey="count" name="คำร้อง" fill={COLORS.purple} radius={[6, 6, 6, 6]} barSize={36} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 6 }}>
+            <ChartContainer title="แนวโน้มผ้าชำรุด" subtitle="สถิติการแจ้งชำรุดรายเดือน" height={350} icon={<Warning sx={{ color: COLORS.danger }} fontSize="small" />}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={damagedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorDamaged" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={COLORS.danger} stopOpacity={0.15} />
+                      <stop offset="95%" stopColor={COLORS.danger} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: COLORS.textSecondary, fontSize: 12 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: COLORS.textSecondary, fontSize: 12 }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area type="monotone" dataKey="count" name="ชำรุด" stroke={COLORS.danger} strokeWidth={3} fillOpacity={1} fill="url(#colorDamaged)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </Grid>
+
+          {/* ROW 3: Yearly Overview */}
+          <Grid size={{ xs: 12 }}>
+            <ChartContainer title="ภาพรวมการหมุนเวียนตลอดปี" subtitle="Yearly Transaction Volume Overview" height={400} icon={<TrendingUp fontSize="small" />}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={yearlyData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: COLORS.textSecondary, fontSize: 12 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: COLORS.textSecondary, fontSize: 12 }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area type="monotone" dataKey="value" name="จำนวนธุรกรรม" stroke={COLORS.primary} strokeWidth={3} fill="url(#colorValue)" animationDuration={1500} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </Grid>
 
         </Grid>
       </Box>
