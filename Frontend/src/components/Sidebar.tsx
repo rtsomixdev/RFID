@@ -223,9 +223,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
                     <ListItemText primary="• เชื่อมต่อ RFID" />
                   </ListItemButton>
 
-                  <ListItemButton sx={subMenuButtonStyle('/readers')} onClick={() => handleNavigate('/readers')}>
-                    <ListItemText primary="• อุปกรณ์ (Readers)" />
-                  </ListItemButton>
                 </List>
               </Collapse>
             </>

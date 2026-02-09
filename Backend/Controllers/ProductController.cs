@@ -1,14 +1,15 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Backend.Models;
+using System.Linq; // จำเป็นสำหรับ LINQ
 
 namespace Backend.Controllers
 {
-    // ✅ 1. เพิ่ม Class DTO สำหรับรับค่าเฉพาะส่วนที่จะแก้ไข (กัน Error ข้อมูลไม่ครบ)
+    // ✅ 1. Class DTO เดิมของคุณ (คงไว้เหมือนเดิม)
     public class ProductRulesUpdateDto
     {
         public int ProductId { get; set; }
-        public string? ProductName { get; set; } // รับไว้เฉยๆ กัน Frontend ส่งมาแล้ว Error
+        public string? ProductName { get; set; }
         public int MaxWashCount { get; set; }
         public int MaxLifespanDays { get; set; }
     }
@@ -21,16 +22,17 @@ namespace Backend.Controllers
         public ProductController(LinenDbContext context) => _context = context;
 
         // GET: api/Product
+        // ✅ Logic เดิม (คงไว้)
         [HttpGet] 
         public async Task<ActionResult<IEnumerable<Product>>> Get() 
         {
-            // Include Category เพื่อให้ Frontend โชว์ชื่อหมวดหมู่ได้
             return await _context.Products
                 .Include(p => p.Category) 
                 .ToListAsync();
         }
 
         // GET: api/Product/5
+        // ✅ Logic เดิม (คงไว้)
         [HttpGet("{id}")] 
         public async Task<ActionResult<Product>> Get(int id) 
         { 
@@ -39,6 +41,7 @@ namespace Backend.Controllers
         }
 
         // POST: api/Product
+        // ✅ Logic เดิม (คงไว้)
         [HttpPost] 
         public async Task<ActionResult<Product>> Post(Product item) 
         { 
@@ -48,22 +51,19 @@ namespace Backend.Controllers
         }
 
         // PUT: api/Product/5
-        // ✅ 2. แก้ไขให้รับ DTO แทน Product ตัวเต็ม
+        // ✅ Logic เดิม (คงไว้ 100%)
         [HttpPut("{id}")] 
         public async Task<IActionResult> Put(int id, [FromBody] ProductRulesUpdateDto item) 
         { 
             if (id != item.ProductId) return BadRequest("ID ไม่ตรงกัน"); 
 
-            // 3. ดึงข้อมูลเก่าออกมาจาก Database
             var existingProduct = await _context.Products.FindAsync(id);
             
             if (existingProduct == null) return NotFound("ไม่พบสินค้า");
 
-            // 4. อัปเดตเฉพาะค่าที่เราต้องการ
             existingProduct.MaxWashCount = item.MaxWashCount;
             existingProduct.MaxLifespanDays = item.MaxLifespanDays;
             
-            // 5. สั่ง Save
             try 
             {
                 await _context.SaveChangesAsync();
@@ -74,10 +74,11 @@ namespace Backend.Controllers
                 else throw;
             }
 
-            return Ok(existingProduct); // ส่งค่าล่าสุดกลับไปยืนยัน
+            return Ok(existingProduct); 
         }
 
         // DELETE: api/Product/5
+        // ✅ Logic เดิม (คงไว้)
         [HttpDelete("{id}")] 
         public async Task<IActionResult> Delete(int id) 
         { 
@@ -86,6 +87,41 @@ namespace Backend.Controllers
             _context.Products.Remove(item); 
             await _context.SaveChangesAsync(); 
             return NoContent(); 
+        }
+
+        // =========================================================
+        // ✅ ส่วนที่เพิ่มใหม่ (อยู่ล่างสุด ไม่กระทบของเดิม)
+        // =========================================================
+        
+        // ใช้ / นำหน้า เพื่อบังคับ Route ให้ตรงกับ React (api/products/...) 
+        // โดยไม่สนใจว่า Controller นี้ชื่อ Product (ไม่มี s)
+        [HttpGet("/api/products/export-stock")]
+        public async Task<IActionResult> GetStockForExport()
+        {
+            try
+            {
+                // ดึงข้อมูลจาก Linens Join กับ Products และ Categories
+                var data = await (from l in _context.Linens  
+                                  join p in _context.Products on l.ProductId equals p.ProductId
+                                  join c in _context.Categories on p.CategoryId equals c.CategoryId
+                                  where l.IsActive == true   // เอาเฉพาะที่ Active
+                                  orderby p.ProductCode
+                                  select new
+                                  {
+                                      fabric_category = c.CategoryName,
+                                      fabric_type = p.ProductName,
+                                      fabric_no = p.ProductCode,
+                                      fabric_detail = p.SizeSpec, // ใช้ SizeSpec ตาม DB คุณ
+                                      fabric_unit = p.UnitName ?? "ชิ้น", 
+                                      rfid_code = l.RfidCode         
+                                  }).ToListAsync();
+
+                return Ok(data);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "Export Error: " + ex.Message);
+            }
         }
     }
 }

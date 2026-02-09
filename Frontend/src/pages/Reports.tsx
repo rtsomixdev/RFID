@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Box, Paper, Typography, Grid, TextField, Button, MenuItem,
+    Box, Paper, Typography, Grid, TextField, Button,
     TableContainer, Table, TableHead, TableBody, TableRow, TableCell,
     Card, CardContent, Chip, Stack
 } from '@mui/material';
 import {
-    PictureAsPdf, TableView, Search, Download,
+    PictureAsPdf, TableView, Search,
     AddCircle, RemoveCircle, LocalLaundryService, Inventory
 } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
@@ -13,6 +13,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { sendNotification } from '../utils/notificationUtil';
 
+// 1. Interface สำหรับตารางหน้าเว็บ (Movement)
 interface MovementItem {
     id: number;
     date: string;
@@ -21,6 +22,16 @@ interface MovementItem {
     qty: number;
     balance: number;
     user: string;
+}
+
+// 2. ✅ Interface ใหม่: สำหรับรับข้อมูล Stock จาก API เพื่อทำ Excel
+interface StockApiItem {
+    fabric_category: string;
+    fabric_type: string;
+    fabric_no: string;      // ใช้ตัวนี้เป็น Key ในการ Group
+    fabric_detail: string;
+    fabric_unit: string;
+    rfid_code: string;      // ตัวที่จะเอามาเรียงแนวนอน
 }
 
 const Reports: React.FC = () => {
@@ -34,6 +45,7 @@ const Reports: React.FC = () => {
         receivedToday: 0
     });
 
+    // --- ส่วน Login (คงไว้เหมือนเดิม ไม่แตะต้อง) ---
     const [currentUser, setCurrentUser] = useState<any>(null);
 
     useEffect(() => {
@@ -43,9 +55,10 @@ const Reports: React.FC = () => {
         }
         handlePreview();
     }, []);
+    // ------------------------------------------
 
     const handlePreview = () => {
-        // Mock Data
+        // Mock Data สำหรับแสดงผลหน้าจอ (User ดูประวัติการเคลื่อนไหว)
         const mockData: MovementItem[] = [
             { id: 1, date: '2026-01-15T08:30:00', type: 'Add', productName: 'ผ้าปูที่นอน (King)', qty: 50, balance: 50, user: 'Admin' },
             { id: 2, date: '2026-01-15T09:00:00', type: 'Request', productName: 'ผ้าปูที่นอน (King)', qty: -10, balance: 40, user: 'Nurse A' },
@@ -69,34 +82,108 @@ const Reports: React.FC = () => {
         setSummary({ added, discarded, washed, receivedToday });
     };
 
-    // ✅ 1. EXCEL Export
+    // ✅ 3. EXCEL Export: แก้ไขใหม่ (API -> Grouping -> แนวนอน)
     const handleExportExcel = async () => {
-        if (reportData.length === 0) return alert("ไม่มีข้อมูล");
-        const workbook = XLSX.utils.book_new();
+        try {
+            // ⚠️ แก้ URL ให้ตรงกับ Backend (.NET) ของคุณ (Port 5134)
+            const API_URL = 'http://localhost:5134/api/products/export-stock'; 
 
-        // Sheet 1: Summary
-        const summaryData = [
-            ["รายงานสรุปการเคลื่อนไหวผ้า"], ["วันที่พิมพ์:", new Date().toLocaleString('th-TH')], [" "],
-            ["หัวข้อ", "จำนวน (ชิ้น)"], ["เพิ่มผ้าใหม่", summary.added], ["ตัดจำหน่าย", summary.discarded],
-            ["ส่งซัก", summary.washed], ["รับเข้าวันนี้", summary.receivedToday],
-        ];
-        const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-        XLSX.utils.book_append_sheet(workbook, wsSummary, "Summary");
+            const response = await fetch(API_URL, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // ถ้ามี Token ให้เปิดบรรทัดล่างนี้
+                    // 'Authorization': `Bearer ${currentUser?.token || ''}` 
+                }
+            });
 
-        // Sheet 2: Transactions
-        const detailData = reportData.map((item, idx) => ({
-            "ลำดับ": idx + 1, "วัน/เวลา": new Date(item.date).toLocaleString('th-TH'),
-            "ประเภท": item.type, "สินค้า": item.productName, "จำนวน": item.qty,
-            "คงเหลือ": item.balance, "ผู้ทำรายการ": item.user
-        }));
-        const wsDetail = XLSX.utils.json_to_sheet(detailData);
-        XLSX.utils.book_append_sheet(workbook, wsDetail, "Transactions");
+            if (!response.ok) {
+                throw new Error(`เชื่อมต่อ Server ไม่ได้ (Status: ${response.status}) - ลองเช็ค Port ดูครับ`);
+            }
 
-        XLSX.writeFile(workbook, `Movement_Report.xlsx`);
-        await sendNotification("Export Excel", "ดาวน์โหลดรายงานความเคลื่อนไหว (Excel)", "INFO", "/reports", undefined, 1);
+            const apiData: StockApiItem[] = await response.json();
+
+            if (!apiData || apiData.length === 0) {
+                alert("ไม่พบข้อมูลสินค้าในระบบ");
+                return;
+            }
+
+            // --- B. จัด Group ข้อมูล (Logic สำคัญ) ---
+            // เปลี่ยนจาก List ยาวๆ ให้เป็น Group ตาม fabric_no
+            const groupedData: Record<string, any> = {};
+
+            apiData.forEach((item) => {
+                const key = item.fabric_no; // ใช้รหัสผ้าเป็นตัวรวมกลุ่ม
+
+                if (!groupedData[key]) {
+                    // ถ้ายังไม่มีสินค้านี้ ให้สร้าง Object แม่แบบ
+                    groupedData[key] = {
+                        category: item.fabric_category || "-",
+                        type: item.fabric_type || "-",
+                        no: item.fabric_no || "-",
+                        detail: item.fabric_detail || "-",
+                        unit: item.fabric_unit || "ชิ้น",
+                        rfids: [] // สร้าง Array เปล่ารอเก็บ RFID
+                    };
+                }
+
+                // ยัด RFID ใส่เข้าไปใน Array (ถ้ามีค่า)
+                if (item.rfid_code) {
+                    groupedData[key].rfids.push(item.rfid_code);
+                }
+            });
+
+            // แปลง Object กลับเป็น Array เพื่อเตรียมลง Excel
+            const excelRows = Object.values(groupedData);
+
+            // --- C. สร้างไฟล์ Excel ---
+            const workbook = XLSX.utils.book_new();
+
+            // 1. หาจำนวน RFID สูงสุด (เพื่อสร้าง Header ให้ครบ)
+            let maxRfidCount = 0;
+            excelRows.forEach((row: any) => {
+                if (row.rfids.length > maxRfidCount) maxRfidCount = row.rfids.length;
+            });
+
+            // 2. สร้าง Header
+            const headers = ["Fabric category", "Fabric type", "Fabric no", "Fabric detail", "Fabric unit"];
+            for (let i = 1; i <= maxRfidCount; i++) {
+                headers.push(`RFID`); 
+            }
+
+            // 3. เตรียมข้อมูลลงตาราง (Spread Array)
+            const wsData = [
+                headers, // แถวที่ 1: หัวตาราง
+                ...excelRows.map((item: any) => [
+                    item.category,
+                    item.type,
+                    item.no,
+                    item.detail,
+                    item.unit,
+                    ...item.rfids // 🔥 จุดสำคัญ: กระจาย RFID ออกไปทางขวา
+                ])
+            ];
+
+            // 4. แปลงเป็น Sheet
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            // จัดความกว้างคอลัมน์ให้สวยงาม
+            ws['!cols'] = [
+                { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 10 }
+            ];
+
+            XLSX.utils.book_append_sheet(workbook, ws, "Stock_RFID_List");
+            XLSX.writeFile(workbook, `Stock_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+            await sendNotification("Export Excel", "ดาวน์โหลดข้อมูลสต็อกเรียบร้อย", "SUCCESS", "/reports", undefined, 1);
+
+        } catch (error) {
+            console.error("Export Error:", error);
+            alert("เกิดข้อผิดพลาด: " + error);
+        }
     };
 
-    // ✅ 2. ฟังก์ชันโหลดฟอนต์
+    // ✅ 4. ฟังก์ชันโหลดฟอนต์ (คงเดิม)
     const addThaiFont = async (doc: jsPDF) => {
         try {
             const response = await fetch('/fonts/Sarabun-Regular.ttf');
@@ -108,7 +195,7 @@ const Reports: React.FC = () => {
                     if (reader.result) {
                         const base64data = (reader.result as string).split(',')[1];
                         doc.addFileToVFS('Sarabun.ttf', base64data);
-                        doc.addFont('Sarabun.ttf', 'Sarabun', 'normal'); // ลงทะเบียนแค่ normal
+                        doc.addFont('Sarabun.ttf', 'Sarabun', 'normal');
                         doc.setFont('Sarabun');
                         resolve();
                     }
@@ -122,12 +209,11 @@ const Reports: React.FC = () => {
         }
     };
 
-    // ✅ 3. PDF Export (แก้หัวตารางเพี้ยน โดยบังคับใช้ Normal Font)
+    // ✅ 5. PDF Export (คงเดิม)
     const handleExportPDF = async () => {
         const doc = new jsPDF();
-        await addThaiFont(doc); // รอโหลดฟอนต์
+        await addThaiFont(doc);
 
-        // Header
         doc.setFontSize(18);
         doc.text("รายงานความเคลื่อนไหวสต็อก (Stock Movement Report)", 14, 20);
 
@@ -147,7 +233,6 @@ const Reports: React.FC = () => {
         doc.text(`- เพิ่มใหม่: ${summary.added} ชิ้น`, 100, 56);
         doc.text(`- ตัดจำหน่าย: ${summary.discarded} ชิ้น`, 100, 62);
 
-        // Table
         autoTable(doc, {
             startY: 75,
             head: [['เวลา', 'ประเภท', 'สินค้า', 'จำนวน', 'คงเหลือ', 'นับจริง']],
@@ -160,16 +245,12 @@ const Reports: React.FC = () => {
                 "________"
             ]),
             theme: 'grid',
-
-            // 🔥 จุดสำคัญ: บังคับหัวตารางให้เป็นตัวธรรมดา (fontStyle: 'normal')
             headStyles: {
                 fillColor: [41, 128, 185],
                 textColor: 255,
-                font: 'Sarabun',    // ระบุฟอนต์ไทย
-                fontStyle: 'normal' // 👈 บังคับไม่ให้เป็นตัวหนา (แก้ปัญหาภาษาต่างดาว)
+                font: 'Sarabun',
+                fontStyle: 'normal'
             },
-
-            // เนื้อหาในตาราง
             styles: {
                 font: 'Sarabun',
                 fontStyle: 'normal',
@@ -178,7 +259,6 @@ const Reports: React.FC = () => {
             },
         });
 
-        // Footer
         doc.text("__________________________", 140, doc.internal.pageSize.height - 30);
         doc.text("ผู้ตรวจสอบ (Stock Auditor)", 145, doc.internal.pageSize.height - 23);
 
@@ -195,18 +275,18 @@ const Reports: React.FC = () => {
                 </Paper>
                 <Box>
                     <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
-                        รายงานความเคลื่อนไหว (Movement Report)
+                        รายงานความเคลื่อนไหว & Export Stock
                     </Typography>
                     <Typography variant="body2" color="textSecondary">
-                        ตรวจสอบการ รับเข้า / ส่งซัก / ตัดจำหน่าย และยอดคงเหลือ
+                        ตรวจสอบประวัติ และ Export ไฟล์ Excel สรุปยอดผ้าพร้อม RFID
                     </Typography>
                 </Box>
             </Box>
 
             {/* Summary Cards */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid size={{ xs: 6, md: 3 }}>
-                    <Card elevation={2} sx={{ bgcolor: '#ecfdf5', color: '#047857', borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                <Grid item xs={6} md={3}>
+                    <Card elevation={2} sx={{ bgcolor: '#ecfdf5', color: '#047857', borderRadius: 3 }}>
                         <CardContent sx={{ p: 2, pb: '16px !important' }}>
                             <Stack direction="row" justifyContent="space-between">
                                 <Box><Typography variant="caption" fontWeight="bold">เพิ่มใหม่</Typography><Typography variant="h5" fontWeight="bold">+{summary.added}</Typography></Box>
@@ -215,8 +295,8 @@ const Reports: React.FC = () => {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid size={{ xs: 6, md: 3 }}>
-                    <Card elevation={2} sx={{ bgcolor: '#fef2f2', color: '#b91c1c', borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                <Grid item xs={6} md={3}>
+                    <Card elevation={2} sx={{ bgcolor: '#fef2f2', color: '#b91c1c', borderRadius: 3 }}>
                         <CardContent sx={{ p: 2, pb: '16px !important' }}>
                             <Stack direction="row" justifyContent="space-between">
                                 <Box><Typography variant="caption" fontWeight="bold">ตัดจำหน่าย</Typography><Typography variant="h5" fontWeight="bold">-{summary.discarded}</Typography></Box>
@@ -225,8 +305,8 @@ const Reports: React.FC = () => {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid size={{ xs: 6, md: 3 }}>
-                    <Card elevation={2} sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                <Grid item xs={6} md={3}>
+                    <Card elevation={2} sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', borderRadius: 3 }}>
                         <CardContent sx={{ p: 2, pb: '16px !important' }}>
                             <Stack direction="row" justifyContent="space-between">
                                 <Box><Typography variant="caption" fontWeight="bold">ส่งซัก</Typography><Typography variant="h5" fontWeight="bold">-{summary.washed}</Typography></Box>
@@ -235,8 +315,8 @@ const Reports: React.FC = () => {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid size={{ xs: 6, md: 3 }}>
-                    <Card elevation={2} sx={{ bgcolor: '#fff7ed', color: '#c2410c', borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                <Grid item xs={6} md={3}>
+                    <Card elevation={2} sx={{ bgcolor: '#fff7ed', color: '#c2410c', borderRadius: 3 }}>
                         <CardContent sx={{ p: 2, pb: '16px !important' }}>
                             <Stack direction="row" justifyContent="space-between">
                                 <Box><Typography variant="caption" fontWeight="bold">รับเข้าวันนี้</Typography><Typography variant="h5" fontWeight="bold">+{summary.receivedToday}</Typography></Box>
@@ -248,26 +328,28 @@ const Reports: React.FC = () => {
             </Grid>
 
             {/* Filter & Actions */}
-            <Paper elevation={2} sx={{ p: 2, mb: 3, borderRadius: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <Paper elevation={2} sx={{ p: 2, mb: 3, borderRadius: 3 }}>
                 <Grid container spacing={2} alignItems="center">
-                    <Grid size={{ xs: 6, md: 3 }}>
+                    <Grid item xs={6} md={3}>
                         <TextField type="date" label="เริ่มต้น" fullWidth size="small" InputLabelProps={{ shrink: true }} value={startDate} onChange={e => setStartDate(e.target.value)} />
                     </Grid>
-                    <Grid size={{ xs: 6, md: 3 }}>
+                    <Grid item xs={6} md={3}>
                         <TextField type="date" label="สิ้นสุด" fullWidth size="small" InputLabelProps={{ shrink: true }} value={endDate} onChange={e => setEndDate(e.target.value)} />
                     </Grid>
-                    <Grid size={{ xs: 12, md: 3 }}>
+                    <Grid item xs={12} md={3}>
                         <Button variant="contained" fullWidth startIcon={<Search />} onClick={handlePreview}>เรียกดูข้อมูล</Button>
                     </Grid>
-                    <Grid size={{ xs: 12, md: 3 }} sx={{ display: 'flex', gap: 1 }}>
-                        <Button variant="outlined" color="success" fullWidth startIcon={<TableView />} onClick={handleExportExcel}>Excel</Button>
+                    <Grid item xs={12} md={3} sx={{ display: 'flex', gap: 1 }}>
+                        <Button variant="outlined" color="success" fullWidth startIcon={<TableView />} onClick={handleExportExcel}>
+                            Export RFID (Excel)
+                        </Button>
                         <Button variant="outlined" color="error" fullWidth startIcon={<PictureAsPdf />} onClick={handleExportPDF}>PDF</Button>
                     </Grid>
                 </Grid>
             </Paper>
 
             {/* Table */}
-            <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 3, maxHeight: 500, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 3, maxHeight: 500 }}>
                 <Table stickyHeader size="small">
                     <TableHead>
                         <TableRow>
