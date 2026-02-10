@@ -304,3 +304,126 @@
 1770698468: Client Backend_Service_a909d840-4899-40c0-9cda-e4a8103e4b89 disconnected.
 1770698477: New connection from 172.19.0.1:59056 on port 1883.
 1770698477: New client connected from 172.19.0.1:59056 as Backend_Service_f8611b9b-6ca8-4b37-907b-d370c67782dd (p2, c1, k15).
+1770699124: Client Backend_Service_f8611b9b-6ca8-4b37-907b-d370c67782dd closed its connection.
+1770699135: mosquitto version 2.0.22 terminating
+1770699135: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770700222: mosquitto version 2.0.22 starting
+1770700222: Config loaded from /mosquitto/config/mosquitto.conf.
+1770700222: Opening ipv4 listen socket on port 1883.
+1770700222: Opening ipv6 listen socket on port 1883.
+1770700222: Opening websockets listen socket on port 9001.
+1770700222: mosquitto version 2.0.22 running
+1770700243: New connection from 172.19.0.1:45592 on port 1883.
+1770700243: New client connected from 172.19.0.1:45592 as Backend_Service_e1d02e87-9681-4615-a20d-66fff8398535 (p2, c1, k15).
+1770702066: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770704016: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770705869: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770707777: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770709002: Client Backend_Service_e1d02e87-9681-4615-a20d-66fff8398535 disconnected.
+1770709137: New connection from 172.19.0.1:53394 on port 1883.
+1770709137: New client connected from 172.19.0.1:53394 as Backend_Service_04eca80e-b456-48b1-a185-f863b413e7af (p2, c1, k15).
+1770709546: Client Backend_Service_04eca80e-b456-48b1-a185-f863b413e7af disconnected.
+1770709559: New connection from 172.19.0.1:47332 on port 1883.
+1770709559: New client connected from 172.19.0.1:47332 as Backend_Service_1219d373-259c-4cd6-9e57-94e4da08dd26 (p2, c1, k15).
+1770709632: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770710047: Client Backend_Service_1219d373-259c-4cd6-9e57-94e4da08dd26 disconnected.
+1770710070: New connection from 172.19.0.1:59366 on port 1883.
+1770710070: New client connected from 172.19.0.1:59366 as Backend_Service_9d36db4c-65d0-416d-b489-ef79b6926f0e (p2, c1, k15).
+1770710193: Client Backend_Service_9d36db4c-65d0-416d-b489-ef79b6926f0e disconnected.
+1770710197: New connection from 172.19.0.1:33216 on port 1883.
+1770710197: New client connected from 172.19.0.1:33216 as Backend_Service_ee347edf-5150-43c0-8c51-d3ea8c2a3866 (p2, c1, k15).
+1770711490: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770711945: New connection from 172.19.0.1:40508 on port 1883.
+1770711945: Client <unknown> disconnected due to protocol error.
+1770711945: New connection from 172.19.0.1:40512 on port 1883.
+1770711945: Client <unknown> disconnected due to protocol error.
+1770711945: New connection from 172.19.0.1:40520 on port 1883.
+1770711945: New connection from 172.19.0.1:40530 on port 1883.
+1770711946: Client <unknown> disconnected due to protocol error.
+1770711946: Client <unknown> disconnected due to protocol error.
+1770711946: New connection from 172.19.0.1:40544 on port 1883.
+1770711946: Client <unknown> disconnected due to protocol error.
+1770711951: New connection from 172.19.0.1:41194 on port 1883.
+1770711951: Client <unknown> disconnected due to protocol error.
+1770711951: New connection from 172.19.0.1:41204 on port 1883.
+1770711951: Client <unknown> disconnected due to protocol error.
+1770711951: New connection from 172.19.0.1:41208 on port 1883.
+1770712023: Client <unknown> closed its connection.
+1770713351: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770713730: New connection from 172.19.0.1:35034 on port 1883.
+1770713730: New client connected from 172.19.0.1:35034 as ESP32-4c9d (p2, c1, k15).
+1770713963: Client ESP32-4c9d has exceeded timeout, disconnecting.
+1770714876: New connection from 172.19.0.1:53468 on port 1883.
+1770714876: New client connected from 172.19.0.1:53468 as ESP32-cf15 (p2, c1, k15).
+1770714951: Client ESP32-cf15 closed its connection.
+1770714951: New connection from 172.19.0.1:45706 on port 1883.
+1770714951: New client connected from 172.19.0.1:45706 as ESP32-bcab (p2, c1, k15).
+1770714955: New connection from 172.19.0.1:45712 on port 1883.
+1770714955: New client connected from 172.19.0.1:45712 as ESP32-5741 (p2, c1, k15).
+1770714967: Client ESP32-bcab closed its connection.
+1770715001: Client ESP32-5741 closed its connection.
+1770715001: New connection from 172.19.0.1:50358 on port 1883.
+1770715001: New client connected from 172.19.0.1:50358 as ESP32-c825 (p2, c1, k15).
+1770715068: New connection from 172.19.0.1:33260 on port 1883.
+1770715068: New client connected from 172.19.0.1:33260 as ESP32-6ec8 (p2, c1, k15).
+1770715079: New connection from 172.19.0.1:49058 on port 1883.
+1770715079: New client connected from 172.19.0.1:49058 as ESP32-5d5f (p2, c1, k15).
+1770715083: Client ESP32-6ec8 closed its connection.
+1770715083: Client ESP32-c825 has exceeded timeout, disconnecting.
+1770715137: New connection from 172.19.0.1:34420 on port 1883.
+1770715137: New client connected from 172.19.0.1:34420 as ESP32-bfca (p2, c1, k15).
+1770715139: Client ESP32-5d5f closed its connection.
+1770715148: New connection from 172.19.0.1:57702 on port 1883.
+1770715148: New client connected from 172.19.0.1:57702 as ESP32-c441 (p2, c1, k15).
+1770715158: Client ESP32-bfca closed its connection.
+1770715213: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770715222: New connection from 172.19.0.1:51818 on port 1883.
+1770715222: New client connected from 172.19.0.1:51818 as ESP32-a483 (p2, c1, k15).
+1770715223: Client ESP32-c441 closed its connection.
+1770715227: New connection from 172.19.0.1:54248 on port 1883.
+1770715227: New client connected from 172.19.0.1:54248 as ESP32-f08c (p2, c1, k15).
+1770715237: Client ESP32-a483 closed its connection.
+1770715309: New connection from 172.19.0.1:32864 on port 1883.
+1770715309: New client connected from 172.19.0.1:32864 as ESP32-6561 (p2, c1, k15).
+1770715318: Client ESP32-f08c closed its connection.
+1770715426: New connection from 172.19.0.1:34736 on port 1883.
+1770715426: New client connected from 172.19.0.1:34736 as ESP32-a9ff (p2, c1, k15).
+1770715430: Client ESP32-6561 closed its connection.
+1770715465: New connection from 172.19.0.1:48006 on port 1883.
+1770715465: New client connected from 172.19.0.1:48006 as ESP32-b25d (p2, c1, k15).
+1770715472: Client ESP32-a9ff closed its connection.
+1770715620: New connection from 172.19.0.1:55486 on port 1883.
+1770715620: New client connected from 172.19.0.1:55486 as ESP32-9a50 (p2, c1, k15).
+1770715630: Client ESP32-b25d closed its connection.
+1770715974: New connection from 172.19.0.1:38114 on port 1883.
+1770715974: New client connected from 172.19.0.1:38114 as ESP32-a2c0 (p2, c1, k15).
+1770715983: Client ESP32-9a50 closed its connection.
+1770716080: New connection from 172.19.0.1:47670 on port 1883.
+1770716080: New client connected from 172.19.0.1:47670 as ESP32-e243 (p2, c1, k15).
+1770716080: Client ESP32-a2c0 closed its connection.
+1770716118: Client ESP32-e243 has exceeded timeout, disconnecting.
+1770716134: New connection from 172.19.0.1:47908 on port 1883.
+1770716134: New client connected from 172.19.0.1:47908 as ESP32-3318 (p2, c1, k15).
+1770716155: New connection from 172.19.0.1:48084 on port 1883.
+1770716155: New client connected from 172.19.0.1:48084 as ESP32-9898 (p2, c1, k15).
+1770716164: New connection from 172.19.0.1:47516 on port 1883.
+1770716164: New client connected from 172.19.0.1:47516 as ESP32-1d6d (p2, c1, k15).
+1770716164: Client ESP32-3318 closed its connection.
+1770716170: Client ESP32-9898 closed its connection.
+1770716197: New connection from 172.19.0.1:56084 on port 1883.
+1770716197: New client connected from 172.19.0.1:56084 as ESP32-3076 (p2, c1, k15).
+1770716210: Client ESP32-1d6d closed its connection.
+1770716221: New connection from 172.19.0.1:35066 on port 1883.
+1770716221: New client connected from 172.19.0.1:35066 as ESP32-b1a9 (p2, c1, k15).
+1770716228: Client ESP32-3076 closed its connection.
+1770716316: Client Backend_Service_ee347edf-5150-43c0-8c51-d3ea8c2a3866 disconnected.
+1770716332: New connection from 172.19.0.1:58058 on port 1883.
+1770716332: New client connected from 172.19.0.1:58058 as Backend_Service_ed241cfd-212c-4a7b-bf05-9bbb6e484980 (p2, c1, k15).
+1770716354: New connection from 172.19.0.1:45946 on port 1883.
+1770716354: New client connected from 172.19.0.1:45946 as ESP32-2a1b (p2, c1, k15).
+1770716356: Client ESP32-b1a9 closed its connection.
+1770716416: New connection from 172.19.0.1:33144 on port 1883.
+1770716416: New client connected from 172.19.0.1:33144 as ESP32-c601 (p2, c1, k15).
+1770716424: Client ESP32-2a1b has exceeded timeout, disconnecting.
+1770716810: mosquitto version 2.0.22 terminating
+1770716810: Saving in-memory database to /mosquitto/data//mosquitto.db.

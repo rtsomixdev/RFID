@@ -1,6 +1,7 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
+import { HubConnectionBuilder } from '@microsoft/signalr'; // ⚠️ อย่าลืม npm install @microsoft/signalr
 import theme from './theme/theme';
 
 // --- Imports Pages ---
@@ -23,6 +24,67 @@ import RfidConnect from './pages/RfidConnect';
 
 import MainLayout from './layouts/MainLayout';
 
+// ----------------------------------------------------------------------
+// 🔥 Component สำหรับจัดการ SignalR (Real-time)
+// ต้องวางไว้ใต้ <Router> เสมอ ถึงจะใช้ useNavigate ได้
+// ----------------------------------------------------------------------
+const SignalRHandler = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // 1. สร้างการเชื่อมต่อ
+    const connection = new HubConnectionBuilder()
+      .withUrl("http://localhost:5134/hubs/notification", {
+        withCredentials: true // ✅ สำคัญมากสำหรับ CORS
+      })
+      .withAutomaticReconnect()
+      .build();
+
+    // 2. เริ่มต้นเชื่อมต่อ
+    connection.start()
+      .then(() => console.log('🟢 SignalR Connected! Waiting for scans...'))
+      .catch(err => console.error('🔴 SignalR Connection Error:', err));
+
+    // 3. 👂 ดักฟัง Event "OnScan" จาก Backend
+    connection.on("OnScan", (data: any) => {
+      console.log("⚡ Real-time Scan Received:", data);
+
+      // A. ส่ง Event บอกทุกหน้าจอ (เช่น หน้าลงทะเบียน ให้กรอก Textbox เอง)
+      const event = new CustomEvent("RFID_SCANNED", { detail: data.rfid });
+      window.dispatchEvent(event);
+
+      // B. เปลี่ยนหน้าจออัตโนมัติ (Navigation Logic)
+      // เช็คว่า User Login อยู่หรือเปล่าก่อนเปลี่ยนหน้า
+      const userStr = localStorage.getItem('currentUser');
+      if (userStr) {
+        switch (data.mode) {
+          case 'SET_MODE_WASH':
+            navigate('/laundry'); // เด้งไปหน้าซักผ้า
+            break;
+          case 'SET_MODE_DISCARD':
+            navigate('/discard'); // เด้งไปหน้าทิ้ง/ชำรุด
+            break;
+          case 'SET_MODE_RESTOCK':
+            navigate('/linens');  // เด้งไปหน้าสต็อก
+            break;
+          default:
+            // Normal Mode: ไม่ต้องเปลี่ยนหน้า หรืออาจจะแค่แจ้งเตือน
+            break;
+        }
+      }
+    });
+
+    // Cleanup เมื่อปิด App
+    return () => {
+      connection.stop();
+    };
+  }, [navigate]);
+
+  return null; // Component นี้ทำงานเบื้องหลัง ไม่ต้องแสดงผล
+};
+
+// ----------------------------------------------------------------------
+
 const ComingSoon = ({ title }: { title: string }) => (
   <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
     <h2>🚧 หน้า: {title}</h2><p>กำลังอยู่ในระหว่างการพัฒนา...</p>
@@ -41,6 +103,9 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Router>
+        {/* ✅ วางตัวดักฟัง SignalR ไว้ตรงนี้ (ทำงานตลอดเวลาทุกหน้า) */}
+        <SignalRHandler />
+
         <Routes>
           {/* 1. Public Pages (หน้า Login แยกต่างหาก ไม่มี Layout) */}
           <Route path="/login" element={<Login />} />

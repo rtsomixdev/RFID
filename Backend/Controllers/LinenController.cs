@@ -9,7 +9,7 @@ using System.Collections.Generic;
 namespace Backend.Controllers
 {
     // ==========================================
-    // DTOs (Data Transfer Objects) - คงเดิม
+    // DTOs (Data Transfer Objects)
     // ==========================================
 
     public class DiscardPayload
@@ -60,21 +60,22 @@ namespace Backend.Controllers
             return DateTime.UtcNow.AddHours(7);
         }
 
-        // ✅ ฟังก์ชันช่วยบันทึก Log (เพิ่มใหม่)
-        // ใช้ void เพราะเราจะ SaveChanges ทีเดียวใน method หลัก
-        private void CreateLinenLog(int linenId, string activity, string description)
+        // ✅ Helper Function: เพิ่ม Parameter from/to เพื่อบันทึก Flow
+        private void CreateLinenLog(int linenId, string activity, string description, string from = "-", string to = "-")
         {
             _context.LinenLogs.Add(new LinenLog
             {
                 LinenId = linenId,
                 ActivityType = activity, // Add, Wash, Restock, Discard
                 Description = description,
-                Timestamp = ThaiTime()
+                FromLocation = from,     // ✅ ต้นทาง
+                ToLocation = to,         // ✅ ปลายทาง
+                CreatedAt = ThaiTime()
             });
         }
 
         // ==========================================
-        // 🔥 0. POST: Scan Logic 
+        // 🔥 0. POST: Scan Logic (Manual Check via API)
         // ==========================================
         [HttpPost("Scan")]
         public async Task<IActionResult> ScanProcess([FromBody] ScanRequestDto request)
@@ -96,7 +97,6 @@ namespace Backend.Controllers
             }
 
             var now = ThaiTime();
-
             var registered = new List<object>(); 
             var disposed = new List<object>();   
             var unknown = new List<string>();    
@@ -118,14 +118,7 @@ namespace Backend.Controllers
                 }
                 else if (!linen.IsActive) 
                 {
-                    disposed.Add(new 
-                    {
-                        linen.LinenId,
-                        linen.RfidCode,
-                        ProductName = linen.Product?.ProductName ?? "Unknown",
-                        Status = linen.Status,
-                        LastUpdate = linen.UpdatedAt?.ToString("dd/MM/yy HH:mm")
-                    });
+                    disposed.Add(new { linen.RfidCode, Status = "Disposed" });
                     _context.SystemLogs.Add(new SystemLog
                     {
                         ActionType = "SCAN_DISPOSED",
@@ -135,74 +128,60 @@ namespace Backend.Controllers
                 }
                 else
                 {
-                    bool isSuccess = true;
-                    string errorMessage = "";
+                    // ✅ 1. เก็บ Location เดิมไว้ก่อน
+                    string prevLocation = linen.CurrentLocation ?? "-";
+                    string newLocation = readerName; // Default location = จุดที่สแกน
+                    string activity = "Check";
 
-                    if (request.ActionType == "DISPATCH")
+                    // ✅ 2. คำนวณ Location ใหม่ตาม Action
+                    if (request.ActionType == "DISPATCH") 
                     {
-                        if (linen.Status == "InTransit")
+                        if (linen.Status == "InTransit") 
                         {
-                            isSuccess = false;
-                            errorMessage = "สินค้านี้อยู่ระหว่างขนส่งแล้ว (ห้ามส่งซ้ำ)";
+                            invalid.Add(new { linen.RfidCode, Message = "สินค้านี้อยู่ระหว่างขนส่งแล้ว" });
+                            continue;
                         }
-                        else
-                        {
-                            linen.Status = "InTransit"; 
-                        }
+                        linen.Status = "InTransit"; // หรือ Washing
+                        activity = "Wash";
+                        newLocation = "Laundry"; // ส่งไปซัก -> ปลายทางคือ Laundry
                     }
                     else if (request.ActionType == "RECEIVE")
                     {
-                        if (linen.Status != "InTransit")
+                        if (linen.Status != "InTransit") 
                         {
-                            isSuccess = false;
-                            errorMessage = $"รับไม่ได้ สถานะคือ {linen.Status} (ต้องรอส่งมาก่อน)";
+                            invalid.Add(new { linen.RfidCode, Message = "ต้องส่งมาก่อนถึงจะรับได้" });
+                            continue;
                         }
-                        else
-                        {
-                            linen.Status = "Available"; 
-                            linen.CurrentLocation = readerName; 
-                        }
+                        linen.Status = "Available";
+                        activity = "Restock";
+                        newLocation = "Stock"; // รับกลับ -> ปลายทางคือ Stock
                     }
                     else 
                     {
+                        // แค่เช็คของ (Check)
                         linen.CurrentLocation = readerName;
                     }
 
-                    if (isSuccess)
-                    {
-                        linen.UpdatedAt = now;
-                        
-                        // ✅ เพิ่ม Log สำหรับ Report (Wash / Restock / Check)
-                        string activity = "Check";
-                        if (request.ActionType == "DISPATCH") activity = "Wash"; // ส่งซัก
-                        else if (request.ActionType == "RECEIVE") activity = "Restock"; // รับเข้า
-                        
-                        CreateLinenLog(linen.LinenId, activity, $"สแกนที่จุด {readerName}");
+                    // ✅ 3. อัปเดตค่าจริง
+                    linen.CurrentLocation = newLocation;
+                    linen.UpdatedAt = now;
 
-                        bool isExpired = linen.WashCount >= linen.MaxWashCount;
-                        
-                        registered.Add(new 
-                        {
-                            linen.LinenId,
-                            linen.RfidCode,
-                            ProductName = linen.Product?.ProductName ?? "Unknown",
-                            Category = linen.Product?.Category?.CategoryName ?? "-",
-                            Status = linen.Status,
-                            linen.WashCount,
-                            linen.MaxWashCount,
-                            IsExpired = isExpired,
-                            linen.CurrentLocation
-                        });
-                    }
-                    else
+                    // ✅ 4. บันทึก Log พร้อม Flow (From -> To)
+                    CreateLinenLog(linen.LinenId, activity, $"สแกนที่จุด {readerName}", prevLocation, newLocation);
+
+                    bool isExpired = linen.WashCount >= linen.MaxWashCount;
+                    registered.Add(new 
                     {
-                        invalid.Add(new 
-                        {
-                            linen.RfidCode,
-                            Message = errorMessage,
-                            CurrentStatus = linen.Status
-                        });
-                    }
+                        linen.LinenId,
+                        linen.RfidCode,
+                        ProductName = linen.Product?.ProductName ?? "Unknown",
+                        Category = linen.Product?.Category?.CategoryName ?? "-",
+                        Status = linen.Status,
+                        linen.WashCount,
+                        linen.MaxWashCount,
+                        IsExpired = isExpired,
+                        linen.CurrentLocation
+                    });
                 }
             }
 
@@ -357,7 +336,7 @@ namespace Backend.Controllers
         }
 
         // ==========================================
-        // 5. POST: Discard
+        // 5. POST: Discard (รายชิ้น)
         // ==========================================
         [HttpPost("Discard")]
         public async Task<IActionResult> DiscardLinen([FromBody] DiscardPayload payload)
@@ -373,12 +352,15 @@ namespace Backend.Controllers
                     var linen = await _context.Linens.FirstOrDefaultAsync(l => l.RfidCode == payload.RfidCode);
                     if (linen == null) return NotFound(new { message = $"ไม่พบรหัส RFID: {payload.RfidCode}" });
 
+                    // ✅ เก็บ Location เดิม
+                    string prevLoc = linen.CurrentLocation ?? "-";
+
                     linen.IsActive = false; 
                     linen.Status = reasonName;
                     linen.UpdatedAt = ThaiTime(); 
 
-                    // ✅ เพิ่ม Log สำหรับ Report (Discard)
-                    CreateLinenLog(linen.LinenId, "Discard", $"แจ้งชำรุด: {reasonName}");
+                    // ✅ Log Flow: จากที่เดิม -> Disposal
+                    CreateLinenLog(linen.LinenId, "Discard", $"แจ้งชำรุด: {reasonName}", prevLoc, "Disposal");
                 }
                 await _context.SaveChangesAsync();
                 return Ok(new { message = "บันทึกแจ้งชำรุดสำเร็จ" });
@@ -403,12 +385,13 @@ namespace Backend.Controllers
             linen.IsActive = true;
             linen.Status = "Available"; 
             linen.WashCount = 0; 
+            linen.CurrentLocation = "Stock";
             
             _context.Linens.Add(linen);
-            await _context.SaveChangesAsync(); // Save รอบแรกเพื่อเอา LinenId
+            await _context.SaveChangesAsync(); 
 
-            // ✅ เพิ่ม Log สำหรับ Report (Add)
-            CreateLinenLog(linen.LinenId, "Add", "เพิ่มรายชิ้น");
+            // ✅ Log Flow: จาก "-" (ไม่มี) -> Stock
+            CreateLinenLog(linen.LinenId, "Add", "เพิ่มรายชิ้น", "-", "Stock");
             await _context.SaveChangesAsync();
 
             return CreatedAtAction("GetLinens", new { id = linen.LinenId }, linen);
@@ -450,7 +433,7 @@ namespace Backend.Controllers
                     Status = "Available",
                     IsActive = true,
                     WashCount = 0,
-                    MaxWashCount = 100, // Default
+                    MaxWashCount = 100, 
                     CurrentLocation = "Stock",
                     RegisteredAt = now,
                     UpdatedAt = now
@@ -458,14 +441,14 @@ namespace Backend.Controllers
             }
 
             await _context.Linens.AddRangeAsync(newLinens);
-            await _context.SaveChangesAsync(); // Save รอบแรกเพื่อเอา LinenId
+            await _context.SaveChangesAsync(); 
 
-            // ✅ เพิ่ม Log สำหรับ Report (Add)
+            // ✅ Log Flow สำหรับ Batch: จาก "-" -> "Stock"
             foreach (var item in newLinens)
             {
-                CreateLinenLog(item.LinenId, "Add", "ลงทะเบียนใหม่");
+                CreateLinenLog(item.LinenId, "Add", "ลงทะเบียนใหม่ (Batch)", "-", "Stock");
             }
-            await _context.SaveChangesAsync(); // Save Log
+            await _context.SaveChangesAsync(); 
 
             return Ok(new { message = $"ลงทะเบียนสำเร็จ {newLinens.Count} รายการ" });
         }
@@ -521,6 +504,9 @@ namespace Backend.Controllers
 
             foreach (var linen in linens)
             {
+                // ✅ เก็บ Location เดิม
+                string prevLoc = linen.CurrentLocation ?? "-";
+
                 linen.IsActive = false; 
                 linen.Status = reasonName;
                 linen.UpdatedAt = now;
@@ -533,8 +519,8 @@ namespace Backend.Controllers
                     CreatedAt = now
                 });
 
-                // ✅ เพิ่ม Log สำหรับ Report (Discard)
-                CreateLinenLog(linen.LinenId, "Discard", $"แจ้งชำรุด: {reasonName}");
+                // ✅ Log Flow: จากที่เดิม -> Disposal
+                CreateLinenLog(linen.LinenId, "Discard", $"แจ้งชำรุด: {reasonName}", prevLoc, "Disposal");
             }
 
             await _context.SaveChangesAsync();

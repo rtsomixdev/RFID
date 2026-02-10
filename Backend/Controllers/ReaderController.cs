@@ -5,6 +5,7 @@ using Backend.Services;
 using System.Threading.Tasks;
 using System.Linq;
 using System;
+using System.Collections.Generic;
 
 namespace Backend.Controllers
 {
@@ -24,27 +25,31 @@ namespace Backend.Controllers
         private DateTime ThaiTime() => DateTime.UtcNow.AddHours(7);
 
         // GET: api/Reader
+        // ดึงข้อมูลเครื่องทั้งหมด (ส่งกลับไปครบทุก Field เพื่อให้หน้า Web เอาไปใช้ต่อได้)
         [HttpGet]
-        public async Task<IActionResult> GetReaders()
+        public async Task<ActionResult<IEnumerable<Reader>>> GetReaders()
         {
-            var readers = await _context.Readers
-                .OrderBy(r => r.ReaderName)
-                .Select(r => new 
-                {
-                    r.ReaderId,
-                    r.ReaderName,
-                    Location = r.Location ?? "-",
-                    IpAddress = r.IpAddress, 
-                    Status = r.IsActive == true ? "Online" : "Offline"
-                })
+            return await _context.Readers
+                .OrderBy(r => r.ReaderId)
                 .ToListAsync();
-            return Ok(readers);
         }
 
         // POST: api/Reader
+        // เพิ่มเครื่องใหม่
         [HttpPost]
         public async Task<IActionResult> AddReader([FromBody] Reader reader)
         {
+            // 1. เช็คชื่อซ้ำ
+            if (await _context.Readers.AnyAsync(r => r.ReaderName == reader.ReaderName))
+            {
+                return BadRequest(new { message = $"ชื่อเครื่อง '{reader.ReaderName}' มีอยู่ในระบบแล้ว" });
+            }
+
+            // 2. ตั้งค่า Default
+            reader.IsActive = true;
+            if (string.IsNullOrEmpty(reader.CurrentMode)) reader.CurrentMode = "Normal";
+            if (string.IsNullOrEmpty(reader.ReaderFunction)) reader.ReaderFunction = "CHECK";
+
             _context.Readers.Add(reader);
             
             // 🔔 แจ้งเตือนเข้า Notification (Admin)
@@ -53,18 +58,41 @@ namespace Backend.Controllers
                 UserId = null,  
                 RoleId = 1,     // Admin
                 Title = "เพิ่มอุปกรณ์ใหม่",
-                Message = $"เพิ่มอุปกรณ์: {reader.ReaderName} เข้าสู่ระบบ", // ✅ แก้เป็น Message
+                Message = $"เพิ่มอุปกรณ์: {reader.ReaderName} เข้าสู่ระบบ",
                 Type = "INFO",  
                 IsRead = false,
                 CreatedAt = ThaiTime(),
-                LinkUrl = "/rfid-connect" // ✅ ใส่ Link ให้ด้วยเลย
+                LinkUrl = "/readers" // ลิงก์ไปหน้าจัดการอุปกรณ์
             });
 
             await _context.SaveChangesAsync();
-            return Ok(reader);
+            return CreatedAtAction("GetReaders", new { id = reader.ReaderId }, reader);
+        }
+
+        // PUT: api/Reader/5
+        // แก้ไขข้อมูลเครื่อง
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateReader(int id, [FromBody] Reader reader)
+        {
+            if (id != reader.ReaderId) return BadRequest(new { message = "ID ไม่ตรงกัน" });
+
+            _context.Entry(reader).State = EntityState.Modified;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_context.Readers.Any(e => e.ReaderId == id)) return NotFound();
+                else throw;
+            }
+
+            return NoContent();
         }
 
         // DELETE: api/Reader/5
+        // ลบเครื่อง
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteReader(int id)
         {
@@ -76,11 +104,11 @@ namespace Backend.Controllers
             {
                 UserId = null, RoleId = 1,
                 Title = "ลบอุปกรณ์",
-                Message = $"ลบอุปกรณ์: {reader.ReaderName} ออกจากระบบ", // ✅ แก้เป็น Message
+                Message = $"ลบอุปกรณ์: {reader.ReaderName} ออกจากระบบ",
                 Type = "WARNING", 
                 IsRead = false,
                 CreatedAt = ThaiTime(),
-                LinkUrl = "/rfid-connect"
+                LinkUrl = "/readers"
             });
 
             _context.Readers.Remove(reader);
@@ -89,6 +117,7 @@ namespace Backend.Controllers
         }
 
         // POST: api/Reader/Config
+        // สั่งงานอุปกรณ์ (เช่น Restart, Shutdown)
         [HttpPost("Config")]
         public async Task<IActionResult> SendConfig([FromBody] ReaderConfigDto request)
         {
@@ -104,7 +133,7 @@ namespace Backend.Controllers
             if (request.Command == "SHUTDOWN")
             {
                 reader.IsActive = false;
-                reader.IpAddress = "-";
+                // reader.IpAddress = "-"; // อาจจะไม่ต้องลบ IP ก็ได้ เผื่อไว้ดูประวัติ
                 
                 title = "อุปกรณ์ออฟไลน์ (Shutdown)";
                 msg = $"⛔ สั่งปิดเครื่อง: {request.ReaderId}";
@@ -116,11 +145,11 @@ namespace Backend.Controllers
             {
                 UserId = null, RoleId = 1,
                 Title = title,
-                Message = msg, // ✅ แก้เป็น Message
+                Message = msg,
                 Type = type,
                 IsRead = false,
                 CreatedAt = ThaiTime(),
-                LinkUrl = "/rfid-connect"
+                LinkUrl = "/readers"
             });
 
             await _context.SaveChangesAsync();

@@ -20,46 +20,56 @@ namespace Backend.Controllers
         }
 
         // ==========================================
-        // 1. รายงานความเคลื่อนไหว (Movement Report)
-        // ใช้ในหน้า Reports.tsx
-        // URL: GET /api/Report/Movement?start=...&end=...
+        // 1. รายงานความเคลื่อนไหว (Movement Report) - แบบ Grouping A->B
+        // URL: GET /api/Report/Movement?start=...&end=...&type=...
         // ==========================================
         [HttpGet("Movement")]
-        public async Task<IActionResult> GetMovementReport(DateTime? start, DateTime? end)
+        public async Task<IActionResult> GetMovementReport(DateTime? start, DateTime? end, string? type)
         {
             var startDate = start ?? DateTime.Today.AddDays(-30);
-            var endDate = end?.AddDays(1) ?? DateTime.Today.AddDays(1); // บวก 1 วันเพื่อให้ครอบคลุมถึงจบวัน
+            var endDate = end?.AddDays(1) ?? DateTime.Today.AddDays(1);
 
             try
             {
-                // ดึงข้อมูลจาก LinenLogs
-                // ต้องแน่ใจว่าใน LinenDbContext มี public DbSet<LinenLog> LinenLogs { get; set; }
+                // 1. ดึง Raw Data จาก LinenLogs
                 var query = _context.LinenLogs
                     .Include(l => l.Linen)
                         .ThenInclude(p => p.Product)
-                    .Where(x => x.Timestamp >= startDate && x.Timestamp < endDate);
+                    .Where(x => x.CreatedAt >= startDate && x.CreatedAt < endDate); // ใช้ CreatedAt ตาม Migration ใหม่
 
-                // ดึงข้อมูลมา Group ใน Memory (เพื่อให้จัด Format วันที่ได้ง่าย)
+                // Filter by Type (ถ้ามีการส่ง parameter มา และไม่ใช่ All)
+                if (!string.IsNullOrEmpty(type) && type != "All")
+                {
+                    query = query.Where(x => x.ActivityType == type);
+                }
+
                 var rawLogs = await query.ToListAsync();
 
+                // 2. Grouping ใน Memory (เพื่อสรุปยอด)
                 var groupedLogs = rawLogs
                     .GroupBy(x => new 
                     { 
-                        // Group ตามเวลา (ระดับนาที), ประเภท, และชื่อสินค้า
-                        TimeGroup = x.Timestamp.Value.ToString("yyyy-MM-dd HH:mm"), 
+                        // Group ตามเวลา (ระดับนาที), ประเภท, สินค้า, และเส้นทาง (Flow)
+                        TimeGroup = x.CreatedAt.ToString("yyyy-MM-dd HH:mm"), 
                         Activity = x.ActivityType, 
-                        ProductName = x.Linen?.Product?.ProductName ?? "Unknown" 
+                        ProductName = x.Linen?.Product?.ProductName ?? "Unknown",
+                        From = x.FromLocation ?? "-",
+                        To = x.ToLocation ?? "-"
                     })
                     .Select((g, index) => new
                     {
                         id = index + 1,
-                        date = g.Key.TimeGroup, // ส่งเป็น String ให้ Frontend
-                        type = g.Key.Activity,
+                        date = g.Key.TimeGroup,
+                        type = g.Key.Activity, // Add, Wash, Move, Discard, Restock
                         productName = g.Key.ProductName,
-                        // คำนวณยอด: ถ้าเป็น Add/Restock เป็นบวก, ถ้า Wash/Discard เป็นลบ
-                        qty = (g.Key.Activity == "Add" || g.Key.Activity == "Restock") ? g.Count() : -g.Count(),
-                        balance = 0, // Frontend ไม่ได้ใช้ยอดคงเหลือสะสมในตารางนี้ ใส่ 0 ไว้ก่อน
-                        user = "System" // หรือดึงจาก User ID ถ้ามี
+                        
+                        // ✅ สร้าง Flow String (A -> B)
+                        flow = $"{g.Key.From} ➝ {g.Key.To}",
+                        
+                        // ✅ นับจำนวน (Quantity) พร้อมเครื่องหมาย
+                        qty = IsOutgoing(g.Key.Activity) ? -g.Count() : g.Count(),
+                        
+                        user = "Auto System" // หรือดึงจาก User ID ถ้ามีการเก็บ
                     })
                     .OrderByDescending(x => x.date)
                     .ToList();
@@ -72,9 +82,17 @@ namespace Backend.Controllers
             }
         }
 
+        // Helper Function เช็คว่าเป็นขาออกหรือไม่ (เพื่อใส่เครื่องหมายลบ)
+        private bool IsOutgoing(string? activity)
+        {
+            if (string.IsNullOrEmpty(activity)) return false;
+            // รายการเหล่านี้ถือเป็นการตัดยอดออก หรือย้ายออก
+            var outgoingTypes = new[] { "Wash", "Discard", "Request", "Move_Out", "SendingToWash" };
+            return outgoingTypes.Contains(activity, StringComparer.OrdinalIgnoreCase);
+        }
+
         // ==========================================
-        // 2. รายงานผ้าชำรุด/สูญหาย (Damaged Report)
-        // URL: GET /api/Report/Damaged?start=...&end=...
+        // 2. รายงานผ้าชำรุด/สูญหาย (Damaged Report) - รายชิ้น
         // ==========================================
         [HttpGet("Damaged")]
         public async Task<IActionResult> GetDamagedReport(DateTime? start, DateTime? end)
@@ -97,7 +115,8 @@ namespace Backend.Controllers
                         Product = l.Product.ProductName ?? "Unknown",
                         Category = l.Product.Category != null ? l.Product.Category.CategoryName : "-",
                         RFID = l.RfidCode,
-                        Status = l.Status // สาเหตุการชำรุด (เช่น Damaged, Lost)
+                        Status = l.Status, // สาเหตุการชำรุด
+                        Location = l.CurrentLocation // เพิ่มตำแหน่งล่าสุดที่เจอ
                     })
                     .ToListAsync();
 

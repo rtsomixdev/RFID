@@ -76,6 +76,8 @@ RFID
 │  │        ├─ Microsoft.Extensions.DependencyModel.dll
 │  │        ├─ Microsoft.OpenApi.dll
 │  │        ├─ Mono.TextTemplating.dll
+│  │        ├─ MQTTnet.dll
+│  │        ├─ MQTTnet.Extensions.ManagedClient.dll
 │  │        ├─ Npgsql.dll
 │  │        ├─ Npgsql.EntityFrameworkCore.PostgreSQL.dll
 │  │        ├─ pl
@@ -159,6 +161,8 @@ RFID
 │  │  ├─ 20260114184320_AddProductRules.Designer.cs
 │  │  ├─ 20260114190808_UpdateNotificationSchema.cs
 │  │  ├─ 20260114190808_UpdateNotificationSchema.Designer.cs
+│  │  ├─ 20260210073658_UpdateModelsForIoT.cs
+│  │  ├─ 20260210073658_UpdateModelsForIoT.Designer.cs
 │  │  └─ LinenDbContextModelSnapshot.cs
 │  ├─ Models
 │  │  ├─ Category.cs
@@ -176,6 +180,7 @@ RFID
 │  │  ├─ Role.cs
 │  │  ├─ Room.cs
 │  │  ├─ Setting.cs
+│  │  ├─ SpecialTag.cs
 │  │  ├─ SystemLog.cs
 │  │  ├─ Title.cs
 │  │  ├─ User.cs
@@ -222,7 +227,9 @@ RFID
 │  ├─ Properties
 │  │  └─ launchSettings.json
 │  └─ Services
-│     └─ EmailService.cs
+│     ├─ EmailService.cs
+│     ├─ MqttListenerService.cs
+│     └─ MqttPublisherService.cs
 ├─ docker-compose.yml
 ├─ Frontend
 │  ├─ .env
@@ -279,16 +286,27 @@ RFID
 │  ├─ tsconfig.node.json
 │  └─ vite.config.ts
 ├─ mosquitto
-│  └─ config
-│     └─ mosquitto.conf
+│  ├─ config
+│  │  └─ mosquitto.conf
+│  ├─ data
+│  │  └─ mosquitto.db
+│  └─ log
+│     └─ mosquitto.log
 ├─ pgadmin-data
 │  ├─ azurecredentialcache
 │  ├─ pgadmin4.db
 │  ├─ sessions
-│  │  ├─ 0aca3ccc-0c8d-4fde-84b5-91f1a437013e
-│  │  ├─ 49942062-72ab-48e8-8a3d-4ffafdac386b
-│  │  ├─ 808b64be-fb15-4bc7-b21a-da188875d05a
-│  │  └─ ac19195e-43a4-4dc5-b839-c609a58f2ae9
+│  │  ├─ 094bb5af-3325-4f19-84cf-24cc24370218
+│  │  ├─ 1232d08d-57aa-45d8-adb8-818876807fea
+│  │  ├─ 184ceb9c-9184-42b4-993f-2c6a9b67a48d
+│  │  ├─ 1ece52df-edbf-41a6-9b32-08a9ec0f4fc3
+│  │  ├─ 61f48461-031a-468c-aa68-e8e8b528e4fc
+│  │  ├─ 6cadc9ad-9bb3-4b30-8cde-318db4b8113d
+│  │  ├─ 80c2945f-da49-4247-8ea6-766e85bdbb2f
+│  │  ├─ 85801c24-44fc-4a6d-837f-ff8d685ad8dc
+│  │  ├─ bcc4ee41-5212-4181-8568-6deb951c8693
+│  │  ├─ e1862a9b-94d1-42da-b64b-a09f4aea45e0
+│  │  └─ e8af7195-b1b6-42fa-8f95-663d664a0155
 │  └─ storage
 │     └─ admin_linen.com
 ├─ README.md

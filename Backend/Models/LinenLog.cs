@@ -23,20 +23,26 @@ public partial class LinenLog
     public int? RoomId { get; set; }
 
     [Column("activity_type")]
-    public string? ActivityType { get; set; }
+    public string? ActivityType { get; set; } // เช่น "Add", "Wash", "Move", "Discard"
 
-    // ✅ เพิ่มตัวนี้ครับ (สถานะหลังจากสแกน) - แก้ Error: LinenLog does not contain 'StatusAfter'
     [Column("status_after")]
-    public string? StatusAfter { get; set; }
+    public string? StatusAfter { get; set; } // สถานะของผ้าหลังจากทำรายการนี้
 
     [Column("description")]
     public string? Description { get; set; }
 
-    // ✅ เพิ่มตัวนี้ครับ (เวลาที่เกิด Log) - แก้ Error: LinenLog does not contain 'CreatedAt'
-    [Column("created_at")]
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    // ✅ เพิ่มใหม่: เพื่อใช้ทำรายงาน Flow (จากจุด A -> ไปจุด B)
+    [Column("from_location")]
+    public string? FromLocation { get; set; }
 
-    // เก็บตัวนี้ไว้ด้วยเผื่อโค้ดเก่าใช้ (Map ให้มันชี้ไปที่ CreatedAt หรือเก็บแยกก็ได้ แต่เพื่อให้ผ่าน Error แนะนำให้มี CreatedAt หลักๆ)
+    [Column("to_location")]
+    public string? ToLocation { get; set; }
+
+    // ✅ เวลาที่เกิด Log (ใช้ CreatedAt เป็นหลักเพื่อความชัดเจน)
+    [Column("created_at")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow.AddHours(7); // ใช้เวลาไทย
+
+    // เก็บ Timestamp ไว้เพื่อให้รองรับ Code เก่า (Map ไปหา CreatedAt ก็ได้ หรือแยกก็ได้)
     [Column("timestamp")]
     public DateTime? Timestamp { get; set; }
 

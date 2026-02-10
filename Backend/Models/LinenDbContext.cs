@@ -31,8 +31,11 @@ public partial class LinenDbContext : DbContext
     // ✅ Setting (ที่มีอยู่แล้ว)
     public virtual DbSet<Setting> Settings { get; set; }
 
-    // ✅ Notification (เพิ่มใหม่ตามที่ Error แจ้งเตือน)
+    // ✅ Notification
     public virtual DbSet<Notification> Notifications { get; set; }
+
+    // ✅ SpecialTag (เพิ่มใหม่ สำหรับระบบบัตรคำสั่ง IoT)
+    public virtual DbSet<SpecialTag> SpecialTags { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -66,7 +69,6 @@ public partial class LinenDbContext : DbContext
         // 4. Linen
         modelBuilder.Entity<Linen>(entity => {
             entity.HasKey(e => e.LinenId);
-            // เพิ่ม Mapping ให้ครบตาม Migration ล่าสุด
             entity.Property(e => e.LinenId).HasColumnName("linen_id");
             entity.Property(e => e.CurrentLocation).HasColumnName("current_location");
             entity.Property(e => e.MaxWashCount).HasColumnName("max_wash_count");
@@ -76,6 +78,11 @@ public partial class LinenDbContext : DbContext
         modelBuilder.Entity<LinenLog>(entity => {
             entity.HasKey(e => e.LogId);
             entity.Property(e => e.LogId).HasColumnName("log_id");
+            // ✅ Mapping ที่เพิ่มใหม่ใน Step 1
+            entity.Property(e => e.FromLocation).HasColumnName("from_location");
+            entity.Property(e => e.ToLocation).HasColumnName("to_location");
+            entity.Property(e => e.StatusAfter).HasColumnName("status_after");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
         });
 
         // 6. Product
@@ -101,12 +108,14 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.IpAddress).HasColumnName("ip_address");
             entity.Property(e => e.ReaderType).HasColumnName("reader_type");
             entity.Property(e => e.ReaderFunction).HasColumnName("reader_function"); 
-            entity.Property(e => e.Location).HasColumnName("location"); // ✅ เพิ่ม Location
+            entity.Property(e => e.Location).HasColumnName("location");
             entity.Property(e => e.InstalledAtRoomId).HasColumnName("installed_at_room_id");
             entity.Property(e => e.OperatingDays).HasColumnName("operating_days");
             entity.Property(e => e.OperatingStartTime).HasColumnName("operating_start_time");
             entity.Property(e => e.OperatingEndTime).HasColumnName("operating_end_time");
             entity.Property(e => e.IsActive).HasColumnName("is_active");
+            // ✅ Mapping ที่เพิ่มใหม่ใน Step 1
+            entity.Property(e => e.CurrentMode).HasColumnName("current_mode");
         });
 
         // 8. Request
@@ -209,7 +218,7 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.Description).HasColumnName("description");
         });
 
-        // ✅ Mapping สำหรับ Notification (สำคัญมาก)
+        // ✅ Mapping สำหรับ Notification
         modelBuilder.Entity<Notification>(entity => {
             entity.ToTable("notifications");
             entity.HasKey(e => e.Id);
@@ -222,6 +231,17 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.IsRead).HasColumnName("is_read");
             entity.Property(e => e.LinkUrl).HasColumnName("link_url");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+        });
+
+        // ✅ Mapping สำหรับ SpecialTag (เพิ่มใหม่)
+        modelBuilder.Entity<SpecialTag>(entity => {
+            entity.ToTable("special_tags");
+            entity.HasKey(e => e.TagId);
+            entity.Property(e => e.TagId).HasColumnName("tag_id");
+            entity.Property(e => e.CommandType).HasColumnName("command_type");
+            entity.Property(e => e.TargetStatus).HasColumnName("target_status");
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
         });
 
         OnModelCreatingPartial(modelBuilder);

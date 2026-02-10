@@ -23,14 +23,21 @@ public partial class Reader
     [Column("reader_type")]
     public string? ReaderType { get; set; } 
 
-    // หน้าที่ของเครื่องนี้ (REGISTRATION, DISPATCH, RECEIVE, CHECK)
+    // หน้าที่หลักของเครื่อง (Static Function) - ค่าตั้งต้น
     [Column("reader_function")]
     public string ReaderFunction { get; set; } = "CHECK";
 
-    // ✅ เพิ่มตัวนี้ครับ (Location) - แก้ Error: Reader does not contain definition for 'Location'
+    // ✅ เพิ่มใหม่: โหมดการทำงานปัจจุบัน (Dynamic Mode)
+    // ค่านี้จะเปลี่ยนไปมาชั่วคราวเมื่อแตะบัตรคำสั่ง (Special Tag)
+    // เช่น: "Normal", "Washing_Mode", "Dispatch_Mode"
+    [Column("current_mode")]
+    public string CurrentMode { get; set; } = "Normal";
+
+    // ✅ Location (Display Name)
     [Column("location")]
     public string? Location { get; set; }
 
+    // ✅ Fixed Location ID (ใช้ field นี้ผูกกับ Room จริง)
     [Column("installed_at_room_id")]
     public int? InstalledAtRoomId { get; set; }
 
@@ -45,6 +52,10 @@ public partial class Reader
 
     [Column("is_active")]
     public bool? IsActive { get; set; }
+
+    // ✅ เพิ่ม UpdatedAt สำหรับระบบ Monitor Offline
+    [Column("updated_at")]
+    public DateTime? UpdatedAt { get; set; }
 
     // --- Navigation Properties ---
 
