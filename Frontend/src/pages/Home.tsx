@@ -57,19 +57,14 @@ const Home: React.FC = () => {
                 const resMonitor = await axiosClient.get('/Linen/Monitor/Latest');
                 const rawData = resMonitor.data || [];
 
-                // 2. Data Mapping (Crucial Step - FIXED HERE)
+                // 2. Data Mapping
                 const mappedData: MonitorItem[] = rawData.map((item: any) => {
-                    // ✅ Fix Location: Check PascalCase (CurrentLocation) from C# Backend
                     const loc = item.CurrentLocation || item.currentLocation || item.current_location || item.location || item.readerLocation;
-
-                    // ✅ Fix Time Moving Bug: REMOVED "|| new Date().toISOString()"
-                    // Only use time from DB. If null, let it be null (formatDate will show '-')
                     const time = item.UpdatedAt || item.updatedAt || item.updated_at || 
                                  item.RegisteredAt || item.registeredAt || item.registered_at;
 
                     return {
                         rfid: item.RfidCode || item.rfidCode || item.rfid || 'Unknown ID',
-                        // ✅ Fix Name: Check ItemName from C#
                         productName: item.ItemName || item.productName || item.product_name || item.item_name || 'Unknown Item',
                         location: loc || '-', 
                         status: item.Status || item.status || 'Unknown',
@@ -94,7 +89,9 @@ const Home: React.FC = () => {
 
                 setRegisteredItems(reg);
                 setUnknownItems(unk);
-                setAllItemsCount(mappedData.length);
+                
+                // ✅ แก้ไขตรงนี้: ใช้นับเฉพาะ reg (รายการที่ลงทะเบียนแล้ว) แทน mappedData ทั้งหมด
+                setAllItemsCount(reg.length);
 
                 // 4. Fetch Logs
                 const resLogs = await axiosClient.get('/Linen/DeleteHistory');
