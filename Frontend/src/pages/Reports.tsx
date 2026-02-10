@@ -2,22 +2,20 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Paper, Typography, Grid, TextField, Button,
     TableContainer, Table, TableHead, TableBody, TableRow, TableCell,
-    Card, CardContent, Chip, Stack, CircularProgress, Alert
+    Chip, CircularProgress, Alert
 } from '@mui/material';
 import {
-    PictureAsPdf, TableView, Search,
-    AddCircle, RemoveCircle, LocalLaundryService, Inventory
+    PictureAsPdf, TableView, Search
 } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import axios from 'axios'; // ✅ ใช้ axios ในการดึงข้อมูล
+import axios from 'axios';
 import { sendNotification } from '../utils/notificationUtil';
 
-// ⚠️ URL Backend (ใช้ Port 5134 ตามที่คุณแจ้ง)
+// ⚠️ URL Backend
 const BASE_URL = 'http://localhost:5134/api';
 
-// 1. Interface สำหรับข้อมูลในตาราง
 interface MovementItem {
     id: number;
     date: string;
@@ -28,7 +26,6 @@ interface MovementItem {
     user: string;
 }
 
-// 2. Interface สำหรับ Export Stock
 interface StockApiItem {
     fabric_category: string;
     fabric_type: string;
@@ -39,7 +36,6 @@ interface StockApiItem {
 }
 
 const Reports: React.FC = () => {
-    // กำหนดวันที่เริ่มต้น (ต้นเดือน) และสิ้นสุด (วันนี้)
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
     
@@ -50,6 +46,7 @@ const Reports: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     
+    // ✅ ยังเก็บ State นี้ไว้เพื่อใช้ใน PDF Export (แม้จะไม่โชว์บนหน้าเว็บแล้ว)
     const [summary, setSummary] = useState({
         added: 0,
         discarded: 0,
@@ -64,15 +61,13 @@ const Reports: React.FC = () => {
         if (userStr) {
             try { setCurrentUser(JSON.parse(userStr)); } catch (e) { }
         }
-        handleFetchReport(); // ✅ ดึงข้อมูลจริงทันทีที่เข้าหน้าเว็บ
+        handleFetchReport();
     }, []);
 
-    // ✅ ฟังก์ชันดึงข้อมูลจาก API จริง
     const handleFetchReport = async () => {
         setLoading(true);
         setError(null);
         try {
-            // เรียก API: /api/Report/Movement
             const res = await axios.get(`${BASE_URL}/Report/Movement`, {
                 params: {
                     start: startDate,
@@ -87,22 +82,19 @@ const Reports: React.FC = () => {
         } catch (err) {
             console.error("Error fetching report:", err);
             setError("ไม่สามารถดึงข้อมูลรายงานได้ กรุณาตรวจสอบการเชื่อมต่อ Server");
-            setReportData([]); // เคลียร์ตาราง
+            setReportData([]);
         } finally {
             setLoading(false);
         }
     };
 
-    // ✅ คำนวณยอดสรุปจากข้อมูลจริง
     const calculateSummary = (data: MovementItem[]) => {
         const todayStr = new Date().toISOString().split('T')[0];
 
         const added = data.filter(d => d.type === 'Add').reduce((sum, item) => sum + item.qty, 0);
-        // Discard ค่า qty มาเป็นลบ ใช้ Math.abs แปลงเป็นบวกเพื่อแสดงผล
         const discarded = data.filter(d => d.type === 'Discard').reduce((sum, item) => sum + Math.abs(item.qty), 0);
         const washed = data.filter(d => d.type === 'Wash').reduce((sum, item) => sum + Math.abs(item.qty), 0);
         
-        // รับเข้าวันนี้ (Restock และวันที่ตรงกับวันนี้)
         const receivedToday = data
             .filter(d => d.type === 'Restock' && d.date.startsWith(todayStr))
             .reduce((sum, item) => sum + item.qty, 0);
@@ -110,10 +102,8 @@ const Reports: React.FC = () => {
         setSummary({ added, discarded, washed, receivedToday });
     };
 
-    // ✅ ฟังก์ชัน Export Excel (ใช้ API จริง)
     const handleExportExcel = async () => {
         try {
-            // เรียก API: /api/products/export-stock
             const response = await fetch(`${BASE_URL}/products/export-stock`, {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' }
@@ -128,7 +118,6 @@ const Reports: React.FC = () => {
                 return;
             }
 
-            // จัด Group ข้อมูลตามรหัสผ้า
             const groupedData: Record<string, any> = {};
             apiData.forEach((item) => {
                 const key = item.fabric_no;
@@ -148,7 +137,6 @@ const Reports: React.FC = () => {
             const excelRows = Object.values(groupedData);
             const workbook = XLSX.utils.book_new();
 
-            // หาจำนวน RFID สูงสุดเพื่อสร้าง Header
             let maxRfidCount = 0;
             excelRows.forEach((row: any) => {
                 if (row.rfids.length > maxRfidCount) maxRfidCount = row.rfids.length;
@@ -178,7 +166,6 @@ const Reports: React.FC = () => {
         }
     };
 
-    // ✅ ฟังก์ชันโหลดฟอนต์สำหรับ PDF
     const addThaiFont = async (doc: jsPDF) => {
         try {
             const response = await fetch('/fonts/Sarabun-Regular.ttf');
@@ -204,7 +191,6 @@ const Reports: React.FC = () => {
         }
     };
 
-    // ✅ ฟังก์ชัน Export PDF (จากข้อมูลหน้าจอ)
     const handleExportPDF = async () => {
         const doc = new jsPDF();
         await addThaiFont(doc);
@@ -216,7 +202,7 @@ const Reports: React.FC = () => {
         doc.text(`ช่วงเวลา: ${startDate} ถึง ${endDate}`, 14, 28);
         doc.text(`พิมพ์โดย: ${currentUser?.firstName || 'Admin'}`, 14, 33);
 
-        // Summary Box
+        // Summary Box ใน PDF (ยังคงไว้เพื่อให้ข้อมูลครบถ้วนในเอกสาร)
         doc.setDrawColor(0);
         doc.setFillColor(245, 245, 245);
         doc.rect(14, 40, 180, 25, 'F');
@@ -264,49 +250,7 @@ const Reports: React.FC = () => {
                 </Box>
             </Box>
 
-            {/* Summary Cards */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={6} md={3}>
-                    <Card elevation={2} sx={{ bgcolor: '#ecfdf5', color: '#047857', borderRadius: 3 }}>
-                        <CardContent sx={{ p: 2, pb: '16px !important' }}>
-                            <Stack direction="row" justifyContent="space-between">
-                                <Box><Typography variant="caption" fontWeight="bold">เพิ่มใหม่</Typography><Typography variant="h5" fontWeight="bold">+{summary.added}</Typography></Box>
-                                <AddCircle fontSize="large" sx={{ opacity: 0.2 }} />
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={6} md={3}>
-                    <Card elevation={2} sx={{ bgcolor: '#fef2f2', color: '#b91c1c', borderRadius: 3 }}>
-                        <CardContent sx={{ p: 2, pb: '16px !important' }}>
-                            <Stack direction="row" justifyContent="space-between">
-                                <Box><Typography variant="caption" fontWeight="bold">ตัดจำหน่าย</Typography><Typography variant="h5" fontWeight="bold">-{summary.discarded}</Typography></Box>
-                                <RemoveCircle fontSize="large" sx={{ opacity: 0.2 }} />
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={6} md={3}>
-                    <Card elevation={2} sx={{ bgcolor: '#eff6ff', color: '#1d4ed8', borderRadius: 3 }}>
-                        <CardContent sx={{ p: 2, pb: '16px !important' }}>
-                            <Stack direction="row" justifyContent="space-between">
-                                <Box><Typography variant="caption" fontWeight="bold">ส่งซัก</Typography><Typography variant="h5" fontWeight="bold">-{summary.washed}</Typography></Box>
-                                <LocalLaundryService fontSize="large" sx={{ opacity: 0.2 }} />
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={6} md={3}>
-                    <Card elevation={2} sx={{ bgcolor: '#fff7ed', color: '#c2410c', borderRadius: 3 }}>
-                        <CardContent sx={{ p: 2, pb: '16px !important' }}>
-                            <Stack direction="row" justifyContent="space-between">
-                                <Box><Typography variant="caption" fontWeight="bold">รับเข้าวันนี้</Typography><Typography variant="h5" fontWeight="bold">+{summary.receivedToday}</Typography></Box>
-                                <Inventory fontSize="large" sx={{ opacity: 0.2 }} />
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                </Grid>
-            </Grid>
+            {/* ❌ ลบส่วน Summary Cards ออกไปแล้วตามคำขอ */}
 
             {/* Filter & Actions */}
             <Paper elevation={2} sx={{ p: 2, mb: 3, borderRadius: 3 }}>
@@ -322,7 +266,7 @@ const Reports: React.FC = () => {
                     </Grid>
                     <Grid item xs={12} md={3} sx={{ display: 'flex', gap: 1 }}>
                         <Button variant="outlined" color="success" fullWidth startIcon={<TableView />} onClick={handleExportExcel}>
-                            Export RFID (Excel)
+                            Export RFID
                         </Button>
                         <Button variant="outlined" color="error" fullWidth startIcon={<PictureAsPdf />} onClick={handleExportPDF}>PDF</Button>
                     </Grid>
@@ -343,21 +287,20 @@ const Reports: React.FC = () => {
                             <TableCell>ประเภท</TableCell>
                             <TableCell>สินค้า</TableCell>
                             <TableCell align="right">จำนวน</TableCell>
-                            {/* <TableCell align="right">คงเหลือ</TableCell> (ซ่อนไว้ก่อนถ้ายังไม่มีระบบ Stock Snapshot) */}
                             <TableCell align="right">เช็คจริง</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {loading ? (
                             <TableRow>
-                                <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                                <TableCell colSpan={5} align="center" sx={{ py: 5 }}>
                                     <CircularProgress />
                                     <Typography variant="body2" sx={{ mt: 1 }}>กำลังโหลดข้อมูล...</Typography>
                                 </TableCell>
                             </TableRow>
                         ) : reportData.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} align="center" sx={{ py: 5, color: '#999' }}>
+                                <TableCell colSpan={5} align="center" sx={{ py: 5, color: '#999' }}>
                                     ไม่พบประวัติการเคลื่อนไหวในช่วงเวลานี้
                                 </TableCell>
                             </TableRow>
@@ -381,7 +324,6 @@ const Reports: React.FC = () => {
                                     <TableCell align="right" sx={{ fontWeight: 'bold', color: row.qty > 0 ? 'green' : 'red' }}>
                                         {row.qty > 0 ? `+${row.qty}` : row.qty}
                                     </TableCell>
-                                    {/* <TableCell align="right">{row.balance}</TableCell> */}
                                     <TableCell align="right" sx={{ borderBottom: '1px dashed #ccc' }}></TableCell>
                                 </TableRow>
                             ))
