@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Paper, Typography, Grid, TextField, Button,
     TableContainer, Table, TableHead, TableBody, TableRow, TableCell,
-    Card, CardContent, Chip, Stack
+    Card, CardContent, Chip, Stack, CircularProgress, Alert
 } from '@mui/material';
 import {
     PictureAsPdf, TableView, Search,
@@ -11,33 +11,45 @@ import {
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import axios from 'axios'; // ✅ ใช้ axios ในการดึงข้อมูล
 import { sendNotification } from '../utils/notificationUtil';
 
-// 1. Interface สำหรับตารางหน้าเว็บ (Movement)
+// ⚠️ URL Backend (ใช้ Port 5134 ตามที่คุณแจ้ง)
+const BASE_URL = 'http://localhost:5134/api';
+
+// 1. Interface สำหรับข้อมูลในตาราง
 interface MovementItem {
     id: number;
     date: string;
-    type: 'Add' | 'Discard' | 'Wash' | 'Restock' | 'Request';
+    type: string;
     productName: string;
     qty: number;
     balance: number;
     user: string;
 }
 
-// 2. ✅ Interface ใหม่: สำหรับรับข้อมูล Stock จาก API เพื่อทำ Excel
+// 2. Interface สำหรับ Export Stock
 interface StockApiItem {
     fabric_category: string;
     fabric_type: string;
-    fabric_no: string;      // ใช้ตัวนี้เป็น Key ในการ Group
+    fabric_no: string;
     fabric_detail: string;
     fabric_unit: string;
-    rfid_code: string;      // ตัวที่จะเอามาเรียงแนวนอน
+    rfid_code: string;
 }
 
 const Reports: React.FC = () => {
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    // กำหนดวันที่เริ่มต้น (ต้นเดือน) และสิ้นสุด (วันนี้)
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0]);
+    const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
+    
     const [reportData, setReportData] = useState<MovementItem[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    
     const [summary, setSummary] = useState({
         added: 0,
         discarded: 0,
@@ -45,7 +57,6 @@ const Reports: React.FC = () => {
         receivedToday: 0
     });
 
-    // --- ส่วน Login (คงไว้เหมือนเดิม ไม่แตะต้อง) ---
     const [currentUser, setCurrentUser] = useState<any>(null);
 
     useEffect(() => {
@@ -53,53 +64,62 @@ const Reports: React.FC = () => {
         if (userStr) {
             try { setCurrentUser(JSON.parse(userStr)); } catch (e) { }
         }
-        handlePreview();
+        handleFetchReport(); // ✅ ดึงข้อมูลจริงทันทีที่เข้าหน้าเว็บ
     }, []);
-    // ------------------------------------------
 
-    const handlePreview = () => {
-        // Mock Data สำหรับแสดงผลหน้าจอ (User ดูประวัติการเคลื่อนไหว)
-        const mockData: MovementItem[] = [
-            { id: 1, date: '2026-01-15T08:30:00', type: 'Add', productName: 'ผ้าปูที่นอน (King)', qty: 50, balance: 50, user: 'Admin' },
-            { id: 2, date: '2026-01-15T09:00:00', type: 'Request', productName: 'ผ้าปูที่นอน (King)', qty: -10, balance: 40, user: 'Nurse A' },
-            { id: 3, date: '2026-01-15T10:15:00', type: 'Wash', productName: 'ปลอกหมอน', qty: -20, balance: 100, user: 'Staff B' },
-            { id: 4, date: '2026-01-15T14:20:00', type: 'Discard', productName: 'ผ้าห่มนวม', qty: -5, balance: 30, user: 'Admin' },
-            { id: 5, date: '2026-01-15T16:00:00', type: 'Restock', productName: 'ปลอกหมอน', qty: 20, balance: 120, user: 'Laundry' },
-        ];
-        setReportData(mockData);
-        calculateSummary(mockData);
+    // ✅ ฟังก์ชันดึงข้อมูลจาก API จริง
+    const handleFetchReport = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            // เรียก API: /api/Report/Movement
+            const res = await axios.get(`${BASE_URL}/Report/Movement`, {
+                params: {
+                    start: startDate,
+                    end: endDate
+                }
+            });
+
+            const data: MovementItem[] = res.data;
+            setReportData(data);
+            calculateSummary(data);
+
+        } catch (err) {
+            console.error("Error fetching report:", err);
+            setError("ไม่สามารถดึงข้อมูลรายงานได้ กรุณาตรวจสอบการเชื่อมต่อ Server");
+            setReportData([]); // เคลียร์ตาราง
+        } finally {
+            setLoading(false);
+        }
     };
 
+    // ✅ คำนวณยอดสรุปจากข้อมูลจริง
     const calculateSummary = (data: MovementItem[]) => {
-        const today = new Date().toISOString().split('T')[0];
+        const todayStr = new Date().toISOString().split('T')[0];
+
         const added = data.filter(d => d.type === 'Add').reduce((sum, item) => sum + item.qty, 0);
+        // Discard ค่า qty มาเป็นลบ ใช้ Math.abs แปลงเป็นบวกเพื่อแสดงผล
         const discarded = data.filter(d => d.type === 'Discard').reduce((sum, item) => sum + Math.abs(item.qty), 0);
         const washed = data.filter(d => d.type === 'Wash').reduce((sum, item) => sum + Math.abs(item.qty), 0);
+        
+        // รับเข้าวันนี้ (Restock และวันที่ตรงกับวันนี้)
         const receivedToday = data
-            .filter(d => (d.type === 'Add' || d.type === 'Restock') && d.date.startsWith(today))
+            .filter(d => d.type === 'Restock' && d.date.startsWith(todayStr))
             .reduce((sum, item) => sum + item.qty, 0);
 
         setSummary({ added, discarded, washed, receivedToday });
     };
 
-    // ✅ 3. EXCEL Export: แก้ไขใหม่ (API -> Grouping -> แนวนอน)
+    // ✅ ฟังก์ชัน Export Excel (ใช้ API จริง)
     const handleExportExcel = async () => {
         try {
-            // ⚠️ แก้ URL ให้ตรงกับ Backend (.NET) ของคุณ (Port 5134)
-            const API_URL = 'http://localhost:5134/api/products/export-stock'; 
-
-            const response = await fetch(API_URL, {
+            // เรียก API: /api/products/export-stock
+            const response = await fetch(`${BASE_URL}/products/export-stock`, {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    // ถ้ามี Token ให้เปิดบรรทัดล่างนี้
-                    // 'Authorization': `Bearer ${currentUser?.token || ''}` 
-                }
+                headers: { 'Content-Type': 'application/json' }
             });
 
-            if (!response.ok) {
-                throw new Error(`เชื่อมต่อ Server ไม่ได้ (Status: ${response.status}) - ลองเช็ค Port ดูครับ`);
-            }
+            if (!response.ok) throw new Error(`เชื่อมต่อ Server ไม่ได้ (Status: ${response.status})`);
 
             const apiData: StockApiItem[] = await response.json();
 
@@ -108,69 +128,44 @@ const Reports: React.FC = () => {
                 return;
             }
 
-            // --- B. จัด Group ข้อมูล (Logic สำคัญ) ---
-            // เปลี่ยนจาก List ยาวๆ ให้เป็น Group ตาม fabric_no
+            // จัด Group ข้อมูลตามรหัสผ้า
             const groupedData: Record<string, any> = {};
-
             apiData.forEach((item) => {
-                const key = item.fabric_no; // ใช้รหัสผ้าเป็นตัวรวมกลุ่ม
-
+                const key = item.fabric_no;
                 if (!groupedData[key]) {
-                    // ถ้ายังไม่มีสินค้านี้ ให้สร้าง Object แม่แบบ
                     groupedData[key] = {
                         category: item.fabric_category || "-",
                         type: item.fabric_type || "-",
                         no: item.fabric_no || "-",
                         detail: item.fabric_detail || "-",
                         unit: item.fabric_unit || "ชิ้น",
-                        rfids: [] // สร้าง Array เปล่ารอเก็บ RFID
+                        rfids: []
                     };
                 }
-
-                // ยัด RFID ใส่เข้าไปใน Array (ถ้ามีค่า)
-                if (item.rfid_code) {
-                    groupedData[key].rfids.push(item.rfid_code);
-                }
+                if (item.rfid_code) groupedData[key].rfids.push(item.rfid_code);
             });
 
-            // แปลง Object กลับเป็น Array เพื่อเตรียมลง Excel
             const excelRows = Object.values(groupedData);
-
-            // --- C. สร้างไฟล์ Excel ---
             const workbook = XLSX.utils.book_new();
 
-            // 1. หาจำนวน RFID สูงสุด (เพื่อสร้าง Header ให้ครบ)
+            // หาจำนวน RFID สูงสุดเพื่อสร้าง Header
             let maxRfidCount = 0;
             excelRows.forEach((row: any) => {
                 if (row.rfids.length > maxRfidCount) maxRfidCount = row.rfids.length;
             });
 
-            // 2. สร้าง Header
             const headers = ["Fabric category", "Fabric type", "Fabric no", "Fabric detail", "Fabric unit"];
-            for (let i = 1; i <= maxRfidCount; i++) {
-                headers.push(`RFID`); 
-            }
+            for (let i = 1; i <= maxRfidCount; i++) headers.push(`RFID`);
 
-            // 3. เตรียมข้อมูลลงตาราง (Spread Array)
             const wsData = [
-                headers, // แถวที่ 1: หัวตาราง
+                headers,
                 ...excelRows.map((item: any) => [
-                    item.category,
-                    item.type,
-                    item.no,
-                    item.detail,
-                    item.unit,
-                    ...item.rfids // 🔥 จุดสำคัญ: กระจาย RFID ออกไปทางขวา
+                    item.category, item.type, item.no, item.detail, item.unit, ...item.rfids
                 ])
             ];
 
-            // 4. แปลงเป็น Sheet
             const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-            // จัดความกว้างคอลัมน์ให้สวยงาม
-            ws['!cols'] = [
-                { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 10 }
-            ];
+            ws['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 10 }];
 
             XLSX.utils.book_append_sheet(workbook, ws, "Stock_RFID_List");
             XLSX.writeFile(workbook, `Stock_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -183,11 +178,11 @@ const Reports: React.FC = () => {
         }
     };
 
-    // ✅ 4. ฟังก์ชันโหลดฟอนต์ (คงเดิม)
+    // ✅ ฟังก์ชันโหลดฟอนต์สำหรับ PDF
     const addThaiFont = async (doc: jsPDF) => {
         try {
             const response = await fetch('/fonts/Sarabun-Regular.ttf');
-            if (!response.ok) throw new Error('ไม่พบไฟล์ฟอนต์ใน public/fonts');
+            if (!response.ok) throw new Error('ไม่พบไฟล์ฟอนต์');
             const blob = await response.blob();
             return new Promise<void>((resolve, reject) => {
                 const reader = new FileReader();
@@ -205,11 +200,11 @@ const Reports: React.FC = () => {
             });
         } catch (error) {
             console.error("Font Error:", error);
-            alert("โหลดฟอนต์ไม่สำเร็จ");
+            alert("โหลดฟอนต์ไม่สำเร็จ (ตรวจสอบ folder public/fonts)");
         }
     };
 
-    // ✅ 5. PDF Export (คงเดิม)
+    // ✅ ฟังก์ชัน Export PDF (จากข้อมูลหน้าจอ)
     const handleExportPDF = async () => {
         const doc = new jsPDF();
         await addThaiFont(doc);
@@ -218,7 +213,7 @@ const Reports: React.FC = () => {
         doc.text("รายงานความเคลื่อนไหวสต็อก (Stock Movement Report)", 14, 20);
 
         doc.setFontSize(10);
-        doc.text(`ช่วงเวลา: ${startDate || '-'} ถึง ${endDate || '-'}`, 14, 28);
+        doc.text(`ช่วงเวลา: ${startDate} ถึง ${endDate}`, 14, 28);
         doc.text(`พิมพ์โดย: ${currentUser?.firstName || 'Admin'}`, 14, 33);
 
         // Summary Box
@@ -229,38 +224,24 @@ const Reports: React.FC = () => {
         doc.text(`สรุปยอดสำคัญ (Key Metrics):`, 18, 48);
         doc.setFontSize(10);
         doc.text(`- รับเข้าวันนี้: ${summary.receivedToday} ชิ้น`, 20, 56);
-        doc.text(`- ส่งซักเดือนนี้: ${summary.washed} ชิ้น`, 20, 62);
+        doc.text(`- ส่งซักช่วงนี้: ${summary.washed} ชิ้น`, 20, 62);
         doc.text(`- เพิ่มใหม่: ${summary.added} ชิ้น`, 100, 56);
         doc.text(`- ตัดจำหน่าย: ${summary.discarded} ชิ้น`, 100, 62);
 
         autoTable(doc, {
             startY: 75,
-            head: [['เวลา', 'ประเภท', 'สินค้า', 'จำนวน', 'คงเหลือ', 'นับจริง']],
+            head: [['เวลา', 'ประเภท', 'สินค้า', 'จำนวน', 'เช็คจริง']],
             body: reportData.map(item => [
-                new Date(item.date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+                new Date(item.date).toLocaleString('th-TH'),
                 item.type,
                 item.productName,
                 item.qty > 0 ? `+${item.qty}` : item.qty,
-                item.balance,
                 "________"
             ]),
             theme: 'grid',
-            headStyles: {
-                fillColor: [41, 128, 185],
-                textColor: 255,
-                font: 'Sarabun',
-                fontStyle: 'normal'
-            },
-            styles: {
-                font: 'Sarabun',
-                fontStyle: 'normal',
-                fontSize: 10,
-                cellPadding: 3
-            },
+            headStyles: { fillColor: [41, 128, 185], textColor: 255, font: 'Sarabun', fontStyle: 'normal' },
+            styles: { font: 'Sarabun', fontStyle: 'normal', fontSize: 10, cellPadding: 3 },
         });
-
-        doc.text("__________________________", 140, doc.internal.pageSize.height - 30);
-        doc.text("ผู้ตรวจสอบ (Stock Auditor)", 145, doc.internal.pageSize.height - 23);
 
         doc.save("Movement_Report.pdf");
         await sendNotification("Export PDF", "ดาวน์โหลดรายงานความเคลื่อนไหว (PDF)", "INFO", "/reports", undefined, 1);
@@ -278,7 +259,7 @@ const Reports: React.FC = () => {
                         รายงานความเคลื่อนไหว & Export Stock
                     </Typography>
                     <Typography variant="body2" color="textSecondary">
-                        ตรวจสอบประวัติ และ Export ไฟล์ Excel สรุปยอดผ้าพร้อม RFID
+                        ตรวจสอบประวัติ (Real-time) และ Export ไฟล์ Excel สรุปยอด
                     </Typography>
                 </Box>
             </Box>
@@ -337,7 +318,7 @@ const Reports: React.FC = () => {
                         <TextField type="date" label="สิ้นสุด" fullWidth size="small" InputLabelProps={{ shrink: true }} value={endDate} onChange={e => setEndDate(e.target.value)} />
                     </Grid>
                     <Grid item xs={12} md={3}>
-                        <Button variant="contained" fullWidth startIcon={<Search />} onClick={handlePreview}>เรียกดูข้อมูล</Button>
+                        <Button variant="contained" fullWidth startIcon={<Search />} onClick={handleFetchReport}>เรียกดูข้อมูล</Button>
                     </Grid>
                     <Grid item xs={12} md={3} sx={{ display: 'flex', gap: 1 }}>
                         <Button variant="outlined" color="success" fullWidth startIcon={<TableView />} onClick={handleExportExcel}>
@@ -348,6 +329,11 @@ const Reports: React.FC = () => {
                 </Grid>
             </Paper>
 
+            {/* Error Message */}
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+            )}
+
             {/* Table */}
             <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 3, maxHeight: 500 }}>
                 <Table stickyHeader size="small">
@@ -357,23 +343,49 @@ const Reports: React.FC = () => {
                             <TableCell>ประเภท</TableCell>
                             <TableCell>สินค้า</TableCell>
                             <TableCell align="right">จำนวน</TableCell>
-                            <TableCell align="right">คงเหลือ</TableCell>
+                            {/* <TableCell align="right">คงเหลือ</TableCell> (ซ่อนไว้ก่อนถ้ายังไม่มีระบบ Stock Snapshot) */}
                             <TableCell align="right">เช็คจริง</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {reportData.map((row) => (
-                            <TableRow key={row.id} hover>
-                                <TableCell>{new Date(row.date).toLocaleString('th-TH')}</TableCell>
-                                <TableCell>
-                                    <Chip label={row.type} size="small" color={row.type === 'Add' ? 'success' : row.type === 'Discard' ? 'error' : 'primary'} variant="outlined" />
+                        {loading ? (
+                            <TableRow>
+                                <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                                    <CircularProgress />
+                                    <Typography variant="body2" sx={{ mt: 1 }}>กำลังโหลดข้อมูล...</Typography>
                                 </TableCell>
-                                <TableCell>{row.productName}</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold', color: row.qty > 0 ? 'green' : 'red' }}>{row.qty > 0 ? `+${row.qty}` : row.qty}</TableCell>
-                                <TableCell align="right">{row.balance}</TableCell>
-                                <TableCell align="right" sx={{ borderBottom: '1px dashed #ccc' }}></TableCell>
                             </TableRow>
-                        ))}
+                        ) : reportData.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={6} align="center" sx={{ py: 5, color: '#999' }}>
+                                    ไม่พบประวัติการเคลื่อนไหวในช่วงเวลานี้
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            reportData.map((row) => (
+                                <TableRow key={row.id} hover>
+                                    <TableCell>{new Date(row.date).toLocaleString('th-TH')}</TableCell>
+                                    <TableCell>
+                                        <Chip 
+                                            label={row.type} 
+                                            size="small" 
+                                            color={
+                                                row.type === 'Add' || row.type === 'Restock' ? 'success' : 
+                                                row.type === 'Discard' ? 'error' : 
+                                                'primary'
+                                            } 
+                                            variant="outlined" 
+                                        />
+                                    </TableCell>
+                                    <TableCell>{row.productName}</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: row.qty > 0 ? 'green' : 'red' }}>
+                                        {row.qty > 0 ? `+${row.qty}` : row.qty}
+                                    </TableCell>
+                                    {/* <TableCell align="right">{row.balance}</TableCell> */}
+                                    <TableCell align="right" sx={{ borderBottom: '1px dashed #ccc' }}></TableCell>
+                                </TableRow>
+                            ))
+                        )}
                     </TableBody>
                 </Table>
             </TableContainer>

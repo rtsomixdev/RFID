@@ -286,3 +286,21 @@
 1770635673: New connection from 172.19.0.1:34350 on port 1883.
 1770635673: New client connected from 172.19.0.1:34350 as Backend_Service_d68fd344-6a40-4ce3-aa6d-991737b90edb (p2, c1, k15).
 1770636251: Client Backend_Service_d68fd344-6a40-4ce3-aa6d-991737b90edb closed its connection.
+1770696527: mosquitto version 2.0.22 starting
+1770696527: Config loaded from /mosquitto/config/mosquitto.conf.
+1770696527: Opening ipv4 listen socket on port 1883.
+1770696527: Opening ipv6 listen socket on port 1883.
+1770696527: Opening websockets listen socket on port 9001.
+1770696527: mosquitto version 2.0.22 running
+1770696602: New connection from 172.19.0.1:59558 on port 1883.
+1770696602: New client connected from 172.19.0.1:59558 as Backend_Service_cd76da4f-07bf-4226-90f3-bf344300eef9 (p2, c1, k15).
+1770697244: Client Backend_Service_cd76da4f-07bf-4226-90f3-bf344300eef9 disconnected.
+1770697257: New connection from 172.19.0.1:54598 on port 1883.
+1770697257: New client connected from 172.19.0.1:54598 as Backend_Service_b5e21681-c53b-440f-8490-b3df3a883626 (p2, c1, k15).
+1770698202: Client Backend_Service_b5e21681-c53b-440f-8490-b3df3a883626 disconnected.
+1770698218: New connection from 172.19.0.1:59244 on port 1883.
+1770698218: New client connected from 172.19.0.1:59244 as Backend_Service_a909d840-4899-40c0-9cda-e4a8103e4b89 (p2, c1, k15).
+1770698360: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770698468: Client Backend_Service_a909d840-4899-40c0-9cda-e4a8103e4b89 disconnected.
+1770698477: New connection from 172.19.0.1:59056 on port 1883.
+1770698477: New client connected from 172.19.0.1:59056 as Backend_Service_f8611b9b-6ca8-4b37-907b-d370c67782dd (p2, c1, k15).

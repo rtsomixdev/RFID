@@ -9,7 +9,7 @@ using System.Collections.Generic;
 namespace Backend.Controllers
 {
     // ==========================================
-    // DTOs (Data Transfer Objects)
+    // DTOs (Data Transfer Objects) - คงเดิม
     // ==========================================
 
     public class DiscardPayload
@@ -58,6 +58,19 @@ namespace Backend.Controllers
         private DateTime ThaiTime()
         {
             return DateTime.UtcNow.AddHours(7);
+        }
+
+        // ✅ ฟังก์ชันช่วยบันทึก Log (เพิ่มใหม่)
+        // ใช้ void เพราะเราจะ SaveChanges ทีเดียวใน method หลัก
+        private void CreateLinenLog(int linenId, string activity, string description)
+        {
+            _context.LinenLogs.Add(new LinenLog
+            {
+                LinenId = linenId,
+                ActivityType = activity, // Add, Wash, Restock, Discard
+                Description = description,
+                Timestamp = ThaiTime()
+            });
         }
 
         // ==========================================
@@ -158,6 +171,14 @@ namespace Backend.Controllers
                     if (isSuccess)
                     {
                         linen.UpdatedAt = now;
+                        
+                        // ✅ เพิ่ม Log สำหรับ Report (Wash / Restock / Check)
+                        string activity = "Check";
+                        if (request.ActionType == "DISPATCH") activity = "Wash"; // ส่งซัก
+                        else if (request.ActionType == "RECEIVE") activity = "Restock"; // รับเข้า
+                        
+                        CreateLinenLog(linen.LinenId, activity, $"สแกนที่จุด {readerName}");
+
                         bool isExpired = linen.WashCount >= linen.MaxWashCount;
                         
                         registered.Add(new 
@@ -257,14 +278,13 @@ namespace Backend.Controllers
         }
 
         // ==========================================
-        // 4. GET: Monitor (✅ แก้ไขชื่อตัวแปรและ Format เวลาแล้ว)
+        // 4. GET: Monitor
         // ==========================================
         [HttpGet("Monitor/Latest")]
         public async Task<IActionResult> GetLatestMonitor()
         {
             try 
             {
-                // 1. ดึงข้อมูลดิบ (Entity) ออกมาก่อน (เพื่อแก้ปัญหาชื่อสินค้าหาย)
                 var recentLinens = await _context.Linens
                     .Include(l => l.Product)
                     .Where(l => l.IsActive == true)
@@ -272,7 +292,6 @@ namespace Backend.Controllers
                     .Take(30) 
                     .ToListAsync();
 
-                // 2. ดึง Log ของแปลกปลอม
                 var recentUnknowns = await _context.SystemLogs
                     .Where(x => x.ActionType == "SCAN_UNKNOWN" || x.ActionType == "SCAN_DISPOSED")
                     .OrderByDescending(x => x.CreatedAt)
@@ -281,7 +300,6 @@ namespace Backend.Controllers
 
                 var result = new List<object>();
 
-                // 3. แปลงข้อมูล (Mapping)
                 foreach (var l in recentLinens)
                 {
                     result.Add(new 
@@ -290,12 +308,10 @@ namespace Backend.Controllers
                         productName = l.Product?.ProductName ?? "Unknown Product",
                         location = l.CurrentLocation ?? "ไม่ระบุ", 
                         status = l.Status ?? "Unknown",
-                        // ✅ แก้ไข: ส่งเป็น updatedAt (ตรงกับ Frontend) และส่งเป็น DateTime เต็มๆ
                         updatedAt = l.UpdatedAt
                     });
                 }
 
-                // 4. แปลงข้อมูล Unknown Log
                 foreach (var log in recentUnknowns)
                 {
                     string rfid = "Unknown";
@@ -328,12 +344,10 @@ namespace Backend.Controllers
                         productName = status == "Disposed" ? "จำหน่ายแล้ว" : "ไม่พบในระบบ", 
                         location = loc,
                         status = status,
-                        // ✅ แก้ไข: ส่งเป็น updatedAt เหมือนกัน
                         updatedAt = log.CreatedAt 
                     });
                 }
 
-                // เรียงลำดับตามเวลาล่าสุด
                 return Ok(result.OrderByDescending(x => ((dynamic)x).updatedAt));
             }
             catch (Exception ex)
@@ -362,6 +376,9 @@ namespace Backend.Controllers
                     linen.IsActive = false; 
                     linen.Status = reasonName;
                     linen.UpdatedAt = ThaiTime(); 
+
+                    // ✅ เพิ่ม Log สำหรับ Report (Discard)
+                    CreateLinenLog(linen.LinenId, "Discard", $"แจ้งชำรุด: {reasonName}");
                 }
                 await _context.SaveChangesAsync();
                 return Ok(new { message = "บันทึกแจ้งชำรุดสำเร็จ" });
@@ -373,7 +390,7 @@ namespace Backend.Controllers
         }
 
         // ==========================================
-        // 6. POST: PostLinen
+        // 6. POST: PostLinen (เพิ่มทีละชิ้น)
         // ==========================================
         [HttpPost]
         public async Task<ActionResult<Linen>> PostLinen(Linen linen)
@@ -388,12 +405,17 @@ namespace Backend.Controllers
             linen.WashCount = 0; 
             
             _context.Linens.Add(linen);
+            await _context.SaveChangesAsync(); // Save รอบแรกเพื่อเอา LinenId
+
+            // ✅ เพิ่ม Log สำหรับ Report (Add)
+            CreateLinenLog(linen.LinenId, "Add", "เพิ่มรายชิ้น");
             await _context.SaveChangesAsync();
+
             return CreatedAtAction("GetLinens", new { id = linen.LinenId }, linen);
         }
 
         // ==========================================
-        // 7. POST: RegisterBatch
+        // 7. POST: RegisterBatch (เพิ่มทีละหลายชิ้น)
         // ==========================================
         [HttpPost("RegisterBatch")]
         public async Task<IActionResult> RegisterBatch([FromBody] RegisterBatchDto request)
@@ -436,7 +458,14 @@ namespace Backend.Controllers
             }
 
             await _context.Linens.AddRangeAsync(newLinens);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(); // Save รอบแรกเพื่อเอา LinenId
+
+            // ✅ เพิ่ม Log สำหรับ Report (Add)
+            foreach (var item in newLinens)
+            {
+                CreateLinenLog(item.LinenId, "Add", "ลงทะเบียนใหม่");
+            }
+            await _context.SaveChangesAsync(); // Save Log
 
             return Ok(new { message = $"ลงทะเบียนสำเร็จ {newLinens.Count} รายการ" });
         }
@@ -503,6 +532,9 @@ namespace Backend.Controllers
                     Description = $"แจ้งชำรุด {linen.RfidCode} : {linen.Product?.ProductName} ({reasonName})",
                     CreatedAt = now
                 });
+
+                // ✅ เพิ่ม Log สำหรับ Report (Discard)
+                CreateLinenLog(linen.LinenId, "Discard", $"แจ้งชำรุด: {reasonName}");
             }
 
             await _context.SaveChangesAsync();
@@ -561,7 +593,7 @@ namespace Backend.Controllers
         }
 
         // ==========================================
-        // 📊 12. GET: Dashboard Stats (รวมยอดทุกอย่าง)
+        // 📊 12. GET: Dashboard Stats
         // ==========================================
         [HttpGet("Dashboard/Stats")]
         public async Task<IActionResult> GetDashboardStats()
@@ -569,27 +601,21 @@ namespace Backend.Controllers
             var now = ThaiTime();
             var today = now.Date;
 
-            // 1. ผ้าทั้งหมดที่ยังไม่ถูกจำหน่าย
             var total = await _context.Linens.CountAsync(l => l.IsActive == true);
 
-            // 2. เช็คว่า RegisteredAt (DateTime) เท่ากับ วันนี้ (DateTime)
             var newToday = await _context.Linens
-                .CountAsync(l => l.IsActive == true && 
-                                 l.RegisteredAt.Date == today);
+                .CountAsync(l => l.IsActive == true && l.RegisteredAt.Date == today);
 
-            // 3. ผ้าที่กำลังซัก
             var washing = await _context.Linens.CountAsync(l => l.IsActive == true && l.Status == "Washing");
 
-            // 4. ผ้าที่พร้อมใช้ (ใน Stock)
             var available = await _context.Linens.CountAsync(l => l.IsActive == true && l.Status == "Available");
 
-            // 5. ผ้าที่ถูกใช้งานอยู่ (In Use / In Transit)
             var inUse = await _context.Linens.CountAsync(l => l.IsActive == true && (l.Status == "In Use" || l.Status == "InTransit"));
 
             return Ok(new 
             {
                 TotalLinens = total,
-                NewLinensToday = newToday, // ตัวนี้ที่อาจารย์ขอ
+                NewLinensToday = newToday,
                 Washing = washing,
                 Available = available,
                 InUse = inUse

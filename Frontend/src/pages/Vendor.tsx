@@ -2,18 +2,24 @@ import React, { useEffect, useState } from 'react';
 import {
   Box, Paper, Typography, TextField, Button, Grid, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton,
-  Card, CardContent, InputAdornment, Stack, Chip, Tooltip
+  Card, InputAdornment, Stack, Chip, Tooltip
 } from '@mui/material';
 import {
-  Delete, AddCircle, Business, Edit, Storefront, Badge, Phone, ListAlt
+  Delete, AddCircle, Business, Badge, Edit, Storefront, ListAlt, Save, Cancel
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
-import axiosClient from '../api/axiosClient';
-import { sendNotification } from '../utils/notificationUtil'; // ✅ Import Utility
+import axios from 'axios';
+import { sendNotification } from '../utils/notificationUtil';
+
+// ⚠️ URL ของ Backend (Port 5134)
+const API_URL = 'http://localhost:5134/api/Vendor';
 
 const Vendor: React.FC = () => {
   const [vendors, setVendors] = useState<any[]>([]);
   const [formData, setFormData] = useState({ vendorName: '', registrationNumber: '' });
+  
+  // ✅ 1. เพิ่ม State สำหรับเก็บ ID ที่กำลังแก้ไข
+  const [editId, setEditId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchVendors();
@@ -21,11 +27,29 @@ const Vendor: React.FC = () => {
 
   const fetchVendors = async () => {
     try {
-      const res = await axiosClient.get('/Vendor');
+      const res = await axios.get(API_URL);
       setVendors(res.data);
     } catch (err) {
-      console.error(err);
+      console.error("Error fetching vendors:", err);
     }
+  };
+
+  // ✅ 2. ฟังก์ชันเมื่อกดปุ่มดินสอ (Edit)
+  const handleEdit = (vendor: any) => {
+    setEditId(vendor.vendorId); // จำ ID ที่จะแก้
+    setFormData({
+      vendorName: vendor.vendorName,
+      registrationNumber: vendor.registrationNumber || ''
+    }); // ดึงข้อมูลเก่ามาใส่ฟอร์ม
+    
+    // เลื่อนหน้าจอขึ้นไปที่ฟอร์ม
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ✅ 3. ฟังก์ชันยกเลิกการแก้ไข
+  const handleCancel = () => {
+    setEditId(null);
+    setFormData({ vendorName: '', registrationNumber: '' });
   };
 
   const handleSubmit = async () => {
@@ -34,35 +58,46 @@ const Vendor: React.FC = () => {
         icon: 'warning',
         title: 'ข้อมูลไม่ครบถ้วน',
         text: 'กรุณากรอก "ชื่อบริษัท / ร้านค้า" ก่อนบันทึก',
-        confirmButtonText: 'ตกลง',
         confirmButtonColor: '#f59e0b'
       });
       return;
     }
 
     try {
-      await axiosClient.post('/Vendor', formData);
+      if (editId) {
+        // 🟡 กรณีแก้ไข (PUT)
+        await axios.put(`${API_URL}/${editId}`, {
+          vendorId: editId, // ส่ง ID กลับไปยืนยัน
+          ...formData
+        });
 
-      Swal.fire({
-        icon: 'success',
-        title: 'สำเร็จ',
-        text: 'เพิ่มบริษัทเรียบร้อย',
-        timer: 1500,
-        showConfirmButton: false
-      });
+        Swal.fire('แก้ไขสำเร็จ', 'ข้อมูลถูกอัปเดตแล้ว', 'success');
+        handleCancel(); // เคลียร์ฟอร์มกลับเป็นโหมดปกติ
+      } else {
+        // 🟢 กรณีเพิ่มใหม่ (POST)
+        await axios.post(API_URL, formData);
 
-      // 🔔 แจ้งเตือน Admin ว่ามี Vendor ใหม่
-      await sendNotification(
-        "เพิ่มบริษัทคู่ค้าใหม่",
-        `บริษัท ${formData.vendorName} ถูกเพิ่มเข้าสู่ระบบแล้ว`,
-        "INFO",
-        "/vendors",
-        undefined,
-        1 // ส่งหา Admin
-      );
+        Swal.fire({
+          icon: 'success',
+          title: 'สำเร็จ',
+          text: 'เพิ่มบริษัทเรียบร้อย',
+          timer: 1500,
+          showConfirmButton: false
+        });
 
-      setFormData({ vendorName: '', registrationNumber: '' });
-      fetchVendors();
+        await sendNotification(
+          "เพิ่มบริษัทคู่ค้าใหม่",
+          `บริษัท ${formData.vendorName} ถูกเพิ่มเข้าสู่ระบบแล้ว`,
+          "INFO",
+          "/vendors",
+          undefined,
+          1
+        );
+
+        setFormData({ vendorName: '', registrationNumber: '' });
+      }
+
+      fetchVendors(); // โหลดข้อมูลใหม่
     } catch (err) {
       console.error(err);
       Swal.fire('Error', 'บันทึกไม่สำเร็จ', 'error');
@@ -82,26 +117,32 @@ const Vendor: React.FC = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          // เก็บชื่อบริษัทไว้ก่อนลบ เพื่อเอามาโชว์ใน Noti
           const vendorName = vendors.find(v => v.vendorId === id)?.vendorName || 'ไม่ระบุชื่อ';
-
-          await axiosClient.delete(`/Vendor/${id}`);
+          
+          await axios.delete(`${API_URL}/${id}`);
 
           Swal.fire('ลบสำเร็จ', 'ข้อมูลถูกลบแล้ว', 'success');
 
-          // 🔔 แจ้งเตือนการลบข้อมูล
           await sendNotification(
             "ลบบริษัทคู่ค้า",
             `ข้อมูลของบริษัท ${vendorName} ถูกลบออกจากระบบ`,
             "WARNING",
             "/vendors",
             undefined,
-            1 // Admin
+            1
           );
 
           fetchVendors();
-        } catch (err) {
-          Swal.fire('Error', 'ไม่สามารถลบข้อมูลได้', 'error');
+        } catch (err: any) {
+          console.error("Delete Error:", err);
+          const serverMessage = err.response?.data?.message || 'ไม่สามารถลบข้อมูลได้ (อาจมีข้อมูลผูกพัน)';
+          
+          Swal.fire({
+            icon: 'error',
+            title: 'ลบไม่ได้!',
+            text: serverMessage,
+            confirmButtonColor: '#d33'
+          });
         }
       }
     });
@@ -128,12 +169,14 @@ const Vendor: React.FC = () => {
       <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
 
         {/* Form Section */}
-        <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9' }}>
-          <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: '#334155' }}>
-            <AddCircle color="primary" fontSize="small" /> เพิ่มบริษัทคู่ค้าใหม่
+        {/* เปลี่ยนสีพื้นหลังเล็กน้อยเมื่ออยู่ในโหมดแก้ไข จะได้รู้ตัว */}
+        <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9', bgcolor: editId ? '#fffbeb' : 'inherit' }}>
+          <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: editId ? '#d97706' : '#334155' }}>
+            {editId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />} 
+            {editId ? 'แก้ไขข้อมูลบริษัท' : 'เพิ่มบริษัทคู่ค้าใหม่'}
           </Typography>
           <Grid container spacing={3} alignItems="flex-start">
-            <Grid size={{ xs: 12, md: 5 }}>
+            <Grid item xs={12} md={5}>
               <TextField
                 fullWidth
                 size="small"
@@ -146,7 +189,7 @@ const Vendor: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
                 size="small"
@@ -159,16 +202,41 @@ const Vendor: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
-              <Button
-                fullWidth
-                variant="contained"
-                startIcon={<AddCircle />}
-                onClick={handleSubmit}
-                sx={{ height: 40, borderRadius: 2 }}
-              >
-                เพิ่มข้อมูล
-              </Button>
+            <Grid item xs={12} md={3} sx={{ display: 'flex', gap: 1 }}>
+              {editId ? (
+                <>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="warning"
+                    startIcon={<Save />}
+                    onClick={handleSubmit}
+                    sx={{ height: 40, borderRadius: 2 }}
+                  >
+                    บันทึก
+                  </Button>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    color="inherit"
+                    startIcon={<Cancel />}
+                    onClick={handleCancel}
+                    sx={{ height: 40, borderRadius: 2 }}
+                  >
+                    ยกเลิก
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={<AddCircle />}
+                  onClick={handleSubmit}
+                  sx={{ height: 40, borderRadius: 2 }}
+                >
+                  เพิ่มข้อมูล
+                </Button>
+              )}
             </Grid>
           </Grid>
         </Box>
@@ -200,7 +268,7 @@ const Vendor: React.FC = () => {
                   </TableRow>
                 ) : (
                   vendors.map((v) => (
-                    <TableRow key={v.vendorId} hover>
+                    <TableRow key={v.vendorId} hover selected={editId === v.vendorId}>
                       <TableCell sx={{ fontWeight: 500, color: '#1e293b', maxWidth: 200 }}>
                         <Tooltip title={v.vendorName}>
                           <Typography variant="body2" fontWeight={500} noWrap>
@@ -217,9 +285,15 @@ const Vendor: React.FC = () => {
                       </TableCell>
                       <TableCell align="center">
                         <Stack direction="row" spacing={1} justifyContent="center">
-                          <IconButton size="small" sx={{ color: '#3b82f6', bgcolor: '#eff6ff', '&:hover': { bgcolor: '#dbeafe' } }}>
+                          {/* ✅ ปุ่มแก้ไข ใส่ onClick แล้ว */}
+                          <IconButton 
+                            size="small" 
+                            onClick={() => handleEdit(v)}
+                            sx={{ color: '#3b82f6', bgcolor: '#eff6ff', '&:hover': { bgcolor: '#dbeafe' } }}
+                          >
                             <Edit fontSize="small" />
                           </IconButton>
+                          
                           <IconButton
                             onClick={() => handleDelete(v.vendorId)}
                             size="small"
