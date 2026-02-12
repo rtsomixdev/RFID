@@ -28,8 +28,6 @@ public partial class Reader
     public string ReaderFunction { get; set; } = "CHECK";
 
     // ✅ เพิ่มใหม่: โหมดการทำงานปัจจุบัน (Dynamic Mode)
-    // ค่านี้จะเปลี่ยนไปมาชั่วคราวเมื่อแตะบัตรคำสั่ง (Special Tag)
-    // เช่น: "Normal", "Washing_Mode", "Dispatch_Mode"
     [Column("current_mode")]
     public string CurrentMode { get; set; } = "Normal";
 
@@ -40,6 +38,11 @@ public partial class Reader
     // ✅ Fixed Location ID (ใช้ field นี้ผูกกับ Room จริง)
     [Column("installed_at_room_id")]
     public int? InstalledAtRoomId { get; set; }
+
+    // ✅✅✅ เพิ่มตัวนี้ครับ: แก้ Error "Reader does not contain definition for RoomId"
+    // (เพราะใน LinenDbContext มีการ map field นี้อยู่)
+    [Column("room_id")]
+    public int? RoomId { get; set; }
 
     [Column("operating_days")]
     public string? OperatingDays { get; set; }
@@ -61,6 +64,10 @@ public partial class Reader
 
     [ForeignKey("InstalledAtRoomId")]
     public virtual Room? InstalledAtRoom { get; set; }
+
+    // (Optional) ถ้าต้องการผูก RoomId ด้วยในอนาคต
+    // [ForeignKey("RoomId")]
+    // public virtual Room? Room { get; set; }
 
     public virtual ICollection<LinenLog> LinenLogs { get; set; } = new List<LinenLog>();
 }

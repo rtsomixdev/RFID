@@ -6,7 +6,7 @@ import { Login as LoginIcon, Visibility, VisibilityOff, Person, Lock } from '@mu
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
-import { sendNotification } from '../utils/notificationUtil'; // ✅ Import Utility
+import { sendNotification } from '../utils/notificationUtil';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -19,36 +19,55 @@ const Login: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      // ดึง User ทั้งหมดมาเช็ค (ถ้ามี API Login โดยเฉพาะ ให้เปลี่ยนไปใช้ endpoint นั้น)
-      const response = await axiosClient.get('/User');
-      const users = response.data;
-      
-      const user = users.find((u: any) => u.username === username && u.passwordHash === password);
+      // 🔥 1. เปลี่ยนมาใช้ API Login โดยตรง (เพื่อให้ Backend ส่ง Permissions มาให้)
+      // ส่ง username และ password ไปให้ Backend ตรวจสอบ
+      const response = await axiosClient.post('/Auth/Login', {
+        username: username,
+        password: password
+      });
 
-      if (user) {
-        localStorage.setItem('currentUser', JSON.stringify(user));
+      // ข้อมูลที่ได้กลับมาจะเป็นก้อนที่มี { Token: "...", User: { ..., Permissions: [...] } }
+      const loginData = response.data;
+
+      if (loginData && loginData.user) {
+        // 🔥 2. บันทึกข้อมูล User ที่มี "Permissions" เข้า LocalStorage
+        // ต้องเก็บ loginData.user เพราะในนั้นมี permissions อยู่
+        localStorage.setItem('currentUser', JSON.stringify(loginData.user));
         
-        Swal.fire({
-          icon: 'success', title: 'ยินดีต้อนรับ', text: `สวัสดีคุณ ${user.firstName}`,
-          timer: 1500, showConfirmButton: false
-        }).then(() => navigate('/dashboard'));
+        // เก็บ Token ไว้ใช้งาน (ถ้ามี)
+        if (loginData.token) {
+          localStorage.setItem('token', loginData.token);
+        }
 
-        // 🔔 แจ้งเตือน Admin เมื่อมีผู้ใช้งาน Login สำเร็จ (Audit Log)
+        Swal.fire({
+          icon: 'success', 
+          title: 'ยินดีต้อนรับ', 
+          text: `สวัสดีคุณ ${loginData.user.firstName}`,
+          timer: 1500, 
+          showConfirmButton: false
+        }).then(() => {
+            // ไปหน้า Dashboard
+            navigate('/dashboard');
+        });
+
+        // 🔔 แจ้งเตือน Audit Log
         await sendNotification(
             "มีการเข้าสู่ระบบ (Login)",
-            `ผู้ใช้งาน ${user.firstName} ${user.lastName} (${user.username}) ได้เข้าสู่ระบบ`,
+            `ผู้ใช้งาน ${loginData.user.firstName} ${loginData.user.lastName || ''} ได้เข้าสู่ระบบสำเร็จ`,
             "INFO",
-            "/users", // ลิงก์ไปหน้าจัดการ User หรือ Dashboard ก็ได้
+            "/dashboard",
             undefined,
-            1 // ส่งหา Admin (Role ID 1)
+            1 // แจ้งเตือนหา Admin
         );
 
       } else {
-        Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบไม่สำเร็จ', text: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+        Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบไม่สำเร็จ', text: 'ข้อมูลผู้ใช้ไม่ถูกต้อง' });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถเชื่อมต่อ Server ได้' });
+      // เช็คข้อความ Error จาก Backend
+      const errorMsg = error.response?.data?.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+      Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบไม่สำเร็จ', text: errorMsg });
     } finally {
       setLoading(false);
     }
@@ -79,7 +98,6 @@ const Login: React.FC = () => {
               {loading ? <CircularProgress size={24} color="inherit" /> : 'เข้าสู่ระบบ'}
             </Button>
             
-            {/* ✅ ปุ่มลืมรหัสผ่าน */}
             <Button color="primary" onClick={() => navigate('/forgot-password')}>
                 ลืมรหัสผ่าน?
             </Button>

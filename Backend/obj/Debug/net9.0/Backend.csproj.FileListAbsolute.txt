@@ -23,6 +23,8 @@ C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\Microsoft.EntityFr
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\Microsoft.Extensions.DependencyModel.dll
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\Microsoft.OpenApi.dll
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\Mono.TextTemplating.dll
+C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\MQTTnet.dll
+C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\MQTTnet.Extensions.ManagedClient.dll
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\Npgsql.dll
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\Npgsql.EntityFrameworkCore.PostgreSQL.dll
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\Swashbuckle.AspNetCore.Swagger.dll
@@ -107,6 +109,7 @@ C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\Backend.AssemblyIn
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\Backend.csproj.CoreCompileInputs.cache
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\Backend.MvcApplicationPartsAssemblyInfo.cs
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\Backend.MvcApplicationPartsAssemblyInfo.cache
+C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\Backend.sourcelink.json
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\rjimswa.dswa.cache.json
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\rjsmrazor.dswa.cache.json
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\rjsmcshtml.dswa.cache.json
@@ -121,6 +124,3 @@ C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\refint\Backend.dll
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\Backend.pdb
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\Backend.genruntimeconfig.cache
 C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\ref\Backend.dll
-C:\Users\rtsom\OneDrive\Desktop\RFID\backend\obj\Debug\net9.0\Backend.sourcelink.json
-C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\MQTTnet.dll
-C:\Users\rtsom\OneDrive\Desktop\RFID\backend\bin\Debug\net9.0\MQTTnet.Extensions.ManagedClient.dll

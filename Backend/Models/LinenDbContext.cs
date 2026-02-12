@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Backend.Models; // Ensure this matches your namespace for Models
 
 namespace Backend.Models;
 
@@ -9,7 +10,7 @@ public partial class LinenDbContext : DbContext
     {
     }
 
-    // --- DbSets (ตารางทั้งหมดในระบบ) ---
+    // --- DbSets (All tables in the system) ---
     public virtual DbSet<Category> Categories { get; set; }
     public virtual DbSet<DamageReason> DamageReasons { get; set; }
     public virtual DbSet<Hospital> Hospitals { get; set; }
@@ -28,14 +29,18 @@ public partial class LinenDbContext : DbContext
     public virtual DbSet<Vendor> Vendors { get; set; }
     public virtual DbSet<Ward> Wards { get; set; }
 
-    // ✅ Setting (ที่มีอยู่แล้ว)
+    // ✅ Setting (Existing)
     public virtual DbSet<Setting> Settings { get; set; }
 
     // ✅ Notification
     public virtual DbSet<Notification> Notifications { get; set; }
 
-    // ✅ SpecialTag (เพิ่มใหม่ สำหรับระบบบัตรคำสั่ง IoT)
+    // ✅ SpecialTag (New, for IoT command cards)
     public virtual DbSet<SpecialTag> SpecialTags { get; set; }
+
+    // ✅ Permissions & RolePermissions (New, for Dynamic Roles)
+    public virtual DbSet<Permission> Permissions { get; set; }
+    public virtual DbSet<RolePermission> RolePermissions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,17 +73,33 @@ public partial class LinenDbContext : DbContext
 
         // 4. Linen
         modelBuilder.Entity<Linen>(entity => {
+            entity.ToTable("linens");
             entity.HasKey(e => e.LinenId);
             entity.Property(e => e.LinenId).HasColumnName("linen_id");
+            entity.Property(e => e.RfidCode).HasColumnName("rfid_code");
+            entity.Property(e => e.ProductId).HasColumnName("product_id");
+            entity.Property(e => e.VendorId).HasColumnName("vendor_id");
+            entity.Property(e => e.HospitalId).HasColumnName("hospital_id");
+            entity.Property(e => e.RegisteredAt).HasColumnName("registered_at");
+            entity.Property(e => e.Status).HasColumnName("status");
+            entity.Property(e => e.WashCount).HasColumnName("wash_count");
+            entity.Property(e => e.LastWashDate).HasColumnName("last_wash_date");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
             entity.Property(e => e.CurrentLocation).HasColumnName("current_location");
             entity.Property(e => e.MaxWashCount).HasColumnName("max_wash_count");
         });
 
         // 5. LinenLog
         modelBuilder.Entity<LinenLog>(entity => {
+            entity.ToTable("linen_logs");
             entity.HasKey(e => e.LogId);
             entity.Property(e => e.LogId).HasColumnName("log_id");
-            // ✅ Mapping ที่เพิ่มใหม่ใน Step 1
+            entity.Property(e => e.LinenId).HasColumnName("linen_id");
+            entity.Property(e => e.ReaderId).HasColumnName("reader_id");
+            entity.Property(e => e.RoomId).HasColumnName("room_id");
+            entity.Property(e => e.ActivityType).HasColumnName("activity_type");
+            entity.Property(e => e.Timestamp).HasColumnName("timestamp"); // or remove if unnecessary and only use created_at
             entity.Property(e => e.FromLocation).HasColumnName("from_location");
             entity.Property(e => e.ToLocation).HasColumnName("to_location");
             entity.Property(e => e.StatusAfter).HasColumnName("status_after");
@@ -97,6 +118,9 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.UnitName).HasColumnName("unit_name");
             entity.Property(e => e.StandardWeightKg).HasColumnName("standard_weight_kg");
             entity.Property(e => e.DefaultRoomId).HasColumnName("default_room_id");
+             // Add MaxLifespanDays mapping if needed in DB, otherwise ignore
+             // entity.Property(e => e.MaxLifespanDays).HasColumnName("MaxLifespanDays");
+             // entity.Property(e => e.MaxWashCount).HasColumnName("MaxWashCount");
         });
 
         // 7. Reader
@@ -114,20 +138,38 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.OperatingStartTime).HasColumnName("operating_start_time");
             entity.Property(e => e.OperatingEndTime).HasColumnName("operating_end_time");
             entity.Property(e => e.IsActive).HasColumnName("is_active");
-            // ✅ Mapping ที่เพิ่มใหม่ใน Step 1
             entity.Property(e => e.CurrentMode).HasColumnName("current_mode");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.RoomId).HasColumnName("room_id");
         });
 
         // 8. Request
         modelBuilder.Entity<Request>(entity => {
+            entity.ToTable("requests");
             entity.HasKey(e => e.RequestId);
             entity.Property(e => e.RequestId).HasColumnName("request_id");
+            entity.Property(e => e.RequestCode).HasColumnName("request_code");
+            entity.Property(e => e.RequestType).HasColumnName("request_type");
+            entity.Property(e => e.RequestedByUserId).HasColumnName("requested_by_user_id");
+            entity.Property(e => e.TargetWardId).HasColumnName("target_ward_id");
+            entity.Property(e => e.CurrentStatusId).HasColumnName("current_status_id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.ArrivalDate).HasColumnName("arrival_date");
+            entity.Property(e => e.DispatchDate).HasColumnName("dispatch_date");
+            entity.Property(e => e.Note).HasColumnName("note");
+            entity.Property(e => e.Status).HasColumnName("status");
         });
 
         // 9. RequestItem
         modelBuilder.Entity<RequestItem>(entity => {
+            entity.ToTable("request_items");
             entity.HasKey(e => e.ItemId);
             entity.Property(e => e.ItemId).HasColumnName("item_id");
+            entity.Property(e => e.RequestId).HasColumnName("request_id");
+            entity.Property(e => e.ProductId).HasColumnName("product_id");
+            entity.Property(e => e.QuantityRequested).HasColumnName("quantity_requested");
+            entity.Property(e => e.DamageReasonId).HasColumnName("damage_reason_id");
         });
 
         // 10. RequestStatus
@@ -153,12 +195,18 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.RoomId).HasColumnName("room_id");
             entity.Property(e => e.RoomName).HasColumnName("room_name");
             entity.Property(e => e.WardId).HasColumnName("ward_id");
+            entity.Property(e => e.Description).HasColumnName("description");
         });
 
         // 13. SystemLog
         modelBuilder.Entity<SystemLog>(entity => {
+            entity.ToTable("system_logs");
             entity.HasKey(e => e.LogId);
             entity.Property(e => e.LogId).HasColumnName("log_id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.ActionType).HasColumnName("action_type");
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
         });
 
         // 14. Title
@@ -204,8 +252,12 @@ public partial class LinenDbContext : DbContext
 
         // 17. Ward
         modelBuilder.Entity<Ward>(entity => {
+            entity.ToTable("wards");
             entity.HasKey(e => e.WardId);
             entity.Property(e => e.WardId).HasColumnName("ward_id");
+            entity.Property(e => e.WardName).HasColumnName("ward_name");
+            entity.Property(e => e.HospitalId).HasColumnName("hospital_id");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
         });
 
         // ✅ Mapping สำหรับ Setting
@@ -242,6 +294,35 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.TargetStatus).HasColumnName("target_status");
             entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.IsActive).HasColumnName("is_active");
+        });
+
+        // ✅ Mapping สำหรับ Permission (เพิ่มใหม่)
+        modelBuilder.Entity<Permission>(entity => {
+            entity.ToTable("permissions");
+            entity.HasKey(e => e.PermissionId);
+            entity.Property(e => e.PermissionId).HasColumnName("permission_id");
+            entity.Property(e => e.PermissionCode).HasColumnName("permission_code");
+            entity.Property(e => e.Description).HasColumnName("description");
+        });
+
+        // ✅ Mapping สำหรับ RolePermission (เพิ่มใหม่ - Many to Many)
+        modelBuilder.Entity<RolePermission>(entity => {
+            entity.ToTable("role_permissions");
+            
+            // Set Composite Key
+            entity.HasKey(e => new { e.RoleId, e.PermissionId });
+
+            entity.Property(e => e.RoleId).HasColumnName("role_id");
+            entity.Property(e => e.PermissionId).HasColumnName("permission_id");
+
+            // Relationships
+            entity.HasOne(rp => rp.Role)
+                .WithMany(r => r.RolePermissions)
+                .HasForeignKey(rp => rp.RoleId);
+
+            entity.HasOne(rp => rp.Permission)
+                .WithMany()
+                .HasForeignKey(rp => rp.PermissionId);
         });
 
         OnModelCreatingPartial(modelBuilder);

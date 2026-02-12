@@ -91,10 +91,32 @@ const ComingSoon = ({ title }: { title: string }) => (
   </div>
 );
 
-// Wrapper สำหรับตรวจสอบสิทธิ์ (Auth Check)
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+// 🔥🔥🔥 Permission Guard: ตัวเช็คสิทธิ์การเข้าถึง 🔥🔥🔥
+const PermissionGuard = ({ children, requiredPerm }: { children: JSX.Element, requiredPerm?: string }) => {
   const userStr = localStorage.getItem('currentUser');
-  if (!userStr) return <Navigate to="/login" replace />;
+  
+  // 1. ยังไม่ Login -> ดีดไปหน้า Login
+  if (!userStr) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const user = JSON.parse(userStr);
+  
+  // 2. ถ้าหน้านี้ต้องการสิทธิ์ (requiredPerm) แต่ User ไม่มี -> ดีดไปหน้า Home (หรือ Unauthorized)
+  if (requiredPerm) {
+    // ดึง permissions จาก user object (รองรับทั้งตัวเล็กตัวใหญ่เผื่อ backend ส่งมาต่างกัน)
+    const userPerms: string[] = user.Permissions || user.permissions || [];
+    
+    // (Optional: ให้ Role 'Admin' เข้าได้ทุกหน้าโดยไม่ต้องเช็ค)
+    // if (user.RoleName === 'Admin') return children;
+
+    if (!userPerms.includes(requiredPerm)) {
+      // ไม่มีสิทธิ์!
+      return <Navigate to="/" replace />; 
+    }
+  }
+
+  // 3. ผ่านฉลุย
   return children;
 };
 
@@ -102,8 +124,11 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      
+      {/* ✅ Router ต้องอยู่ชั้นนอกสุด */}
       <Router>
-        {/* ✅ วางตัวดักฟัง SignalR ไว้ตรงนี้ (ทำงานตลอดเวลาทุกหน้า) */}
+        
+        {/* ✅ SignalRHandler อยู่ใน Router เพื่อใช้ useNavigate */}
         <SignalRHandler />
 
         <Routes>
@@ -111,33 +136,42 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* 2. Main Layout Structure */}
+          {/* 2. Main Layout Structure (มี Sidebar + Navbar) */}
           <Route element={<MainLayout />}>
 
             {/* 🟢 PUBLIC ACCESS: หน้า Home (Monitor) เข้าได้ทุกคน ไม่ต้อง Login */}
             <Route path="/" element={<Home />} />
 
-            {/* 🔒 PROTECTED AREA: ส่วนจัดการระบบ ต้อง Login ก่อน */}
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/stats" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            {/* 🔒 PROTECTED AREA: โซนหวงห้าม ต้องมีสิทธิ์เฉพาะทาง */}
+            
+            {/* กลุ่ม Dashboard */}
+            <Route path="/dashboard" element={<PermissionGuard requiredPerm="VIEW_DASHBOARD"><Dashboard /></PermissionGuard>} />
+            <Route path="/stats" element={<PermissionGuard requiredPerm="VIEW_DASHBOARD"><Dashboard /></PermissionGuard>} />
 
-            <Route path="/hospital" element={<ProtectedRoute><Hospital /></ProtectedRoute>} />
-            <Route path="/linens" element={<ProtectedRoute><Linen /></ProtectedRoute>} />
-            <Route path="/vendors" element={<ProtectedRoute><Vendor /></ProtectedRoute>} />
-            <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
-            <Route path="/requests" element={<ProtectedRoute><Requests /></ProtectedRoute>} />
+            {/* กลุ่มจัดการข้อมูลหลัก */}
+            <Route path="/hospital" element={<PermissionGuard requiredPerm="MANAGE_HOSPITAL"><Hospital /></PermissionGuard>} />
+            <Route path="/vendors" element={<PermissionGuard requiredPerm="MANAGE_VENDOR"><Vendor /></PermissionGuard>} />
+            <Route path="/users" element={<PermissionGuard requiredPerm="MANAGE_USER"><Users /></PermissionGuard>} />
+            
+            {/* กลุ่มจัดการผ้า (Stock & Requests) */}
+            <Route path="/linens" element={<PermissionGuard requiredPerm="MANAGE_LINEN"><Linen /></PermissionGuard>} />
+            <Route path="/requests" element={<PermissionGuard requiredPerm="MANAGE_REQUEST"><Requests /></PermissionGuard>} />
 
-            <Route path="/laundry" element={<ProtectedRoute><Laundry /></ProtectedRoute>} />
-            <Route path="/discard" element={<ProtectedRoute><Discard /></ProtectedRoute>} />
-            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-
-            <Route path="/transport" element={<ProtectedRoute><Transport /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-
-            <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-            <Route path="/rfid-connect" element={<ProtectedRoute><RfidConnect /></ProtectedRoute>} />
-
-            <Route path="/readers" element={<ProtectedRoute><ComingSoon title="เพิ่มอุปกรณ์ RFID" /></ProtectedRoute>} />
+            {/* กลุ่ม Laundry Flow */}
+            <Route path="/laundry" element={<PermissionGuard requiredPerm="MANAGE_LAUNDRY"><Laundry /></PermissionGuard>} />
+            <Route path="/discard" element={<PermissionGuard requiredPerm="MANAGE_DISCARD"><Discard /></PermissionGuard>} />
+            
+            {/* กลุ่มอื่นๆ */}
+            <Route path="/reports" element={<PermissionGuard requiredPerm="VIEW_REPORT"><Reports /></PermissionGuard>} />
+            <Route path="/transport" element={<PermissionGuard requiredPerm="MANAGE_TRANSPORT"><Transport /></PermissionGuard>} />
+            <Route path="/settings" element={<PermissionGuard requiredPerm="MANAGE_SETTING"><Settings /></PermissionGuard>} />
+            
+            <Route path="/rfid-connect" element={<PermissionGuard requiredPerm="CONNECT_RFID"><RfidConnect /></PermissionGuard>} />
+            
+            {/* หน้าแจ้งเตือน (ให้สิทธิ์พื้นฐานเข้าได้ ถ้าล็อกอินแล้ว) */}
+            <Route path="/notifications" element={<PermissionGuard><NotificationsPage /></PermissionGuard>} />
+            
+            <Route path="/readers" element={<PermissionGuard><ComingSoon title="เพิ่มอุปกรณ์ RFID" /></PermissionGuard>} />
 
           </Route>
 
