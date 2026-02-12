@@ -32,26 +32,53 @@ public class WardController : ControllerBase
         // 1. กำหนดค่า Default
         if (ward.IsActive == null) ward.IsActive = true;
 
-        // 2. ตรวจสอบว่ามีชื่อซ้ำในโรงพยาบาลเดียวกันไหม
-        /* (Optional: ถ้าต้องการเปิดเช็คซ้ำ ให้เอา Comment ออก)
-        var exists = await _context.Wards.AnyAsync(w => w.WardName == ward.WardName && w.HospitalId == ward.HospitalId);
-        if (exists) {
-            return BadRequest(new { message = "ชื่อวอร์ดนี้มีอยู่แล้วในโรงพยาบาลที่เลือก" });
-        }
-        */
-
-        // 3. บันทึก
-        _context.Wards.Add(ward);
+        // 2. เริ่ม Transaction (เพื่อความปลอดภัยของข้อมูล)
+        using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateException ex)
-        {
-            return StatusCode(500, new { message = "Save Error: " + ex.Message });
-        }
+            // -------------------------------------------------------
+            // Step A: บันทึก Ward ก่อน (เพื่อให้ได้ WardId)
+            // -------------------------------------------------------
+            _context.Wards.Add(ward);
+            await _context.SaveChangesAsync(); // จังหวะนี้จะได้ ward.WardId มาแล้ว
 
-        return CreatedAtAction("GetWards", new { id = ward.WardId }, ward);
+            // -------------------------------------------------------
+            // Step B: Auto Sync สร้าง Room (ถ้ายังไม่มี)
+            // -------------------------------------------------------
+            // เช็คว่ามีห้องชื่อนี้หรือยัง?
+            var roomExists = await _context.Rooms.AnyAsync(r => r.RoomName == ward.WardName);
+            if (!roomExists)
+            {
+                var newRoom = new Room
+                {
+                    RoomName = ward.WardName,
+                    Description = "หอผู้ป่วย (Auto Sync)",
+                    WardId = ward.WardId, // ✅ เอา ID จากขั้นตอนแรกมาใส่ได้เลย!
+                    // IsActive หรือ CreatedAt ปล่อยให้ Database จัดการ (Default Value)
+                };
+                
+                _context.Rooms.Add(newRoom);
+                await _context.SaveChangesAsync(); // บันทึกห้องตามเข้าไป
+            }
+
+            // -------------------------------------------------------
+            // Step C: ยืนยันการบันทึกทั้งหมด
+            // -------------------------------------------------------
+            await transaction.CommitAsync();
+
+            return CreatedAtAction("GetWards", new { id = ward.WardId }, ward);
+        }
+        catch (Exception ex)
+        {
+            // ❌ ถ้ามีอะไรพัง ให้ยกเลิกทั้งหมด (ไม่ให้มีข้อมูลขยะ)
+            await transaction.RollbackAsync();
+
+            // 🔥 ดึงข้อความ Error จริงๆ ออกมาดู (Inner Exception)
+            var realError = ex.InnerException?.Message ?? ex.Message;
+            Console.WriteLine($"❌ Save Error: {realError}"); // ดูใน Terminal ได้เลย
+
+            return StatusCode(500, new { message = "บันทึกไม่สำเร็จ: " + realError });
+        }
     }
 
     // DELETE: api/Ward/5
@@ -60,6 +87,11 @@ public class WardController : ControllerBase
     {
         var ward = await _context.Wards.FindAsync(id);
         if (ward == null) return NotFound();
+
+        // (Optional) ลบ Room ที่ผูกกับ Ward นี้ด้วยก็ได้ถ้าต้องการ
+        /* var linkedRoom = await _context.Rooms.FirstOrDefaultAsync(r => r.WardId == id);
+        if(linkedRoom != null) _context.Rooms.Remove(linkedRoom);
+        */
 
         _context.Wards.Remove(ward);
         await _context.SaveChangesAsync();

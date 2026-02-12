@@ -150,6 +150,8 @@ RFID
 │  │  ├─ VendorController.cs
 │  │  └─ WardController.cs
 │  ├─ Dockerfile
+│  ├─ Hubs
+│  │  └─ NotificationHub.cs
 │  ├─ Migrations
 │  │  ├─ 20260105105122_InitialCreate.cs
 │  │  ├─ 20260105105122_InitialCreate.Designer.cs
@@ -163,6 +165,8 @@ RFID
 │  │  ├─ 20260114190808_UpdateNotificationSchema.Designer.cs
 │  │  ├─ 20260210073658_UpdateModelsForIoT.cs
 │  │  ├─ 20260210073658_UpdateModelsForIoT.Designer.cs
+│  │  ├─ 20260210103756_AddReaderUpdatedAt.cs
+│  │  ├─ 20260210103756_AddReaderUpdatedAt.Designer.cs
 │  │  └─ LinenDbContextModelSnapshot.cs
 │  ├─ Models
 │  │  ├─ Category.cs
@@ -232,7 +236,6 @@ RFID
 │     └─ MqttPublisherService.cs
 ├─ docker-compose.yml
 ├─ Frontend
-│  ├─ .env
 │  ├─ build_log.txt
 │  ├─ Dockerfile
 │  ├─ eslint.config.js
@@ -296,17 +299,9 @@ RFID
 │  ├─ azurecredentialcache
 │  ├─ pgadmin4.db
 │  ├─ sessions
-│  │  ├─ 094bb5af-3325-4f19-84cf-24cc24370218
-│  │  ├─ 1232d08d-57aa-45d8-adb8-818876807fea
-│  │  ├─ 184ceb9c-9184-42b4-993f-2c6a9b67a48d
-│  │  ├─ 1ece52df-edbf-41a6-9b32-08a9ec0f4fc3
-│  │  ├─ 61f48461-031a-468c-aa68-e8e8b528e4fc
-│  │  ├─ 6cadc9ad-9bb3-4b30-8cde-318db4b8113d
-│  │  ├─ 80c2945f-da49-4247-8ea6-766e85bdbb2f
-│  │  ├─ 85801c24-44fc-4a6d-837f-ff8d685ad8dc
-│  │  ├─ bcc4ee41-5212-4181-8568-6deb951c8693
-│  │  ├─ e1862a9b-94d1-42da-b64b-a09f4aea45e0
-│  │  └─ e8af7195-b1b6-42fa-8f95-663d664a0155
+│  │  ├─ 2dc43123-e699-49a0-9051-3ded31640d9f
+│  │  ├─ 9a3438b7-781a-4081-88b0-aadfc675c63e
+│  │  └─ b03a08e0-907a-49b1-85a1-bda02b87af07
 │  └─ storage
 │     └─ admin_linen.com
 ├─ README.md

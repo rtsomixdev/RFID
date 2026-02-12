@@ -1,48 +1,79 @@
 using Backend.Models;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json.Serialization;
-using Backend.Services; 
-using Backend.Hubs; // ✅ 1. เพิ่มบรรทัดนี้ (ต้องสร้างโฟลเดอร์ Hubs และไฟล์ NotificationHub.cs ก่อนนะ)
+using System.Text.Json.Serialization; // ✅ สำคัญมาก: สำหรับแก้ JSON Loop
+using Backend.Services;
+using Backend.Hubs; // ✅ เพิ่ม: ถ้าคุณสร้างไฟล์ DbInitializer ตามที่คุยกัน
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ✅✅✅ แก้ Error DateTime
+// --- 1. System Config ---
+// แก้ปัญหาวันที่ของ PostgreSQL (timestamp issue)
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
-// Add services to the container.
+// --- 2. Services Registration ---
 
-// Config ป้องกัน JSON Loop
-builder.Services.AddControllers().AddJsonOptions(x =>
-    x.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
+// ✅ แก้ Error 500 (JSON Loop) ที่นี่
+// สั่งให้ JSON Serializer ข้าม object ที่มีความสัมพันธ์วนลูป (Circular Reference)
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.WriteIndented = true; // (Optional) ให้อ่านง่ายขึ้น
+    });
 
-// Connect Database
+// Database Connection
 builder.Services.AddDbContext<LinenDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// ✅ 2. ลงทะเบียน SignalR Service (สำหรับ Real-time Notification)
+// Real-time (SignalR)
 builder.Services.AddSignalR();
 
-// ✅ 3. ลงทะเบียน MQTT Background Service
-// (ตอนนี้ MqttListenerService จะสามารถเรียกใช้ IHubContext ได้แล้ว)
+// MQTT Background Services
 builder.Services.AddHostedService<MqttListenerService>();
 builder.Services.AddSingleton<MqttPublisherService>();
 
+// Swagger / API Explorer
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// CORS Config
-builder.Services.AddCors(options => {
+// CORS (Allow Frontend)
+builder.Services.AddCors(options =>
+{
     options.AddPolicy("AllowReactApp",
-        builder => builder
-            .WithOrigins("http://localhost:5173")
+        policy => policy
+            .WithOrigins("http://localhost:5173") // เปลี่ยน Port ตาม Frontend จริง
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials()); // ✅ 4. เพิ่มบรรทัดนี้ (สำคัญ! SignalR ต้องการ Credentials)
+            .AllowCredentials()); // ✅ สำคัญ: SignalR ต้องการ Credentials
 });
 
+// --- 3. Build App ---
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ✅✅✅ 4. Auto-Initialize Database (ส่วนสำคัญที่เพิ่มมา)
+// ส่วนนี้จะทำงานทุกครั้งที่รัน Backend เพื่อเช็คว่า DB พร้อมไหม
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<LinenDbContext>();
+        
+        // สร้าง Database ถ้ายังไม่มี
+        context.Database.EnsureCreated();
+
+        // ถ้าคุณสร้างไฟล์ DbInitializer.cs ไว้ ให้ uncomment บรรทัดนี้
+        // DbInitializer.Initialize(context); 
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "เกิดข้อผิดพลาดขณะสร้างฐานข้อมูล");
+    }
+}
+// -----------------------------------------------------------
+
+// --- 5. Middleware Pipeline ---
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -54,8 +85,6 @@ app.UseCors("AllowReactApp");
 app.UseAuthorization();
 
 app.MapControllers();
-
-// ✅ 5. สร้าง Endpoint สำหรับ SignalR Hub
-app.MapHub<NotificationHub>("/hubs/notification");
+app.MapHub<NotificationHub>("/hubs/notification"); // Endpoint สำหรับ SignalR
 
 app.Run();

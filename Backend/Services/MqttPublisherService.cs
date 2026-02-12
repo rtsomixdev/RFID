@@ -1,7 +1,6 @@
 using MQTTnet;
 using MQTTnet.Client;
-using System.Text;
-using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace Backend.Services
 {
@@ -14,48 +13,30 @@ namespace Backend.Services
         {
             var factory = new MqttFactory();
             _mqttClient = factory.CreateMqttClient();
-            
+
+            // ตั้งค่าการเชื่อมต่อ MQTT Broker (Mosquitto)
             _options = new MqttClientOptionsBuilder()
-                .WithClientId("Backend_Publisher_" + Guid.NewGuid().ToString())
-                .WithTcpServer("localhost", 1883)
+                .WithTcpServer("localhost", 1883) // ถ้าใช้ Docker หรือเครื่องอื่น ให้แก้ localhost เป็น IP นั้น
+                .WithClientId("Backend_Publisher")
                 .Build();
         }
 
-        public async Task PublishCommandAsync(string readerId, string command, object parameters)
+        // ✅ ฟังก์ชันนี้แหละครับที่ขาดไป ทำให้เกิด Error CS1061
+        public async Task PublishAsync(string topic, string payload)
         {
+            // ถ้ายังไม่ต่อเน็ต ให้ต่อก่อนส่ง
             if (!_mqttClient.IsConnected)
             {
                 await _mqttClient.ConnectAsync(_options);
             }
 
-            // สร้าง Payload คำสั่ง
-            var payloadObj = new 
-            {
-                cmd = command,
-                val = parameters,
-                timestamp = DateTime.Now
-            };
-            var payloadStr = JsonSerializer.Serialize(payloadObj);
-
-            // ✅ FIX: แก้ไขชื่อ Topic ให้ปลอดภัย (Sanitize Topic)
-            // เปลี่ยนตัวอักษรต้องห้าม (#, +) ให้เป็น Underscore (_)
-            // เช่น "Handheld #01" -> "Handheld_01"
-            var safeReaderId = readerId
-                                .Replace("#", "_")
-                                .Replace("+", "_");
-
-            // ส่งไปที่ Topic เฉพาะของเครื่องนั้นๆ
-            // เช่น: linen/config/Gate1
-            var topic = $"linen/config/{safeReaderId}";
-
             var message = new MqttApplicationMessageBuilder()
                 .WithTopic(topic)
-                .WithPayload(payloadStr)
+                .WithPayload(payload)
                 .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
                 .Build();
 
             await _mqttClient.PublishAsync(message);
-            Console.WriteLine($"📤 Sent Command to {topic}: {payloadStr}");
         }
     }
 }

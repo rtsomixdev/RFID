@@ -7,8 +7,8 @@ using Backend.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.AspNetCore.SignalR; // ✅ 1. Add SignalR namespace
-using Backend.Hubs;                 // ✅ 2. Add Hubs namespace
+using Microsoft.AspNetCore.SignalR;
+using Backend.Hubs;
 using System;
 using System.Linq;
 using System.Threading;
@@ -20,9 +20,14 @@ namespace Backend.Services
     {
         private IManagedMqttClient? _mqttClient;
         private readonly IServiceScopeFactory _scopeFactory;
-        private readonly IHubContext<NotificationHub> _hubContext; // ✅ 3. Hub context field
+        private readonly IHubContext<NotificationHub> _hubContext;
 
-        // ✅ 4. Inject Hub context
+        // ตัวเลือก JSON ให้รองรับตัวพิมพ์เล็ก/ใหญ่
+        private readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
         public MqttListenerService(IServiceScopeFactory scopeFactory, IHubContext<NotificationHub> hubContext)
         {
             _scopeFactory = scopeFactory;
@@ -36,7 +41,7 @@ namespace Backend.Services
             var mqttFactory = new MqttFactory();
             var mqttClientOptions = new MqttClientOptionsBuilder()
                 .WithClientId("Backend_Service_" + Guid.NewGuid().ToString())
-                .WithTcpServer("localhost", 1883)
+                .WithTcpServer("localhost", 1883) // ตรวจสอบ Host/Port ให้ตรงกับ Broker ของคุณ
                 .WithCleanSession()
                 .Build();
 
@@ -50,7 +55,8 @@ namespace Backend.Services
             _mqttClient.ConnectedAsync += async e =>
             {
                 Console.WriteLine("✅ [MQTT] Connected and Ready!");
-                if (_mqttClient != null) {
+                if (_mqttClient != null)
+                {
                     await _mqttClient.SubscribeAsync("reader/+/scan");
                     await _mqttClient.SubscribeAsync("reader/+/status");
                     await _mqttClient.SubscribeAsync("linen/scan/+");
@@ -68,40 +74,40 @@ namespace Backend.Services
                 // -----------------------------------------------------------
                 if (topic.EndsWith("/status"))
                 {
-                    try 
+                    try
                     {
                         var parts = topic.Split('/');
                         string readerName = "";
-                        
+
                         if (parts.Length >= 3 && parts[0] == "reader") readerName = parts[1];
                         else if (parts.Length >= 3 && parts[0] == "linen") readerName = parts[2];
 
                         if (string.IsNullOrEmpty(readerName)) return;
 
-                        var statusData = JsonSerializer.Deserialize<ReaderStatusDto>(payloadStr);
+                        var statusData = JsonSerializer.Deserialize<ReaderStatusDto>(payloadStr, _jsonOptions);
 
                         using (var scope = _scopeFactory.CreateScope())
                         {
                             var dbContext = scope.ServiceProvider.GetRequiredService<LinenDbContext>();
                             var reader = await dbContext.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
-                            
+
                             if (reader != null)
                             {
                                 bool wasOffline = reader.IsActive != true;
 
                                 if (statusData != null)
                                 {
-                                    reader.IpAddress = statusData.ip ?? reader.IpAddress; 
+                                    reader.IpAddress = statusData.ip ?? reader.IpAddress;
                                 }
-                                
-                                reader.IsActive = true; 
-                                reader.UpdatedAt = ThaiTime(); // Update timestamp to prevent offline timeout
+
+                                reader.IsActive = true;
+                                reader.UpdatedAt = ThaiTime(); // Update timestamp
 
                                 if (wasOffline)
                                 {
                                     Console.WriteLine($"✅ [Online] {readerName} connected via IP: {reader.IpAddress}");
                                 }
-                                
+
                                 await dbContext.SaveChangesAsync();
                             }
                         }
@@ -115,7 +121,7 @@ namespace Backend.Services
                 // -----------------------------------------------------------
                 if (topic.EndsWith("/scan"))
                 {
-                    try 
+                    try
                     {
                         string readerIdStr = "Unknown";
                         var parts = topic.Split('/');
@@ -123,9 +129,10 @@ namespace Backend.Services
                         else if (parts.Length >= 3 && parts[0] == "linen") readerIdStr = parts[2];
 
                         string rfid = payloadStr;
+                        // รองรับทั้งแบบส่งมาแค่ RFID หรือส่งมาเป็น JSON
                         if (payloadStr.Trim().StartsWith("{"))
                         {
-                            var data = JsonSerializer.Deserialize<ScanPayload>(payloadStr);
+                            var data = JsonSerializer.Deserialize<ScanPayload>(payloadStr, _jsonOptions);
                             rfid = data?.rfid ?? "";
                             if (!string.IsNullOrEmpty(data?.reader_id)) readerIdStr = data.reader_id;
                         }
@@ -136,11 +143,12 @@ namespace Backend.Services
                         {
                             var context = scope.ServiceProvider.GetRequiredService<LinenDbContext>();
                             var reader = await context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerIdStr);
-                            
-                            if (reader == null && int.TryParse(readerIdStr, out int rid)) 
+
+                            if (reader == null && int.TryParse(readerIdStr, out int rid))
                                 reader = await context.Readers.FindAsync(rid);
 
-                            if (reader == null) {
+                            if (reader == null)
+                            {
                                 Console.WriteLine($"⛔ Unknown Reader: {readerIdStr}");
                                 return;
                             }
@@ -150,18 +158,21 @@ namespace Backend.Services
                             reader.UpdatedAt = ThaiTime();
 
                             // 🔥🔥🔥 SEND SIGNALR TO FRONTEND IMMEDIATELY! 🔥🔥🔥
-                            await _hubContext.Clients.All.SendAsync("OnScan", new { 
-                                rfid = rfid, 
+                            // Frontend ต้อง listen event ชื่อ "OnScan"
+                            await _hubContext.Clients.All.SendAsync("OnScan", new
+                            {
+                                rfid = rfid,
                                 reader = reader.ReaderName,
-                                mode = reader.CurrentMode 
+                                mode = reader.CurrentMode,
+                                timestamp = ThaiTime()
                             });
                             // --------------------------------------------------
 
-                            // 1. Check Special Tag
+                            // 1. Check Special Tag (Tags ที่ใช้เปลี่ยนโหมด)
                             var specialTag = await context.SpecialTags.FindAsync(rfid);
-                            if (specialTag != null) 
+                            if (specialTag != null)
                             {
-                                reader.CurrentMode = specialTag.CommandType; 
+                                reader.CurrentMode = specialTag.CommandType;
                                 await context.SaveChangesAsync();
                                 Console.WriteLine($"🔄 Reader {reader.ReaderName} Mode Changed -> {reader.CurrentMode}");
                                 return;
@@ -169,43 +180,53 @@ namespace Backend.Services
 
                             // 2. Process Linen Logic
                             var linen = await context.Linens.Include(l => l.Product).FirstOrDefaultAsync(l => l.RfidCode == rfid);
-                            
+
                             if (linen != null)
                             {
                                 string prevLocation = linen.CurrentLocation ?? "Unknown";
-                                string activity = "Check"; 
+                                string activity = "Check";
                                 string statusAfter = linen.Status ?? "Available";
-                                
+
                                 if (string.IsNullOrEmpty(reader.CurrentMode)) reader.CurrentMode = "Normal";
 
                                 switch (reader.CurrentMode)
                                 {
                                     case "SET_MODE_WASH":
-                                        if (linen.Status != "InTransit") {
-                                            linen.Status = "Washing"; linen.CurrentLocation = "Laundry"; linen.WashCount += 1;
-                                            activity = "Wash"; statusAfter = "Washing";
+                                        if (linen.Status != "InTransit")
+                                        {
+                                            linen.Status = "Washing";
+                                            linen.CurrentLocation = "Laundry";
+                                            linen.WashCount += 1;
+                                            activity = "Wash";
+                                            statusAfter = "Washing";
                                             LogMovement(context, linen.LinenId, activity, "ส่งผ้าเข้าซัก", prevLocation, "Laundry", statusAfter);
                                         }
                                         break;
 
                                     case "SET_MODE_DISCARD":
                                     case "SET_STATUS_DAMAGED":
-                                        linen.Status = "Damaged"; linen.IsActive = false;
-                                        activity = "Discard"; statusAfter = "Damaged";
+                                        linen.Status = "Damaged";
+                                        linen.IsActive = false;
+                                        activity = "Discard";
+                                        statusAfter = "Damaged";
                                         LogMovement(context, linen.LinenId, activity, "แจ้งชำรุด", prevLocation, "Disposal", statusAfter);
                                         break;
 
                                     case "SET_MODE_RESTOCK":
                                     case "SET_STATUS_AVAILABLE":
-                                        linen.Status = "Available"; linen.CurrentLocation = "Stock";
-                                        activity = "Restock"; statusAfter = "Available";
+                                        linen.Status = "Available";
+                                        linen.CurrentLocation = "Stock";
+                                        activity = "Restock";
+                                        statusAfter = "Available";
                                         LogMovement(context, linen.LinenId, activity, "รับผ้าเข้าคลัง", prevLocation, "Stock", statusAfter);
                                         break;
 
                                     default:
-                                        if (linen.CurrentLocation != reader.Location) {
+                                        if (linen.CurrentLocation != reader.Location)
+                                        {
                                             string newLoc = reader.Location ?? reader.ReaderName ?? "Unknown";
-                                            linen.CurrentLocation = newLoc; activity = "Move";
+                                            linen.CurrentLocation = newLoc;
+                                            activity = "Move";
                                             LogMovement(context, linen.LinenId, activity, "ย้ายตำแหน่ง", prevLocation, newLoc, statusAfter);
                                         }
                                         break;
@@ -217,12 +238,17 @@ namespace Backend.Services
                             }
                             else
                             {
-                                // Unknown Tag
-                                var noti = new Notification 
+                                // Unknown Tag Handling
+                                var noti = new Notification
                                 {
-                                    UserId = null, RoleId = 1, Title = "พบ RFID แปลกปลอม",
-                                    Message = $"⚠️ พบ Tag ไม่รู้จัก: {rfid} ที่ {reader.ReaderName}", Type = "WARNING",
-                                    IsRead = false, CreatedAt = ThaiTime(), LinkUrl = "/linen-stock"
+                                    UserId = null,
+                                    RoleId = 1,
+                                    Title = "พบ RFID แปลกปลอม",
+                                    Message = $"⚠️ พบ Tag ไม่รู้จัก: {rfid} ที่ {reader.ReaderName}",
+                                    Type = "WARNING",
+                                    IsRead = false,
+                                    CreatedAt = ThaiTime(),
+                                    LinkUrl = "/linen-stock"
                                 };
                                 context.Notifications.Add(noti);
                                 await context.SaveChangesAsync();
@@ -236,9 +262,10 @@ namespace Backend.Services
 
             await _mqttClient.StartAsync(managedMqttClientOptions);
 
-            // ✅ Start Offline Monitor Task
+            // ✅ Start Offline Monitor Task (Run in background)
             _ = MonitorOfflineNodes(stoppingToken);
 
+            // Keep the service alive
             while (!stoppingToken.IsCancellationRequested) { await Task.Delay(1000, stoppingToken); }
         }
 
@@ -255,7 +282,7 @@ namespace Backend.Services
                     using (var scope = _scopeFactory.CreateScope())
                     {
                         var context = scope.ServiceProvider.GetRequiredService<LinenDbContext>();
-                        
+
                         // Threshold: If silent for more than 2 minutes
                         var threshold = ThaiTime().AddMinutes(-2);
 
@@ -269,17 +296,25 @@ namespace Backend.Services
                             foreach (var reader in offlineReaders)
                             {
                                 reader.IsActive = false; // Mark as Offline
-                                
-                                var noti = new Notification 
+
+                                var noti = new Notification
                                 {
-                                    UserId = null, RoleId = 1, Title = "อุปกรณ์ขาดการเชื่อมต่อ",
-                                    Message = $"⚠️ {reader.ReaderName} ขาดการติดต่อไป (Offline Detected)", 
-                                    Type = "DANGER", IsRead = false, CreatedAt = ThaiTime(), LinkUrl = "/rfid-connect"
+                                    UserId = null,
+                                    RoleId = 1,
+                                    Title = "อุปกรณ์ขาดการเชื่อมต่อ",
+                                    Message = $"⚠️ {reader.ReaderName} ขาดการติดต่อไป (Offline Detected)",
+                                    Type = "DANGER",
+                                    IsRead = false,
+                                    CreatedAt = ThaiTime(),
+                                    LinkUrl = "/rfid-connect"
                                 };
                                 context.Notifications.Add(noti);
                                 Console.WriteLine($"❌ [Monitor] {reader.ReaderName} marked as OFFLINE (Timeout)");
                             }
                             await context.SaveChangesAsync(stoppingToken);
+                            
+                            // Optional: Send SignalR update about device status
+                            await _hubContext.Clients.All.SendAsync("OnDeviceOffline", offlineReaders.Select(r => r.ReaderName));
                         }
                     }
                 }
@@ -311,6 +346,16 @@ namespace Backend.Services
         }
     }
 
-    public class ScanPayload { public string? rfid { get; set; } public string? reader_id { get; set; } }
-    public class ReaderStatusDto { public string? ip { get; set; } public string? version { get; set; } public string? status { get; set; } }
+    public class ScanPayload
+    {
+        public string? rfid { get; set; }
+        public string? reader_id { get; set; }
+    }
+
+    public class ReaderStatusDto
+    {
+        public string? ip { get; set; }
+        public string? version { get; set; }
+        public string? status { get; set; }
+    }
 }

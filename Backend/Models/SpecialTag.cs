@@ -8,17 +8,19 @@ namespace Backend.Models
     {
         [Key]
         [Column("tag_id")]
-        public string TagId { get; set; } // รหัส RFID (เช่น "CMD001")
+        // ✅ เติม = string.Empty; เพื่อบอกว่าค่าเริ่มต้นคือ "ว่าง" (ห้ามเป็น Null)
+        public string TagId { get; set; } = string.Empty; 
         
         [Required]
         [Column("command_type")]
-        public string CommandType { get; set; } // คำสั่ง เช่น "SET_MODE_WASH"
+        // ✅ เติม = string.Empty;
+        public string CommandType { get; set; } = string.Empty; 
         
         [Column("target_status")]
-        public string? TargetStatus { get; set; } // สถานะที่จะเปลี่ยนให้ผ้า
+        public string? TargetStatus { get; set; } // เป็น Nullable (?) อยู่แล้ว ไม่ต้องแก้
         
         [Column("description")]
-        public string? Description { get; set; }
+        public string? Description { get; set; } // เป็น Nullable (?) อยู่แล้ว ไม่ต้องแก้
         
         [Column("is_active")]
         public bool IsActive { get; set; } = true;

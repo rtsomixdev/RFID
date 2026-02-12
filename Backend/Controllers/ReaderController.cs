@@ -49,6 +49,7 @@ namespace Backend.Controllers
             reader.IsActive = true;
             if (string.IsNullOrEmpty(reader.CurrentMode)) reader.CurrentMode = "Normal";
             if (string.IsNullOrEmpty(reader.ReaderFunction)) reader.ReaderFunction = "CHECK";
+            reader.UpdatedAt = ThaiTime(); // บันทึกเวลาล่าสุด
 
             _context.Readers.Add(reader);
             
@@ -76,6 +77,7 @@ namespace Backend.Controllers
         {
             if (id != reader.ReaderId) return BadRequest(new { message = "ID ไม่ตรงกัน" });
 
+            reader.UpdatedAt = ThaiTime(); // อัปเดตเวลาล่าสุด
             _context.Entry(reader).State = EntityState.Modified;
 
             try
@@ -124,38 +126,52 @@ namespace Backend.Controllers
             var reader = await _context.Readers.FirstOrDefaultAsync(r => r.ReaderName == request.ReaderId);
             if (reader == null) return NotFound(new { message = "Reader not found" });
 
-            await _mqttPublisher.PublishCommandAsync(request.ReaderId, request.Command, request.Value);
-
-            string title = "สั่งงานอุปกรณ์";
-            string msg = $"ส่งคำสั่ง {request.Command} ไปที่ {request.ReaderId}";
-            string type = "INFO";
-
-            if (request.Command == "SHUTDOWN")
+            try
             {
-                reader.IsActive = false;
-                // reader.IpAddress = "-"; // อาจจะไม่ต้องลบ IP ก็ได้ เผื่อไว้ดูประวัติ
-                
-                title = "อุปกรณ์ออฟไลน์ (Shutdown)";
-                msg = $"⛔ สั่งปิดเครื่อง: {request.ReaderId}";
-                type = "DANGER"; 
+                // ส่งคำสั่งผ่าน MQTT (เช่น topic: cmd/Reader1, payload: SHUTDOWN)
+                await _mqttPublisher.PublishAsync($"cmd/{request.ReaderId}", request.Command.ToUpper());
+
+                string title = "สั่งงานอุปกรณ์";
+                string msg = $"ส่งคำสั่ง {request.Command} ไปที่ {request.ReaderId}";
+                string type = "INFO";
+
+                if (request.Command == "SHUTDOWN")
+                {
+                    reader.IsActive = false; // ปรับสถานะใน DB เป็น Offline
+                    reader.UpdatedAt = ThaiTime();
+                    
+                    title = "อุปกรณ์ออฟไลน์ (Shutdown)";
+                    msg = $"⛔ สั่งปิดเครื่อง: {request.ReaderId}";
+                    type = "DANGER"; 
+                }
+
+                // 🔔 แจ้งเตือนสั่งงาน
+                _context.Notifications.Add(new Notification 
+                {
+                    UserId = null, RoleId = 1,
+                    Title = title,
+                    Message = msg,
+                    Type = type,
+                    IsRead = false,
+                    CreatedAt = ThaiTime(),
+                    LinkUrl = "/readers"
+                });
+
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Success" });
             }
-
-            // 🔔 แจ้งเตือนสั่งงาน
-            _context.Notifications.Add(new Notification 
+            catch (Exception ex)
             {
-                UserId = null, RoleId = 1,
-                Title = title,
-                Message = msg,
-                Type = type,
-                IsRead = false,
-                CreatedAt = ThaiTime(),
-                LinkUrl = "/readers"
-            });
-
-            await _context.SaveChangesAsync();
-            return Ok(new { message = "Success" });
+                return StatusCode(500, new { message = "MQTT Error: " + ex.Message });
+            }
         }
     }
 
-    public class ReaderConfigDto { public string ReaderId { get; set; } public string Command { get; set; } public string Value { get; set; } }
+    // ✅ Class DTO ฝากไว้ในไฟล์นี้เลย ง่ายต่อการเรียกใช้
+    public class ReaderConfigDto 
+    { 
+        public string ReaderId { get; set; } = string.Empty;
+        public string Command { get; set; } = string.Empty;
+        public string? Value { get; set; } 
+    }
 }

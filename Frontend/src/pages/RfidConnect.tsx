@@ -10,18 +10,14 @@ import {
     Router, Place, AutoFixHigh, Update, SettingsInputComponent
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
-import axios from 'axios';
-
-// ⚠️ URL Backend (ถ้าใช้ axiosClient ให้เปลี่ยนตรงนี้เป็น axiosClient แทน)
-const BASE_URL = 'http://localhost:5134/api';
+import axiosClient from '../api/axiosClient'; // ✅ 1. เรียกใช้ตัวนี้แทน axios ปกติ
 
 // --- Types ---
 interface Reader {
     readerId: number;
     readerName: string;
     ipAddress: string;
-    locationId?: number; // Optional เพราะบางทีอาจส่งมาเป็น location string
-    location?: string | { wardId: number; wardName: string };
+    location: string; // ✅ 2. แก้เป็น string ให้ตรงกับ Database ที่เราเพิ่งแก้ไป
     readerFunction?: string;
     isActive?: boolean;
     currentMode?: string;
@@ -38,26 +34,24 @@ interface SpecialTag {
 const RfidConnect: React.FC = () => {
     const [tabValue, setTabValue] = useState(0);
 
-    // --- States for Readers ---
+    // --- States ---
     const [readers, setReaders] = useState<Reader[]>([]);
-    const [wards, setWards] = useState<any[]>([]); // สมมติว่ามี API ดึง Ward (ถ้าไม่มีให้ Mock หรือลบส่วน locationId ออก)
+    const [specialTags, setSpecialTags] = useState<SpecialTag[]>([]);
 
-    // State สำหรับ Form Reader
+    // Form States
     const [readerForm, setReaderForm] = useState({ 
         name: '', 
         ip: '', 
-        location: '', // เปลี่ยนจาก locationId เป็น location text ธรรมดาเพื่อความง่าย (หรือจะใช้ dropdown เหมือนเดิมก็ได้)
+        location: '', 
         func: 'CHECK' 
     });
     const [isEditingReader, setIsEditingReader] = useState(false);
     const [editingReaderId, setEditingReaderId] = useState<number | null>(null);
 
-    // --- States for Special Tags ---
-    const [specialTags, setSpecialTags] = useState<SpecialTag[]>([]);
     const [tagForm, setTagForm] = useState({ rfid: '', action: '', desc: '' });
     const rfidInputRef = useRef<HTMLInputElement>(null);
 
-    // --- Action Options ---
+    // Action Options
     const actionOptions = [
         { value: 'SET_STATUS_INFECTED', label: 'ผ้าติดเชื้อ (Infected)', color: '#dc2626' },
         { value: 'SET_STATUS_REWASH', label: 'ส่งซักซ้ำ (Re-wash)', color: '#2563eb' },
@@ -67,47 +61,42 @@ const RfidConnect: React.FC = () => {
         { value: 'SET_MODE_CHECK', label: 'เปลี่ยนโหมด: ตรวจเช็ค (Check)', color: '#4b5563' },
     ];
 
-    // ✅ โหลดข้อมูลทุกๆ 5 วินาที (Auto Refresh Status)
+    // ✅ Initial Load & Polling
     useEffect(() => {
-        fetchInitialData();
-        const interval = setInterval(fetchReaders, 5000); // Poll status every 5s
+        fetchData();
+        const interval = setInterval(fetchReaders, 5000); // Auto Refresh สถานะทุก 5 วิ
         return () => clearInterval(interval);
     }, []);
 
-    const fetchInitialData = async () => {
-        try {
-            // ถ้ามี API Ward ก็ดึงตรงนี้
-            // const wardRes = await axios.get(`${BASE_URL}/Ward`);
-            // setWards(wardRes.data);
-            
-            fetchReaders();
-            fetchSpecialTags();
-        } catch (err) { console.error("Error fetching initial data", err); }
+    const fetchData = () => {
+        fetchReaders();
+        fetchSpecialTags();
     };
 
     const fetchReaders = async () => {
         try {
-            const res = await axios.get(`${BASE_URL}/Reader`);
-            setReaders(res.data);
+            // ✅ ใช้ axiosClient ไม่ต้องใส่ http://localhost...
+            const res = await axiosClient.get('/Reader'); 
+            setReaders(res.data || []);
         } catch (err) { console.error("Load Readers Failed", err); }
     };
 
     const fetchSpecialTags = async () => {
         try {
-            const res = await axios.get(`${BASE_URL}/SpecialTag`);
-            setSpecialTags(res.data);
+            const res = await axiosClient.get('/SpecialTag');
+            setSpecialTags(res.data || []);
         } catch (err) { console.error("Load SpecialTags Failed", err); }
     };
 
-    // --- Handlers: Reader (Add & Edit) ---
+    // --- Handlers: Reader ---
     const handleSaveReader = async () => {
         if (!readerForm.name || !readerForm.location) {
-            return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อ (Reader1, 2...) และสถานที่ติดตั้ง', 'warning');
+            return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อและสถานที่ติดตั้ง', 'warning');
         }
 
         const payload = {
             readerName: readerForm.name,
-            ipAddress: readerForm.ip || 'รอการเชื่อมต่อ...',
+            ipAddress: readerForm.ip || '-',
             location: readerForm.location,
             readerFunction: readerForm.func,
             isActive: true,
@@ -116,47 +105,29 @@ const RfidConnect: React.FC = () => {
 
         try {
             if (isEditingReader && editingReaderId) {
-                // ถ้า API รองรับ PUT /Reader/{id}
-                await axios.put(`${BASE_URL}/Reader/${editingReaderId}`, { ...payload, readerId: editingReaderId });
-                Swal.fire('แก้ไขสำเร็จ', 'อัปเดตข้อมูลอุปกรณ์แล้ว', 'success');
+                await axiosClient.put(`/Reader/${editingReaderId}`, { ...payload, readerId: editingReaderId });
+                Swal.fire('สำเร็จ', 'อัปเดตข้อมูลแล้ว', 'success');
             } else {
-                await axios.post(`${BASE_URL}/Reader`, payload);
-                Swal.fire('บันทึกสำเร็จ', 'เพิ่มอุปกรณ์เรียบร้อย', 'success');
+                await axiosClient.post('/Reader', payload);
+                Swal.fire('สำเร็จ', 'เพิ่มอุปกรณ์เรียบร้อย', 'success');
             }
 
+            // Reset Form
             setReaderForm({ name: '', ip: '', location: '', func: 'CHECK' });
             setIsEditingReader(false);
             setEditingReaderId(null);
             fetchReaders();
 
         } catch (err: any) {
-            Swal.fire('Error', err.response?.data?.message || 'ทำรายการไม่สำเร็จ', 'error');
+            console.error(err);
+            Swal.fire('Error', err.response?.data?.message || 'บันทึกไม่สำเร็จ', 'error');
         }
-    };
-
-    const handleEditClick = (r: Reader) => {
-        setReaderForm({
-            name: r.readerName,
-            ip: r.ipAddress === '-' ? '' : r.ipAddress,
-            location: typeof r.location === 'string' ? r.location : (r.location?.wardName || ''),
-            func: r.readerFunction || 'CHECK'
-        });
-        setIsEditingReader(true);
-        setEditingReaderId(r.readerId);
-        // เลื่อนหน้าจอขึ้นไปที่ฟอร์ม
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
-    const handleCancelEdit = () => {
-        setReaderForm({ name: '', ip: '', location: '', func: 'CHECK' });
-        setIsEditingReader(false);
-        setEditingReaderId(null);
     };
 
     const handleDeleteReader = (id: number) => {
         Swal.fire({
             title: 'ยืนยันการลบ?',
-            text: "ต้องการลบอุปกรณ์นี้ออกจากระบบใช่หรือไม่?",
+            text: "ต้องการลบอุปกรณ์นี้หรือไม่?",
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
@@ -164,14 +135,32 @@ const RfidConnect: React.FC = () => {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    await axios.delete(`${BASE_URL}/Reader/${id}`);
+                    await axiosClient.delete(`/Reader/${id}`);
                     Swal.fire('ลบแล้ว', 'ข้อมูลถูกลบเรียบร้อย', 'success');
                     fetchReaders();
                 } catch (err: any) {
-                    Swal.fire('ลบไม่สำเร็จ', err.response?.data?.message || 'Error', 'error');
+                    Swal.fire('Error', 'ลบไม่สำเร็จ', 'error');
                 }
             }
         });
+    };
+
+    const handleEditClick = (r: Reader) => {
+        setReaderForm({
+            name: r.readerName,
+            ip: r.ipAddress === '-' ? '' : r.ipAddress,
+            location: r.location || '',
+            func: r.readerFunction || 'CHECK'
+        });
+        setIsEditingReader(true);
+        setEditingReaderId(r.readerId);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleCancelEdit = () => {
+        setReaderForm({ name: '', ip: '', location: '', func: 'CHECK' });
+        setIsEditingReader(false);
+        setEditingReaderId(null);
     };
 
     // --- Remote Config Handler ---
@@ -187,42 +176,23 @@ const RfidConnect: React.FC = () => {
                         <option value="SHUTDOWN" style="color:red; font-weight:bold;">⛔ สั่งปิดเครื่อง (Shutdown)</option>
                     </select>
                 </div>
-                <div style="text-align:left;">
-                    <label>ค่าเพิ่มเติม (Optional):</label>
-                    <input id="swal-val" class="swal2-input" placeholder="-" style="margin-top:5px;">
-                </div>
             `,
-            focusConfirm: false,
             showCancelButton: true,
-            confirmButtonText: 'ส่งคำสั่ง (Send)',
-            confirmButtonColor: '#7c3aed',
+            confirmButtonText: 'ส่งคำสั่ง',
             preConfirm: () => {
                 const cmd = (document.getElementById('swal-cmd') as HTMLSelectElement).value;
-                const val = (document.getElementById('swal-val') as HTMLInputElement).value;
-                return { cmd, val };
+                return { cmd };
             }
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    await axios.post(`${BASE_URL}/Reader/Config`, {
+                    await axiosClient.post('/Reader/Config', {
                         readerId: r.readerName,
-                        command: result.value?.cmd,
-                        value: result.value?.val
+                        command: result.value?.cmd
                     });
-                    
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'ส่งคำสั่งเรียบร้อย',
-                        text: `ส่ง ${result.value?.cmd} ไปยัง ${r.readerName} แล้ว`,
-                        timer: 2000
-                    });
-                    
-                    if (result.value?.cmd === 'SHUTDOWN') {
-                        setTimeout(fetchReaders, 1000); 
-                    }
-
+                    Swal.fire('ส่งคำสั่งเรียบร้อย', '', 'success');
                 } catch (err) {
-                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อกับ Server ได้', 'error');
+                    Swal.fire('Error', 'เชื่อมต่ออุปกรณ์ไม่ได้', 'error');
                 }
             }
         });
@@ -234,17 +204,17 @@ const RfidConnect: React.FC = () => {
             return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาสแกน RFID และเลือกคำสั่ง', 'warning');
         }
         try {
-            await axios.post(`${BASE_URL}/SpecialTag`, {
+            await axiosClient.post('/SpecialTag', {
                 rfidCode: tagForm.rfid,
                 actionType: tagForm.action,
                 description: tagForm.desc
             });
-            Swal.fire({ icon: 'success', title: 'บันทึก Special Tag แล้ว', timer: 1500, showConfirmButton: false });
+            Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
             setTagForm({ rfid: '', action: '', desc: '' });
             setTimeout(() => rfidInputRef.current?.focus(), 100);
             fetchSpecialTags();
         } catch (err: any) {
-            Swal.fire('Error', err.response?.data?.message || 'บันทึกไม่สำเร็จ', 'error');
+            Swal.fire('Error', 'บันทึกไม่สำเร็จ', 'error');
         }
     };
 
@@ -258,21 +228,12 @@ const RfidConnect: React.FC = () => {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    await axios.delete(`${BASE_URL}/SpecialTag/${id}`);
+                    await axiosClient.delete(`/SpecialTag/${id}`);
                     fetchSpecialTags();
                     Swal.fire('ลบแล้ว', '', 'success');
                 } catch (err) { Swal.fire('Error', 'ลบไม่สำเร็จ', 'error'); }
             }
         });
-    };
-
-    const getLocationName = (r: Reader) => {
-        if (typeof r.location === 'string') return r.location; 
-        if (r.location?.wardName) return r.location.wardName;
-        // หากมี wards state
-        // const ward = wards.find(w => w.wardId === r.locationId);
-        // return ward ? ward.wardName : '-';
-        return '-';
     };
 
     return (
@@ -292,7 +253,6 @@ const RfidConnect: React.FC = () => {
                 </Box>
             </Box>
 
-            {/* Tabs */}
             <Card sx={{ mb: 4 }}>
                 <Tabs
                     value={tabValue}
@@ -307,26 +267,26 @@ const RfidConnect: React.FC = () => {
                 <Box role="tabpanel" hidden={tabValue !== 0}>
                     {tabValue === 0 && (
                         <CardContent sx={{ p: 3 }}>
-                            {/* Form เพิ่ม/แก้ไข Reader */}
+                            {/* Form */}
                             <Grid container spacing={3} alignItems="center" sx={{ mb: 4, p: 3, bgcolor: isEditingReader ? '#fff7ed' : '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
-                                <Grid size={{ xs: 12 }} display="flex" alignItems="center" gap={1}>
+                                <Grid item xs={12} display="flex" alignItems="center" gap={1}>
                                     {isEditingReader ? <Edit color="warning" /> : <AddCircle color="primary" />}
                                     <Typography variant="subtitle2" fontWeight="bold" color={isEditingReader ? 'warning.main' : 'primary.main'}>
-                                        {isEditingReader ? 'แก้ไขข้อมูลอุปกรณ์ (Edit Reader)' : 'เพิ่มเครื่องอ่านใหม่ (Add Reader)'}
+                                        {isEditingReader ? 'แก้ไขข้อมูลอุปกรณ์' : 'เพิ่มเครื่องอ่านใหม่'}
                                     </Typography>
                                 </Grid>
                                 
                                 <Grid item xs={12} md={4}>
                                     <TextField
-                                        fullWidth label="ชื่อจุดติดตั้ง (Reader Name)" placeholder="ex: Reader1 (ต้องตรงกับ Code ESP32)"
+                                        fullWidth label="ชื่อจุดติดตั้ง (Reader Name)" placeholder="ex: Reader1"
                                         value={readerForm.name} onChange={e => setReaderForm({ ...readerForm, name: e.target.value })}
                                         InputProps={{ startAdornment: <InputAdornment position="start"><Place fontSize="small" /></InputAdornment> }}
-                                        disabled={isEditingReader} // ห้ามแก้ชื่อตอน Edit เดี๋ยว Server งง
+                                        disabled={isEditingReader} 
                                     />
                                 </Grid>
                                 <Grid item xs={12} md={4}>
                                     <TextField
-                                        fullWidth label="จุดติดตั้ง (Location)" placeholder="เช่น หน้าห้องซัก, คลังผ้า"
+                                        fullWidth label="จุดติดตั้ง (Location)" placeholder="เช่น หน้าห้องซัก"
                                         value={readerForm.location} onChange={e => setReaderForm({ ...readerForm, location: e.target.value })}
                                         InputProps={{ startAdornment: <InputAdornment position="start"><Router fontSize="small" /></InputAdornment> }}
                                     />
@@ -362,7 +322,7 @@ const RfidConnect: React.FC = () => {
                                 </Grid>
                             </Grid>
 
-                            {/* ตาราง Readers */}
+                            {/* Table */}
                             <TableContainer component={Paper} sx={{ border: '1px solid #e2e8f0', boxShadow: 'none', borderRadius: 2 }}>
                                 <Table>
                                     <TableHead sx={{ bgcolor: '#f8fafc' }}>
@@ -382,24 +342,22 @@ const RfidConnect: React.FC = () => {
                                             <TableRow key={r.readerId} hover selected={editingReaderId === r.readerId}>
                                                 <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>{r.readerName}</TableCell>
                                                 <TableCell sx={{ fontFamily: 'monospace' }}>
-                                                    {r.ipAddress && r.ipAddress !== '-' ? (
-                                                        <Chip label={r.ipAddress} size="small" variant="outlined" />
-                                                    ) : '-'}
+                                                    {r.ipAddress && r.ipAddress !== '-' ? <Chip label={r.ipAddress} size="small" variant="outlined" /> : '-'}
                                                 </TableCell>
-                                                <TableCell>{getLocationName(r)}</TableCell>
+                                                <TableCell>{r.location || '-'}</TableCell>
                                                 <TableCell><Chip label={r.readerFunction || 'CHECK'} size="small" color="info" /></TableCell>
                                                 <TableCell>
                                                     <Chip
-                                                        label={r.status || (r.isActive ? 'Online' : 'Offline')}
+                                                        label={r.isActive ? 'Online' : 'Offline'}
                                                         size="small"
-                                                        color={r.status === 'Online' || r.isActive ? 'success' : 'default'}
+                                                        color={r.isActive ? 'success' : 'default'}
                                                         variant="filled"
                                                         sx={{ fontWeight: 'bold', minWidth: 80 }}
                                                     />
                                                 </TableCell>
                                                 <TableCell align="center">
                                                     <Stack direction="row" spacing={1} justifyContent="center">
-                                                        <Tooltip title="ตั้งค่า (Config)">
+                                                        <Tooltip title="ตั้งค่า">
                                                             <IconButton size="small" onClick={() => handleConfigReader(r)} sx={{ color: '#7c3aed', bgcolor: '#f3e8ff' }}>
                                                                 <SettingsInputComponent fontSize="small" />
                                                             </IconButton>
@@ -430,16 +388,15 @@ const RfidConnect: React.FC = () => {
                     {tabValue === 1 && (
                         <CardContent sx={{ p: 3 }}>
                             <Alert severity="info" sx={{ mb: 3 }}>
-                                <strong>Special Tags คืออะไร?</strong> คือป้าย RFID พิเศษที่ใช้เป็น "คำสั่ง" เมื่อสแกนร่วมกับผ้าปกติ <br />
-                                เช่น: สแกนป้าย <em>"เปลี่ยนโหมด: ส่งซัก"</em> &rarr; เครื่องอ่านจะเปลี่ยนโหมดเป็น Washing ทันที
+                                <strong>Special Tags คืออะไร?</strong> คือป้าย RFID พิเศษที่ใช้เป็น "คำสั่ง" สำหรับเปลี่ยนโหมดหรือสถานะผ้า
                             </Alert>
 
                             <Grid container spacing={3} alignItems="center" sx={{ mb: 4, p: 3, bgcolor: '#fff7ed', borderRadius: 2, border: '1px solid #ffedd5' }}>
-                                <Grid size={{ xs: 12 }}><Typography variant="subtitle2" fontWeight="bold" color="#c2410c">ลงทะเบียนป้ายคำสั่ง (Register Command Tag)</Typography></Grid>
+                                <Grid item xs={12}><Typography variant="subtitle2" fontWeight="bold" color="#c2410c">ลงทะเบียนป้ายคำสั่ง</Typography></Grid>
                                 <Grid item xs={12} md={4}>
                                     <TextField
                                         inputRef={rfidInputRef}
-                                        fullWidth label="สแกน RFID Tag ที่นี่..." placeholder="Focus here & Scan"
+                                        fullWidth label="สแกน RFID Tag ที่นี่..."
                                         value={tagForm.rfid} onChange={e => setTagForm({ ...tagForm, rfid: e.target.value })}
                                         autoFocus
                                         InputProps={{ startAdornment: <InputAdornment position="start"><Tag fontSize="small" /></InputAdornment> }}
@@ -464,7 +421,7 @@ const RfidConnect: React.FC = () => {
                                 </Grid>
                                 <Grid item xs={12} md={4}>
                                     <TextField
-                                        fullWidth label="รายละเอียด (เช่น ป้ายติดรถเข็น 1)"
+                                        fullWidth label="รายละเอียดเพิ่มเติม"
                                         value={tagForm.desc} onChange={e => setTagForm({ ...tagForm, desc: e.target.value })}
                                     />
                                 </Grid>
