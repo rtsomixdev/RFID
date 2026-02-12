@@ -801,3 +801,4 @@
 1770924131: New connection from 172.18.0.1:33750 on port 1883.
 1770924131: New client connected from 172.18.0.1:33750 as ESP32-f3cd (p4, c1, k15).
 1770924500: Client ESP32-f3cd [172.18.0.1:33750] disconnected: exceeded timeout.
+1770924555: Client Backend_Service_535ffce5-b40d-4f88-a545-6e985ee91bd3 [172.18.0.1:51158] disconnected.
