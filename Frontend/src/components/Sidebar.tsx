@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
-  Toolbar, Box, Collapse, Typography, Avatar, IconButton, Divider
+  Toolbar, Box, Collapse, Typography, Avatar, IconButton
 } from '@mui/material';
 import {
   Home, ShowChart, EditNote, ExpandLess, ExpandMore,
@@ -24,10 +24,23 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
   const location = useLocation();
   const [openDataEntry, setOpenDataEntry] = useState(true);
 
-  // User Data
+  // --- 1. ดึงข้อมูล User และ Permissions ---
   const userStr = localStorage.getItem('currentUser');
-  const user = userStr ? JSON.parse(userStr) : { firstName: 'Guest', lastName: '', roleId: 0 };
-  const roleId = user.roleId || 0;
+  const user = userStr ? JSON.parse(userStr) : { firstName: 'Guest', lastName: '', roleId: 0, permissions: [] };
+  
+  // แปลง Permissions เป็น Set เพื่อให้เช็คได้เร็วๆ (O(1))
+  // หมายเหตุ: user.permissions ควรเป็น Array ของ String (เช่น ["VIEW_DASHBOARD", "MANAGE_USER"])
+  const userPermissions = new Set(user.permissions || []);
+  const roleId = user.roleId || 0; // เก็บ roleId ไว้เผื่อใช้ (เช่น Administrator เห็นทุกอย่าง)
+
+  // --- 2. Helper Function เช็คสิทธิ์ ---
+  const hasPermission = (requiredPerm: string) => {
+    // ถ้าเป็น Admin (RoleId 1) ให้ผ่านตลอด (God Mode)
+    if (roleId === 1) return true;
+    
+    // ถ้าไม่ใช่ Admin ให้เช็คว่ามีสิทธิ์นั้นไหม
+    return userPermissions.has(requiredPerm);
+  };
 
   const handleNavigate = (path: string) => {
     navigate(path);
@@ -53,12 +66,12 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
 
   const isSelected = (path: string) => location.pathname === path;
 
-  // --- New Theme Styles ---
-  const sidebarBg = '#ffffff'; // Clean White
-  const textPrimary = '#1e293b'; // Slate-800
-  const textSecondary = '#64748b'; // Slate-500
-  const activeColor = '#4f46e5'; // Indigo-600
-  const activeBg = '#eef2ff'; // Indigo-50
+  // --- Theme Styles (เหมือนเดิม) ---
+  const sidebarBg = '#ffffff'; 
+  const textPrimary = '#1e293b'; 
+  const textSecondary = '#64748b'; 
+  const activeColor = '#4f46e5'; 
+  const activeBg = '#eef2ff'; 
 
   const menuButtonStyle = (path: string) => ({
     mb: 0.5,
@@ -69,11 +82,11 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
     backgroundColor: isSelected(path) ? activeBg : 'transparent',
     fontWeight: isSelected(path) ? 600 : 500,
     '&:hover': {
-      backgroundColor: isSelected(path) ? activeBg : '#f1f5f9', // Slate-100 on hover
+      backgroundColor: isSelected(path) ? activeBg : '#f1f5f9', 
       color: activeColor,
     },
     '& .MuiListItemIcon-root': {
-      color: isSelected(path) ? activeColor : '#94a3b8', // Slate-400 inactive icon
+      color: isSelected(path) ? activeColor : '#94a3b8', 
       minWidth: 35,
       transition: 'color 0.2s'
     }
@@ -106,8 +119,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
           sx={{
             width: 40, height: 40, borderRadius: '10px',
             background: `linear-gradient(135deg, ${activeColor} 0%, #6366f1 100%)`,
-            display: 'flex',
-            alignItems: 'center', justifyContent: 'center', mr: 2,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', mr: 2,
             boxShadow: '0 4px 12px -2px rgba(79, 70, 229, 0.3)'
           }}
         >
@@ -131,57 +143,74 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
             MAIN MENU
           </Typography>
 
-          <ListItem disablePadding>
-            <ListItemButton sx={menuButtonStyle('/')} onClick={() => handleNavigate('/')}>
-              <ListItemIcon><Home fontSize="small" /></ListItemIcon>
-              <ListItemText primary="หน้าหลัก (Monitor)" primaryTypographyProps={{ fontSize: '0.95rem' }} />
-            </ListItemButton>
-          </ListItem>
+          {/* 🔥 แต่ละเมนู เช็ค Permission ก่อนแสดงผล 🔥 */}
+          
+          {hasPermission('VIEW_DASHBOARD') && (
+            <ListItem disablePadding>
+              <ListItemButton sx={menuButtonStyle('/')} onClick={() => handleNavigate('/')}>
+                <ListItemIcon><Home fontSize="small" /></ListItemIcon>
+                <ListItemText primary="หน้าหลัก (Monitor)" primaryTypographyProps={{ fontSize: '0.95rem' }} />
+              </ListItemButton>
+            </ListItem>
+          )}
 
-          <ListItem disablePadding>
-            <ListItemButton sx={menuButtonStyle('/stats')} onClick={() => handleNavigate('/stats')}>
-              <ListItemIcon><ShowChart fontSize="small" /></ListItemIcon>
-              <ListItemText primary="สถิติ (Dashboard)" primaryTypographyProps={{ fontSize: '0.95rem' }} />
-            </ListItemButton>
-          </ListItem>
+          {hasPermission('VIEW_DASHBOARD') && (
+            <ListItem disablePadding>
+              <ListItemButton sx={menuButtonStyle('/stats')} onClick={() => handleNavigate('/stats')}>
+                <ListItemIcon><ShowChart fontSize="small" /></ListItemIcon>
+                <ListItemText primary="สถิติ (Dashboard)" primaryTypographyProps={{ fontSize: '0.95rem' }} />
+              </ListItemButton>
+            </ListItem>
+          )}
 
-          <ListItem disablePadding>
-            <ListItemButton sx={menuButtonStyle('/requests')} onClick={() => handleNavigate('/requests')}>
-              <ListItemIcon><Assignment fontSize="small" /></ListItemIcon>
-              <ListItemText primary="คำร้องเบิกผ้า" primaryTypographyProps={{ fontSize: '0.95rem' }} />
-            </ListItemButton>
-          </ListItem>
+          {/* ใช้ MANAGE_REQUEST สำหรับเมนูเบิกผ้า */}
+          {hasPermission('MANAGE_REQUEST') && (
+            <ListItem disablePadding>
+              <ListItemButton sx={menuButtonStyle('/requests')} onClick={() => handleNavigate('/requests')}>
+                <ListItemIcon><Assignment fontSize="small" /></ListItemIcon>
+                <ListItemText primary="คำร้องเบิกผ้า" primaryTypographyProps={{ fontSize: '0.95rem' }} />
+              </ListItemButton>
+            </ListItem>
+          )}
 
-          <ListItem disablePadding>
-            <ListItemButton sx={menuButtonStyle('/transport')} onClick={() => handleNavigate('/transport')}>
-              <ListItemIcon><LocalShipping fontSize="small" /></ListItemIcon>
-              <ListItemText primary="ระบบขนส่ง" primaryTypographyProps={{ fontSize: '0.95rem' }} />
-            </ListItemButton>
-          </ListItem>
+          {hasPermission('MANAGE_TRANSPORT') && (
+            <ListItem disablePadding>
+              <ListItemButton sx={menuButtonStyle('/transport')} onClick={() => handleNavigate('/transport')}>
+                <ListItemIcon><LocalShipping fontSize="small" /></ListItemIcon>
+                <ListItemText primary="ระบบขนส่ง" primaryTypographyProps={{ fontSize: '0.95rem' }} />
+              </ListItemButton>
+            </ListItem>
+          )}
 
-          <ListItem disablePadding>
-            <ListItemButton sx={menuButtonStyle('/laundry')} onClick={() => handleNavigate('/laundry')}>
-              <ListItemIcon><LocalLaundryService fontSize="small" /></ListItemIcon>
-              <ListItemText primary="ระบบซักรีด" primaryTypographyProps={{ fontSize: '0.95rem' }} />
-            </ListItemButton>
-          </ListItem>
+          {hasPermission('MANAGE_LAUNDRY') && (
+            <ListItem disablePadding>
+              <ListItemButton sx={menuButtonStyle('/laundry')} onClick={() => handleNavigate('/laundry')}>
+                <ListItemIcon><LocalLaundryService fontSize="small" /></ListItemIcon>
+                <ListItemText primary="ระบบซักรีด" primaryTypographyProps={{ fontSize: '0.95rem' }} />
+              </ListItemButton>
+            </ListItem>
+          )}
 
-          <ListItem disablePadding>
-            <ListItemButton sx={menuButtonStyle('/discard')} onClick={() => handleNavigate('/discard')}>
-              <ListItemIcon><DeleteForever fontSize="small" /></ListItemIcon>
-              <ListItemText primary="แจ้งชำรุด/หาย" primaryTypographyProps={{ fontSize: '0.95rem' }} />
-            </ListItemButton>
-          </ListItem>
+          {hasPermission('MANAGE_DISCARD') && (
+            <ListItem disablePadding>
+              <ListItemButton sx={menuButtonStyle('/discard')} onClick={() => handleNavigate('/discard')}>
+                <ListItemIcon><DeleteForever fontSize="small" /></ListItemIcon>
+                <ListItemText primary="แจ้งชำรุด/หาย" primaryTypographyProps={{ fontSize: '0.95rem' }} />
+              </ListItemButton>
+            </ListItem>
+          )}
 
-          <ListItem disablePadding>
-            <ListItemButton sx={menuButtonStyle('/reports')} onClick={() => handleNavigate('/reports')}>
-              <ListItemIcon><Summarize fontSize="small" /></ListItemIcon>
-              <ListItemText primary="รายงาน" primaryTypographyProps={{ fontSize: '0.95rem' }} />
-            </ListItemButton>
-          </ListItem>
+          {hasPermission('VIEW_REPORT') && (
+            <ListItem disablePadding>
+              <ListItemButton sx={menuButtonStyle('/reports')} onClick={() => handleNavigate('/reports')}>
+                <ListItemIcon><Summarize fontSize="small" /></ListItemIcon>
+                <ListItemText primary="รายงาน" primaryTypographyProps={{ fontSize: '0.95rem' }} />
+              </ListItemButton>
+            </ListItem>
+          )}
 
-          {/* Admin Section */}
-          {(roleId === 1 || roleId === 2) && (
+          {/* Admin Section: เช็คว่ามีสิทธิ์ Manage อะไรสักอย่างไหม ค่อยโชว์หัวข้อ */}
+          {(hasPermission('MANAGE_HOSPITAL') || hasPermission('MANAGE_LINEN') || hasPermission('MANAGE_USER') || hasPermission('CONNECT_RFID')) && (
             <>
               <Typography variant="caption" sx={{ px: 3, mt: 3, mb: 1, display: 'block', color: '#94a3b8', fontWeight: '700', fontSize: '0.75rem', letterSpacing: 0.5 }}>
                 MANAGEMENT
@@ -197,31 +226,36 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
 
               <Collapse in={openDataEntry} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
-                  {roleId === 1 && (
+                  
+                  {hasPermission('MANAGE_HOSPITAL') && (
                     <ListItemButton sx={subMenuButtonStyle('/hospital')} onClick={() => handleNavigate('/hospital')}>
                       <ListItemText primary="• โรงพยาบาล" />
                     </ListItemButton>
                   )}
 
-                  <ListItemButton sx={subMenuButtonStyle('/linens')} onClick={() => handleNavigate('/linens')}>
-                    <ListItemText primary="• สต็อกผ้า (Linen)" />
-                  </ListItemButton>
-
-                  {roleId === 1 && (
-                    <>
-                      <ListItemButton sx={subMenuButtonStyle('/vendors')} onClick={() => handleNavigate('/vendors')}>
-                        <ListItemText primary="• บริษัทคู่ค้า" />
-                      </ListItemButton>
-
-                      <ListItemButton sx={subMenuButtonStyle('/users')} onClick={() => handleNavigate('/users')}>
-                        <ListItemText primary="• บุคลากร (Users)" />
-                      </ListItemButton>
-                    </>
+                  {hasPermission('MANAGE_LINEN') && (
+                    <ListItemButton sx={subMenuButtonStyle('/linens')} onClick={() => handleNavigate('/linens')}>
+                      <ListItemText primary="• สต็อกผ้า (Linen)" />
+                    </ListItemButton>
                   )}
 
-                  <ListItemButton sx={subMenuButtonStyle('/rfid-connect')} onClick={() => handleNavigate('/rfid-connect')}>
-                    <ListItemText primary="• เชื่อมต่อ RFID" />
-                  </ListItemButton>
+                  {hasPermission('MANAGE_VENDOR') && (
+                    <ListItemButton sx={subMenuButtonStyle('/vendors')} onClick={() => handleNavigate('/vendors')}>
+                      <ListItemText primary="• บริษัทคู่ค้า" />
+                    </ListItemButton>
+                  )}
+
+                  {hasPermission('MANAGE_USER') && (
+                    <ListItemButton sx={subMenuButtonStyle('/users')} onClick={() => handleNavigate('/users')}>
+                      <ListItemText primary="• บุคลากร (Users)" />
+                    </ListItemButton>
+                  )}
+
+                  {hasPermission('CONNECT_RFID') && (
+                    <ListItemButton sx={subMenuButtonStyle('/rfid-connect')} onClick={() => handleNavigate('/rfid-connect')}>
+                      <ListItemText primary="• เชื่อมต่อ RFID" />
+                    </ListItemButton>
+                  )}
 
                 </List>
               </Collapse>
@@ -233,7 +267,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
 
       {/* 3. Footer / User Profile */}
       <Box sx={{ p: 2, borderTop: '1px solid #f1f5f9' }}>
-        {roleId === 1 && (
+        {hasPermission('MANAGE_SETTING') && (
           <ListItemButton sx={{ ...menuButtonStyle('/settings'), mb: 1 }} onClick={() => handleNavigate('/settings')}>
             <ListItemIcon><Settings fontSize="small" /></ListItemIcon>
             <ListItemText primary="ตั้งค่าระบบ" primaryTypographyProps={{ fontSize: '0.95rem' }} />
@@ -289,8 +323,8 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
           '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
             width: drawerWidth,
-            borderRight: 'none', // Remove default border
-            boxShadow: '4px 0 24px rgba(0,0,0,0.02)' // Very soft shadow
+            borderRight: 'none', 
+            boxShadow: '4px 0 24px rgba(0,0,0,0.02)' 
           }
         }}
         open

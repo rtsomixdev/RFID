@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
-    Grid as Grid, // ✅ ใช้ Grid2 (ตามหน้าอื่นๆ ที่ใช้ size={{...}})
-    Paper, Typography, Box, CircularProgress, Card, CardContent, Stack, Avatar, Container, useTheme, useMediaQuery, Tooltip as MuiTooltip
+    Grid, // ✅ ใช้ Grid มาตรฐาน (v1) เพื่อความชัวร์กับโปรเจกต์เดิม
+    Paper, Typography, Box, CircularProgress, Card, CardContent, Stack, Avatar, Container, useTheme, Tooltip as MuiTooltip
 } from '@mui/material';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -29,13 +29,27 @@ const COLORS = {
 
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#f43f5e'];
 
+// --- Interfaces ---
+interface DashboardStats {
+    totalLinen: number;
+    newLinenToday: number;
+    washing: number;
+    available: number;
+    pendingRequests: number;
+    damaged: number;
+    disposed: number;
+}
+
 const Dashboard: React.FC = () => {
     const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const [loading, setLoading] = useState(true);
 
     // --- STATE ---
-    const [stats, setStats] = useState<any>({});
+    const [stats, setStats] = useState<DashboardStats>({
+        totalLinen: 0, newLinenToday: 0, washing: 0, available: 0,
+        pendingRequests: 0, damaged: 0, disposed: 0
+    });
+    
     const [pieData, setPieData] = useState<any[]>([]);
     const [dailyData, setDailyData] = useState<any[]>([]);
     const [requestData, setRequestData] = useState<any[]>([]);
@@ -44,11 +58,14 @@ const Dashboard: React.FC = () => {
 
     useEffect(() => {
         fetchDashboardData();
+        // Auto Refresh Dashboard ทุก 30 วินาที
+        const interval = setInterval(fetchDashboardData, 30000);
+        return () => clearInterval(interval);
     }, []);
 
     const fetchDashboardData = async () => {
         try {
-            setLoading(true);
+            // setLoading(true); // ไม่ต้อง Loading ทุกครั้งที่ Refresh เดี๋ยวตาลาย
 
             // Parallel Requests
             const [statRes, chartRes] = await Promise.all([
@@ -56,7 +73,6 @@ const Dashboard: React.FC = () => {
                 axiosClient.get('/Dashboard/ChartData')
             ]);
 
-            console.log("Stats Data:", statRes.data); // ดู Log ว่าได้ค่าอะไรมาบ้าง
             setStats(statRes.data);
 
             // Chart Data
@@ -154,28 +170,25 @@ const Dashboard: React.FC = () => {
                 </Typography>
 
                 <Grid container spacing={3}>
-                    {/* ✅ แก้ไข Key ให้ตรงกับ Backend: stats.newLinenToday */}
-                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                        <StatCard title="ผ้าใหม่วันนี้" value={stats.newLinenToday || 0} icon={<NewReleases />} color={COLORS.new} />
+                    {/* เปลี่ยน size={{...}} เป็น item xs={...} เพื่อรองรับ Grid v1 */}
+                    <Grid item xs={12} sm={6} md={3}>
+                        <StatCard title="ผ้าใหม่วันนี้" value={stats.newLinenToday} icon={<NewReleases />} color={COLORS.new} />
                     </Grid>
-                    {/* ✅ แก้ไข Key: stats.totalLinen (ตัด s ออก) */}
-                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                        <StatCard title="ผ้าทั้งหมดในระบบ" value={stats.totalLinen || 0} icon={<Inventory />} color={COLORS.primary} />
+                    <Grid item xs={12} sm={6} md={3}>
+                        <StatCard title="ผ้าทั้งหมดในระบบ" value={stats.totalLinen} icon={<Inventory />} color={COLORS.primary} />
                     </Grid>
-                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                        <StatCard title="กำลังส่งซัก" value={stats.washing || 0} icon={<LocalLaundryService />} color={COLORS.warning} />
+                    <Grid item xs={12} sm={6} md={3}>
+                        <StatCard title="กำลังส่งซัก" value={stats.washing} icon={<LocalLaundryService />} color={COLORS.warning} />
                     </Grid>
-                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                        <StatCard title="พร้อมใช้งาน" value={stats.available || 0} icon={<CheckCircle />} color={COLORS.success} />
+                    <Grid item xs={12} sm={6} md={3}>
+                        <StatCard title="พร้อมใช้งาน" value={stats.available} icon={<CheckCircle />} color={COLORS.success} />
                     </Grid>
                     
                     {/* แถว 2 */}
-                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                        {/* ถ้า Backend ไม่ส่ง pendingRequests มา ให้ใส่ 0 ไว้ก่อน */}
-                        <StatCard title="คำร้องรออนุมัติ" value={stats.pendingRequests || 0} icon={<ShoppingCart />} color={COLORS.purple} />
+                    <Grid item xs={12} sm={6} md={3}>
+                        <StatCard title="คำร้องรออนุมัติ" value={stats.pendingRequests} icon={<ShoppingCart />} color={COLORS.purple} />
                     </Grid>
-                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                        {/* ✅ รวมยอด Damaged + Disposed */}
+                    <Grid item xs={12} sm={6} md={3}>
                         <StatCard title="แจ้งชำรุด/ตัดจำหน่าย" value={(stats.damaged || 0) + (stats.disposed || 0)} icon={<Warning />} color={COLORS.danger} />
                     </Grid>
                 </Grid>
@@ -192,7 +205,7 @@ const Dashboard: React.FC = () => {
 
                 <Grid container spacing={3}>
                     {/* ROW 1: Bar Chart & Pie Chart */}
-                    <Grid size={{ xs: 12, lg: 8 }}>
+                    <Grid item xs={12} lg={8}>
                         <ChartContainer title="การเคลื่อนไหวของผ้า (7 วันล่าสุด)" subtitle="เปรียบเทียบยอดเบิกใช้ vs ส่งซัก" icon={<Assessment fontSize="small" />}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={dailyData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }} barGap={8}>
@@ -207,7 +220,7 @@ const Dashboard: React.FC = () => {
                         </ChartContainer>
                     </Grid>
 
-                    <Grid size={{ xs: 12, lg: 4 }}>
+                    <Grid item xs={12} lg={4}>
                         <ChartContainer title="สัดส่วนประเภทผ้า" subtitle="จำแนกตามชนิดสินค้า Top 5" icon={<DonutLarge fontSize="small" />}>
                             <Box sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
                                 <Box sx={{ flex: 1, minHeight: 200, position: 'relative' }}>
@@ -258,7 +271,7 @@ const Dashboard: React.FC = () => {
                     </Grid>
 
                     {/* ROW 2: Additional Charts */}
-                    <Grid size={{ xs: 12, md: 6 }}>
+                    <Grid item xs={12} md={6}>
                         <ChartContainer title="สถิติคำร้องรายเดือน" subtitle="ปริมาณคำร้องเบิกผ้าตลอดปี" icon={<InsertChartOutlined fontSize="small" />}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={requestData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
@@ -272,7 +285,7 @@ const Dashboard: React.FC = () => {
                         </ChartContainer>
                     </Grid>
 
-                    <Grid size={{ xs: 12, md: 6 }}>
+                    <Grid item xs={12} md={6}>
                         <ChartContainer title="แนวโน้มผ้าชำรุด" subtitle="สถิติการแจ้งชำรุดรายเดือน" icon={<Warning sx={{ color: COLORS.danger }} fontSize="small" />}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={damagedData} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
@@ -293,7 +306,7 @@ const Dashboard: React.FC = () => {
                     </Grid>
 
                     {/* ROW 3: Yearly Overview */}
-                    <Grid size={{ xs: 12 }}>
+                    <Grid item xs={12}>
                         <ChartContainer title="ภาพรวมการหมุนเวียนตลอดปี" subtitle="ปริมาณธุรกรรมทั้งหมด (Transaction Volume)" icon={<TrendingUp fontSize="small" />}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={yearlyData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>

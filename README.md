@@ -144,6 +144,7 @@ RFID
 │  │  ├─ RoleController.cs
 │  │  ├─ RoomController.cs
 │  │  ├─ SettingController.cs
+│  │  ├─ SpecialTagController.cs
 │  │  ├─ TitleController.cs
 │  │  ├─ TransportController.cs
 │  │  ├─ UserController.cs
@@ -176,12 +177,14 @@ RFID
 │  │  ├─ LinenDbContext.cs
 │  │  ├─ LinenLog.cs
 │  │  ├─ Notification.cs
+│  │  ├─ Permission.cs
 │  │  ├─ Product.cs
 │  │  ├─ Reader.cs
 │  │  ├─ Request.cs
 │  │  ├─ RequestItem.cs
 │  │  ├─ RequestStatus.cs
 │  │  ├─ Role.cs
+│  │  ├─ RolePermission.cs
 │  │  ├─ Room.cs
 │  │  ├─ Setting.cs
 │  │  ├─ SpecialTag.cs
@@ -258,6 +261,7 @@ RFID
 │  │  │  ├─ common
 │  │  │  │  └─ ModernTable.tsx
 │  │  │  ├─ Navbar.tsx
+│  │  │  ├─ ProtectedRoute.tsx
 │  │  │  └─ Sidebar.tsx
 │  │  ├─ index.css
 │  │  ├─ layouts
@@ -299,9 +303,16 @@ RFID
 │  ├─ azurecredentialcache
 │  ├─ pgadmin4.db
 │  ├─ sessions
+│  │  ├─ 07e11e74-d5c3-42bc-99b6-d95dd2de32b0
+│  │  ├─ 15ef21a5-bb1d-453a-b623-d89a669ea033
 │  │  ├─ 2dc43123-e699-49a0-9051-3ded31640d9f
 │  │  ├─ 9a3438b7-781a-4081-88b0-aadfc675c63e
-│  │  └─ b03a08e0-907a-49b1-85a1-bda02b87af07
+│  │  ├─ 9d455048-ed62-4767-8b63-7256dbaf2481
+│  │  ├─ b03a08e0-907a-49b1-85a1-bda02b87af07
+│  │  ├─ b1e826ed-c7d1-4a67-95e7-4d4aa7653ab3
+│  │  ├─ cc94f8da-57a2-46e1-919c-e347076179b6
+│  │  ├─ d855ea51-e1a6-4f8e-ab79-58965747be90
+│  │  └─ dd449326-6c5e-4faf-a528-df2389d21f26
 │  └─ storage
 │     └─ admin_linen.com
 ├─ README.md

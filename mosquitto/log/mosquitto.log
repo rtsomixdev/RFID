@@ -856,3 +856,17 @@
 1770951868: Client Backend_Service_67b8e30f-eead-4964-a1e9-0d45da12ef0f [172.18.0.1:54262] disconnected: connection closed by client.
 1770951871: mosquitto version 2.1.2 terminating
 1770951871: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770994279: mosquitto version 2.1.2 starting
+1770994279: Config loaded from /mosquitto/config/mosquitto.conf.
+1770994279: Bridge support available.
+1770994279: Persistence support available.
+1770994279: TLS support available.
+1770994279: TLS-PSK support available.
+1770994279: Websockets support available.
+1770994279: Opening ipv4 listen socket on port 1883.
+1770994279: Opening ipv6 listen socket on port 1883.
+1770994279: Opening ipv4 listen socket on port 9001.
+1770994279: Opening ipv6 listen socket on port 9001.
+1770994279: mosquitto version 2.1.2 running
+1770994309: New connection from 172.18.0.1:54502 on port 1883.
+1770994309: New client connected from 172.18.0.1:54502 as Backend_Service_ac176292-263f-46b9-b673-2c1bd3f2c8dd (p4, c1, k15).

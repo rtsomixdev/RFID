@@ -49,8 +49,7 @@ const Requests: React.FC = () => {
         if (userStr) {
             const currentUser = JSON.parse(userStr);
             setUser(currentUser);
-            // Role 1 = Admin (Can Approve/Reject)
-            const adminRole = currentUser.roleId === 1 || currentUser.roleId === 2; // ให้สิทธิ์ทั้ง Admin และ Head ในการอนุมัติ
+            const adminRole = currentUser.roleId === 1 || currentUser.roleId === 2;
             setIsAdmin(adminRole);
 
             if (currentUser.wardId) {
@@ -105,10 +104,10 @@ const Requests: React.FC = () => {
         if (!user || !user.userId) return Swal.fire('Error', 'ไม่พบข้อมูลผู้ใช้งาน', 'error');
         if (!formData.productId || !formData.quantity || !formData.wardId) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
 
-        const quantity = parseInt(formData.quantity);
-        if (quantity <= 0) return Swal.fire('แจ้งเตือน', 'จำนวนการเบิกต้องมากกว่า 0', 'warning');
+        const qty = parseInt(formData.quantity);
+        if (qty <= 0) return Swal.fire('แจ้งเตือน', 'จำนวนการเบิกต้องมากกว่า 0', 'warning');
 
-        if (currentStock !== null && quantity > currentStock) {
+        if (currentStock !== null && qty > currentStock) {
             return Swal.fire('ของไม่พอ!', `สินค้าชิ้นนี้เหลือเพียง ${currentStock} ชิ้น`, 'error');
         }
 
@@ -118,12 +117,17 @@ const Requests: React.FC = () => {
         let damageReasonId: number | null = null;
         if (typeId === 2 && formData.damageReasonId) damageReasonId = parseInt(formData.damageReasonId);
 
+        // 🔥🔥 แก้ไข Payload ตรงนี้เพื่อให้ตรงกับ [JsonPropertyName] ใน Backend 🔥🔥
         const payload = {
             requestType: typeId,
             requestedByUserId: user.userId,
             targetWardId: wardId,
             currentStatusId: 1,
-            requestItems: [{ productId, quantity: quantity, damageReasonId }]
+            requestItems: [{ 
+                product_id: productId, // ✅ ใช้ Snake Case
+                quantity: qty,         // ✅ ส่งค่าจำนวนที่ถูกต้อง
+                damage_reason_id: damageReasonId // ✅ ใช้ Snake Case
+            }]
         };
 
         try {
@@ -141,7 +145,7 @@ const Requests: React.FC = () => {
 
             await sendNotification(
                 `มีคำร้อง${typeText}ใหม่`,
-                `${user.firstName} ได้ขอ${typeText} ${productName} จำนวน ${quantity} ชิ้น`,
+                `${user.firstName} ได้ขอ${typeText} ${productName} จำนวน ${qty} ชิ้น`,
                 'INFO',
                 '/requests',
                 undefined,
@@ -243,7 +247,7 @@ const Requests: React.FC = () => {
                 </Box>
                 <CardContent sx={{ p: 3 }}>
                     <Grid container spacing={3} alignItems="center">
-                        <Grid size={{ xs: 12, md: 4 }}>
+                        <Grid item xs={12} md={4}>
                             <Typography variant="caption" fontWeight="bold" color="textSecondary" sx={{ mb: 1, display: 'block' }}>ประเภทคำร้อง</Typography>
                             <ToggleButtonGroup
                                 color="primary"
@@ -258,26 +262,26 @@ const Requests: React.FC = () => {
                             </ToggleButtonGroup>
                         </Grid>
 
-                        <Grid size={{ xs: 12, md: 4 }}>
+                        <Grid item xs={12} md={4}>
                             <FormControl fullWidth>
                                 <InputLabel>วอร์ด/แผนก</InputLabel>
                                 <Select
                                     value={formData.wardId}
                                     label="วอร์ด/แผนก"
-                                    onChange={e => setFormData({ ...formData, wardId: e.target.value })}
+                                    onChange={e => setFormData({ ...formData, wardId: e.target.value.toString() })}
                                 >
                                     {wards.map((w) => <MenuItem key={w.wardId} value={w.wardId}>{w.wardName}</MenuItem>)}
                                 </Select>
                             </FormControl>
                         </Grid>
 
-                        <Grid size={{ xs: 12, md: 4 }}>
+                        <Grid item xs={12} md={4}>
                             <FormControl fullWidth>
                                 <InputLabel>หมวดผ้า</InputLabel>
                                 <Select
                                     value={formData.categoryId}
                                     label="หมวดผ้า"
-                                    onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
+                                    onChange={e => setFormData({ ...formData, categoryId: e.target.value.toString(), productId: '' })}
                                 >
                                     <MenuItem value=""><em>ทั้งหมด</em></MenuItem>
                                     {categories.map((c) => <MenuItem key={c.categoryId} value={c.categoryId}>{c.categoryName}</MenuItem>)}
@@ -285,10 +289,10 @@ const Requests: React.FC = () => {
                             </FormControl>
                         </Grid>
 
-                        <Grid size={{ xs: 12, md: 4 }}>
+                        <Grid item xs={12} md={4}>
                             <FormControl fullWidth>
                                 <InputLabel>รายการผ้า</InputLabel>
-                                <Select value={formData.productId} label="รายการผ้า" onChange={e => setFormData({ ...formData, productId: e.target.value })}>
+                                <Select value={formData.productId} label="รายการผ้า" onChange={e => setFormData({ ...formData, productId: e.target.value.toString() })}>
                                     {filteredProducts.map((p) => <MenuItem key={p.productId} value={p.productId}>{p.productName} ({p.sizeSpec})</MenuItem>)}
                                 </Select>
                                 {currentStock !== null && (
@@ -300,7 +304,7 @@ const Requests: React.FC = () => {
                             </FormControl>
                         </Grid>
 
-                        <Grid size={{ xs: 12, md: 2 }}>
+                        <Grid item xs={12} md={2}>
                             <TextField
                                 fullWidth
                                 type="number"
@@ -314,13 +318,13 @@ const Requests: React.FC = () => {
                         </Grid>
 
                         {requestType === '2' && (
-                            <Grid size={{ xs: 12, md: 4 }}>
-                                <FormControl fullWidth error>
+                            <Grid item xs={12} md={4}>
+                                <FormControl fullWidth>
                                     <InputLabel>สาเหตุชำรุด</InputLabel>
                                     <Select
                                         value={formData.damageReasonId}
                                         label="สาเหตุชำรุด"
-                                        onChange={e => setFormData({ ...formData, damageReasonId: e.target.value })}
+                                        onChange={e => setFormData({ ...formData, damageReasonId: e.target.value.toString() })}
                                     >
                                         {reasons.map((r) => <MenuItem key={r.reasonId} value={r.reasonId}>{r.reasonName}</MenuItem>)}
                                     </Select>
@@ -328,7 +332,7 @@ const Requests: React.FC = () => {
                             </Grid>
                         )}
 
-                        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
+                        <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
                             <Button variant="outlined" size="large" onClick={() => setFormData({ ...formData, quantity: '', productId: '' })}>ล้างข้อมูล</Button>
                             <Button
                                 variant="contained"
@@ -371,85 +375,83 @@ const Requests: React.FC = () => {
                         <TableBody>
                             {requests.length === 0 ? (
                                 <TableRow><TableCell colSpan={5} align="center" sx={{ py: 5, color: '#94a3b8' }}>ไม่พบข้อมูลคำร้อง</TableCell></TableRow>
-                            ) : requests.map((req) => {
-                                return (
-                                    <TableRow key={req.requestId} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                                        <TableCell>
-                                            <Typography variant="body2" color="primary" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
-                                                {req.requestCode}
-                                            </Typography>
-                                            <Typography variant="caption" color="textSecondary">
-                                                {new Date(req.createdAt || Date.now()).toLocaleDateString('th-TH')}
-                                                <br />
-                                                {new Date(req.createdAt || Date.now()).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2" fontWeight="bold">
-                                                {req.targetWard?.wardName || '-'}
-                                            </Typography>
-                                            <Typography variant="caption" color="textSecondary">
-                                                ผู้เบิก: {req.requestedByUser?.firstName}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            {req.requestItems?.map((item: any, idx: number) => (
-                                                <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1, borderBottom: idx !== req.requestItems.length - 1 ? '1px dashed #eee' : 'none' }}>
-                                                    <Box sx={{ minWidth: 60, textAlign: 'center', bgcolor: '#f1f5f9', p: 0.5, borderRadius: 2 }}>
-                                                        <Typography variant="h6" color="primary" fontWeight="bold" sx={{ lineHeight: 1 }}>
-                                                            {item.quantity || 0}
-                                                        </Typography>
-                                                        <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>
-                                                            ชิ้น
-                                                        </Typography>
-                                                    </Box>
-                                                    <Box>
-                                                        <Typography variant="body2" fontWeight="500">
-                                                            {item.product?.productName} <span style={{ color: '#64748b', fontSize: '0.85em' }}>({item.product?.sizeSpec})</span>
-                                                        </Typography>
-                                                        {item.damageReason && (
-                                                            <Typography variant="caption" color="error" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                                <Warning fontSize="inherit" /> {item.damageReason.reasonName}
-                                                            </Typography>
-                                                        )}
-                                                    </Box>
+                            ) : requests.map((req) => (
+                                <TableRow key={req.requestId} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                                    <TableCell>
+                                        <Typography variant="body2" color="primary" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
+                                            {req.requestCode}
+                                        </Typography>
+                                        <Typography variant="caption" color="textSecondary">
+                                            {new Date(req.createdAt).toLocaleDateString('th-TH')}
+                                            <br />
+                                            {new Date(req.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Typography variant="body2" fontWeight="bold">
+                                            {req.targetWard?.wardName || '-'}
+                                        </Typography>
+                                        <Typography variant="caption" color="textSecondary">
+                                            ผู้เบิก: {req.requestedByUser?.firstName}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                        {req.requestItems?.map((item: any, idx: number) => (
+                                            <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1, borderBottom: idx !== req.requestItems.length - 1 ? '1px dashed #eee' : 'none' }}>
+                                                <Box sx={{ minWidth: 60, textAlign: 'center', bgcolor: '#f1f5f9', p: 0.5, borderRadius: 2 }}>
+                                                    <Typography variant="h6" color="primary" fontWeight="bold" sx={{ lineHeight: 1 }}>
+                                                        {item.quantityRequested || item.quantity || 0}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>
+                                                        ชิ้น
+                                                    </Typography>
                                                 </Box>
-                                            ))}
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            {getStatusChip(req.currentStatusId)}
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Stack direction="row" spacing={1} justifyContent="center">
-                                                {isAdmin && req.currentStatusId === 1 ? (
-                                                    <>
-                                                        <Tooltip title="อนุมัติ">
-                                                            <IconButton
-                                                                size="small"
-                                                                sx={{ color: '#10b981', bgcolor: '#ecfdf5', border: '1px solid #10b981', '&:hover': { bgcolor: '#d1fae5' } }}
-                                                                onClick={() => handleApprove(req.requestId, true)}
-                                                            >
-                                                                <CheckCircle fontSize="small" />
-                                                            </IconButton>
-                                                        </Tooltip>
-                                                        <Tooltip title="ปฏิเสธ">
-                                                            <IconButton
-                                                                size="small"
-                                                                sx={{ color: '#f59e0b', bgcolor: '#fffbeb', border: '1px solid #f59e0b', '&:hover': { bgcolor: '#fef3c7' } }}
-                                                                onClick={() => handleApprove(req.requestId, false)}
-                                                            >
-                                                                <Cancel fontSize="small" />
-                                                            </IconButton>
-                                                        </Tooltip>
-                                                    </>
-                                                ) : (
-                                                    <Typography variant="caption" color="textSecondary">-</Typography>
-                                                )}
-                                            </Stack>
-                                        </TableCell>
-                                    </TableRow>
-                                );
-                            })}
+                                                <Box>
+                                                    <Typography variant="body2" fontWeight="500">
+                                                        {item.product?.productName} <span style={{ color: '#64748b', fontSize: '0.85em' }}>({item.product?.sizeSpec})</span>
+                                                    </Typography>
+                                                    {item.damageReason && (
+                                                        <Typography variant="caption" color="error" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <Warning fontSize="inherit" /> {item.damageReason.reasonName}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            </Box>
+                                        ))}
+                                    </TableCell>
+                                    <TableCell align="center">
+                                        {getStatusChip(req.currentStatusId)}
+                                    </TableCell>
+                                    <TableCell align="center">
+                                        <Stack direction="row" spacing={1} justifyContent="center">
+                                            {isAdmin && req.currentStatusId === 1 ? (
+                                                <>
+                                                    <Tooltip title="อนุมัติ">
+                                                        <IconButton
+                                                            size="small"
+                                                            sx={{ color: '#10b981', bgcolor: '#ecfdf5', border: '1px solid #10b981', '&:hover': { bgcolor: '#d1fae5' } }}
+                                                            onClick={() => handleApprove(req.requestId, true)}
+                                                        >
+                                                            <CheckCircle fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                    <Tooltip title="ปฏิเสธ">
+                                                        <IconButton
+                                                            size="small"
+                                                            sx={{ color: '#f59e0b', bgcolor: '#fffbeb', border: '1px solid #f59e0b', '&:hover': { bgcolor: '#fef3c7' } }}
+                                                            onClick={() => handleApprove(req.requestId, false)}
+                                                        >
+                                                            <Cancel fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </>
+                                            ) : (
+                                                <Typography variant="caption" color="textSecondary">-</Typography>
+                                            )}
+                                        </Stack>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
                         </TableBody>
                     </Table>
                 </TableContainer>
