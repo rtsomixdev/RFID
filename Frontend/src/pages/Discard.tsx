@@ -3,11 +3,10 @@ import {
     Box, Paper, Typography, TextField, Button, Grid, Table,
     TableBody, TableCell, TableContainer, TableHead, TableRow,
     IconButton, Card, CardContent, FormControl, InputLabel, Select, MenuItem,
-    Alert, Divider, Stack, Autocomplete, Chip, Tooltip, Collapse
+    Stack, Autocomplete, Tooltip, Collapse
 } from '@mui/material';
 import {
-    LinkOff, PlaylistRemove, Delete, History, Search, FactCheck,
-    Build, BugReport, DeleteForever
+    LinkOff, Delete, Search, Build, BugReport, DeleteForever
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
@@ -42,6 +41,65 @@ const Discard: React.FC = () => {
         fetchHistory();
         fetchCandidates();
     }, []);
+
+    // 🔥🔥🔥 เพิ่มส่วนนี้: ดักฟังค่าจาก MQTT / Scanner 🔥🔥🔥
+    useEffect(() => {
+        const handleAutoScan = async (e: any) => {
+            const incomingData = e.detail;
+            const rfid = typeof incomingData === 'object' ? incomingData.rfid : incomingData;
+
+            if (rfid) {
+                // เช็คก่อนว่ามีในรายการที่เลือกหรือยัง
+                setScannedItems(prev => {
+                    if (prev.find(item => item.rfidCode === rfid)) {
+                        return prev; // ถ้ามีแล้วไม่ต้องทำอะไร
+                    }
+                    // ถ้ายังไม่มี ให้ไปค้นหาข้อมูลแล้วเพิ่มเข้าตาราง
+                    findAndAddLinen(rfid);
+                    return prev;
+                });
+            }
+        };
+
+        window.addEventListener("RFID_SCANNED", handleAutoScan);
+        return () => {
+            window.removeEventListener("RFID_SCANNED", handleAutoScan);
+        };
+    }, []);
+
+    // ฟังก์ชันช่วยค้นหาและเพิ่มผ้าเข้าตาราง (ใช้ทั้งตอนสแกน และตอนค้นหาเอง)
+    const findAndAddLinen = async (rfid: string) => {
+        try {
+            // ใช้ API Search เพื่อหาข้อมูล (แม้ Active=false)
+            const res = await axiosClient.get(`/Linen/Search?rfid=${rfid}`);
+            
+            if (res.data && res.data.length > 0) {
+                const foundItem = res.data[0];
+                const newItem: CandidateItem = {
+                    rfidCode: foundItem.rfidCode,
+                    productName: foundItem.product?.productName || "Unknown Item",
+                    status: foundItem.status || "Unknown"
+                };
+
+                setScannedItems(prev => {
+                    // เช็คซ้ำอีกรอบกันพลาด
+                    if (prev.find(s => s.rfidCode === newItem.rfidCode)) return prev;
+                    
+                    // แจ้งเตือนเล็กๆ
+                    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
+                    Toast.fire({ icon: 'success', title: `รับค่า: ${newItem.productName}` });
+                    
+                    return [newItem, ...prev];
+                });
+            } else {
+                // ถ้าสแกนแล้วไม่เจอในระบบ (อาจจะเป็น Tag เปล่า)
+                const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+                Toast.fire({ icon: 'warning', title: `ไม่พบข้อมูล: ${rfid}` });
+            }
+        } catch (err) {
+            console.error("Scan Error:", err);
+        }
+    };
 
     const fetchCandidates = async () => {
         try {
@@ -82,26 +140,8 @@ const Discard: React.FC = () => {
     // ✅ ฟังก์ชันเช็ค RFID โดยตรง (โหมดแก้ปัญหา)
     const handleManualCheck = async () => {
         if (!manualRfid) return;
-        try {
-            const res = await axiosClient.get(`/Linen/Check/${manualRfid.trim()}`);
-            if (res.data) {
-                const foundItem: CandidateItem = {
-                    rfidCode: res.data.rfidCode,
-                    productName: res.data.productName || "Unknown Item",
-                    status: res.data.status || "Unknown"
-                };
-                setScannedItems(prev => {
-                    if (prev.find(s => s.rfidCode === foundItem.rfidCode)) return prev;
-                    return [foundItem, ...prev];
-                });
-                setManualRfid('');
-                Swal.fire({ icon: 'success', title: 'พบข้อมูล!', text: `เจอแล้ว: ${foundItem.productName}`, timer: 1500, showConfirmButton: false });
-            } else {
-                Swal.fire('ไม่พบข้อมูล', 'RFID นี้ไม่มีในระบบ (Clean)', 'info');
-            }
-        } catch (err) {
-            Swal.fire('Error', 'ไม่พบข้อมูล หรือเกิดข้อผิดพลาด', 'error');
-        }
+        await findAndAddLinen(manualRfid.trim());
+        setManualRfid('');
     };
 
     // 1. Logic หลัก: Discard & Unbind
@@ -110,12 +150,14 @@ const Discard: React.FC = () => {
         if (!selectedReason) return Swal.fire('เตือน', 'กรุณาระบุสาเหตุ', 'warning');
 
         Swal.fire({
-            title: 'ยืนยันตัดจำหน่าย?',
+            title: 'ยืนยันการตัดจำหน่าย?',
             html: `
             <div style="text-align: left;">
                 <p>กำลังดำเนินการกับ <strong>${scannedItems.length}</strong> รายการ</p>
                 <div style="background-color: #fff7ed; padding: 10px; border-radius: 6px; border: 1px solid #ffedd5; color: #9a3412;">
-                    <strong>ผลลัพธ์:</strong> ผ้าจะถูกเปลี่ยนสถานะเป็น <b>Disposed</b> และ Tag จะถูกปลดล็อค (Unbind)
+                    <strong>ผลลัพธ์:</strong> <br/>
+                    1. เปลี่ยนสถานะเป็น <b>${reasons.find(r => String(r.reasonId || r.id) === selectedReason)?.reasonName || 'Damaged'}</b><br/>
+                    2. <b>Reset Tag</b> (ปลดล็อคข้อมูลออกจาก RFID เพื่อรอใช้ใหม่)
                 </div>
             </div>
         `,
@@ -126,18 +168,16 @@ const Discard: React.FC = () => {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    // Payload มาตรฐาน
                     const payload = {
                         rfidCodes: scannedItems.map(i => i.rfidCode),
                         damageReasonId: parseInt(selectedReason),
-                        note: note || "",
-                        reportedByUserId: currentUser?.userId || 1, // Fallback ID
-                        action: 'DISCARD_AND_UNBIND'
+                        note: note || "", 
+                        reportedByUserId: currentUser?.userId || 1
                     };
 
                     await axiosClient.post('/Linen/DiscardBatch', payload);
 
-                    Swal.fire('สำเร็จ', 'ตัดจำหน่ายและคืนค่าแท็กเรียบร้อย', 'success');
+                    Swal.fire('สำเร็จ', 'ตัดจำหน่ายและคืนค่าแท็กเรียบร้อย (Reset Tag)', 'success');
 
                     const reasonName = reasons.find(r => String(r.reasonId || r.id) === selectedReason)?.reasonName || 'ไม่ระบุ';
                     await sendNotification(
@@ -160,7 +200,7 @@ const Discard: React.FC = () => {
 
         Swal.fire({
             title: 'ลบถาวร (Force Delete)',
-            html: `<span style="color:red">ใช้แก้ปัญหา Tag ค้างเท่านั้น!</span> ข้อมูลจะหายไปจากระบบทันที`,
+            html: `<span style="color:red">คำเตือน: ข้อมูลจะหายไปจาก Database ทันที!</span><br/>(ใช้เฉพาะกรณีกู้คืนไม่ได้แล้ว)`,
             icon: 'error',
             showCancelButton: true,
             confirmButtonText: 'ลบทิ้งทันที',
@@ -169,7 +209,7 @@ const Discard: React.FC = () => {
             if (result.isConfirmed) {
                 try {
                     await axiosClient.post('/Linen/DeleteBatch', scannedItems.map(i => i.rfidCode));
-                    Swal.fire('ลบสำเร็จ', 'Tag ว่างพร้อมใช้งานแล้ว', 'success');
+                    Swal.fire('ลบสำเร็จ', 'ลบข้อมูลออกจากระบบถาวรแล้ว', 'success');
                     clearForm();
                 } catch (err: any) {
                     Swal.fire('Error', err.response?.data?.message || 'ลบไม่สำเร็จ', 'error');
@@ -195,10 +235,10 @@ const Discard: React.FC = () => {
                 </Paper>
                 <Box>
                     <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
-                        แจ้งตัดจำหน่าย & คืนค่าแท็ก
+                        แจ้งตัดจำหน่าย & คืนค่าแท็ก (Discard & Reset Tag)
                     </Typography>
                     <Typography variant="body2" color="textSecondary">
-                        จัดการผ้าชำรุด/สูญหาย และรีเซ็ตสถานะ Tag ให้ว่างเพื่อนำกลับมาใช้ใหม่
+                        จัดการผ้าชำรุด/สูญหาย และรีเซ็ตสถานะ Tag ให้ว่างเพื่อนำกลับมาใช้ใหม่ (Reuse)
                     </Typography>
                 </Box>
             </Box>
@@ -208,7 +248,7 @@ const Discard: React.FC = () => {
                 <CardContent sx={{ p: 3 }}>
                     <Grid container spacing={3}>
                         {/* 1. Search (Full Width) */}
-                        <Grid size={{ xs: 12 }}>
+                        <Grid item xs={12}>
                             <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>1. ค้นหา / สแกน (จากรายชื่อ)</Typography>
                             <Autocomplete
                                 value={searchSelection}
@@ -221,7 +261,7 @@ const Discard: React.FC = () => {
                                     <TextField
                                         {...params}
                                         label="ค้นหาผ้า..."
-                                        placeholder="พิมพ์ชื่อ หรือยิง RFID..."
+                                        placeholder="พิมพ์ชื่อ หรือสแกน RFID..."
                                         InputProps={{ ...params.InputProps, startAdornment: <Search color="action" sx={{ mr: 1 }} /> }}
                                     />
                                 )}
@@ -231,10 +271,10 @@ const Discard: React.FC = () => {
                         </Grid>
 
                         {/* 2. Action (Full Width) */}
-                        <Grid size={{ xs: 12 }}>
+                        <Grid item xs={12}>
                             <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>2. ระบุสาเหตุ</Typography>
                             <Grid container spacing={3}>
-                                <Grid size={{ xs: 12, md: 6 }}>
+                                <Grid item xs={12} md={6}>
                                     <FormControl fullWidth size="small">
                                         <InputLabel>สาเหตุ</InputLabel>
                                         <Select value={selectedReason} label="สาเหตุ" onChange={(e) => setSelectedReason(e.target.value)}>
@@ -244,8 +284,8 @@ const Discard: React.FC = () => {
                                         </Select>
                                     </FormControl>
                                 </Grid>
-                                <Grid size={{ xs: 12, md: 6 }}>
-                                    <TextField fullWidth size="small" label="หมายเหตุ" value={note} onChange={e => setNote(e.target.value)} />
+                                <Grid item xs={12} md={6}>
+                                    <TextField fullWidth size="small" label="หมายเหตุ (Note)" value={note} onChange={e => setNote(e.target.value)} />
                                 </Grid>
                             </Grid>
 
@@ -321,12 +361,12 @@ const Discard: React.FC = () => {
                                 <Typography variant="subtitle1" fontWeight="bold" color="#b91c1c">แก้ปัญหา Tag ค้าง / ลบไม่ออก</Typography>
                             </Stack>
                             <Grid container spacing={3} alignItems="center">
-                                <Grid size={{ xs: 12, md: 8 }}>
+                                <Grid item xs={12} md={8}>
                                     <TextField fullWidth size="small" placeholder="ใส่รหัส RFID ที่มีปัญหาที่นี่ (เช่น E200...)" value={manualRfid} onChange={e => setManualRfid(e.target.value)} sx={{ bgcolor: '#fff' }} />
                                 </Grid>
-                                <Grid size={{ xs: 12, md: 4 }} sx={{ display: 'flex', gap: 2 }}>
-                                    <Button variant="contained" onClick={handleManualCheck} disabled={!manualRfid} sx={{ height: 56 }}>ตรวจสอบ</Button>
-                                    <Button variant="contained" color="error" onClick={handleForceDelete} disabled={scannedItems.length === 0} startIcon={<DeleteForever />} sx={{ height: 56 }}>ลบถาวร</Button>
+                                <Grid item xs={12} md={4} sx={{ display: 'flex', gap: 2 }}>
+                                    <Button variant="contained" onClick={handleManualCheck} disabled={!manualRfid} sx={{ height: 40 }}>ตรวจสอบ</Button>
+                                    <Button variant="contained" color="error" onClick={handleForceDelete} disabled={scannedItems.length === 0} startIcon={<DeleteForever />} sx={{ height: 40 }}>ลบถาวร</Button>
                                 </Grid>
                             </Grid>
                         </CardContent>

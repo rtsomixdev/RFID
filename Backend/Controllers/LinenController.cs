@@ -16,8 +16,10 @@ namespace Backend.Controllers
     {
         public string? RfidCode { get; set; }
         public int? ProductId { get; set; }
-        public int DamageReasonId { get; set; }
-        public string? Note { get; set; }
+        public int DamageReasonId { get; set; } // ถ้าไม่มีให้ส่ง 0 หรือ null ก็ได้ แล้วแต่หน้าบ้าน
+        public string? ReasonType { get; set; } // เพิ่ม ReasonType (DAMAGE, LOST, EXPIRED) ตามหน้าบ้าน
+        public string? ReasonNote { get; set; } // เปลี่ยนชื่อให้ตรงกับหน้าบ้าน (Note -> ReasonNote)
+        public string? Note { get; set; } // เผื่อไว้รองรับ Legacy
         public int ReportedByUserId { get; set; }
     }
 
@@ -213,6 +215,24 @@ namespace Backend.Controllers
         }
 
         // ==========================================
+        // 🔥 เพิ่ม API: Search (สำหรับหน้า Discard)
+        // ==========================================
+        [HttpGet("Search")]
+        public async Task<IActionResult> SearchLinen([FromQuery] string rfid)
+        {
+            if (string.IsNullOrEmpty(rfid)) return BadRequest("ระบุ RFID");
+
+            var linens = await _context.Linens
+                .Include(l => l.Product)
+                .Where(l => l.RfidCode == rfid) // ค้นหาทั้งหมดแม้แต่ที่ Active=false เผื่อเช็คประวัติ
+                .ToListAsync();
+
+            if (!linens.Any()) return Ok(new List<object>()); // Return empty list
+
+            return Ok(linens);
+        }
+
+        // ==========================================
         // 2. GET: DiscardHistory
         // ==========================================
         [HttpGet("DiscardHistory")]
@@ -336,37 +356,68 @@ namespace Backend.Controllers
         }
 
         // ==========================================
-        // 5. POST: Discard (รายชิ้น)
+        // 5. POST: Discard (รายชิ้น) [UPDATED FOR FRONTEND]
         // ==========================================
         [HttpPost("Discard")]
         public async Task<IActionResult> DiscardLinen([FromBody] DiscardPayload payload)
         {
+            // เปิด Transaction เพื่อความชัวร์
+            using var transaction = await _context.Database.BeginTransactionAsync();
             try 
             {
-                var reasonName = "Damaged"; 
-                var reason = await _context.DamageReasons.FindAsync(payload.DamageReasonId);
-                if (reason != null) reasonName = reason.ReasonName;
-
-                if (!string.IsNullOrEmpty(payload.RfidCode))
+                // Logic เดิม: รองรับการส่ง DamageReasonId มา หรือใช้ ReasonType
+                string reasonName = "Damaged"; 
+                if (payload.DamageReasonId > 0)
                 {
-                    var linen = await _context.Linens.FirstOrDefaultAsync(l => l.RfidCode == payload.RfidCode);
-                    if (linen == null) return NotFound(new { message = $"ไม่พบรหัส RFID: {payload.RfidCode}" });
-
-                    // ✅ เก็บ Location เดิม
-                    string prevLoc = linen.CurrentLocation ?? "-";
-
-                    linen.IsActive = false; 
-                    linen.Status = reasonName;
-                    linen.UpdatedAt = ThaiTime(); 
-
-                    // ✅ Log Flow: จากที่เดิม -> Disposal
-                    CreateLinenLog(linen.LinenId, "Discard", $"แจ้งชำรุด: {reasonName}", prevLoc, "Disposal");
+                    var reason = await _context.DamageReasons.FindAsync(payload.DamageReasonId);
+                    if (reason != null) reasonName = reason.ReasonName;
                 }
+                else if (!string.IsNullOrEmpty(payload.ReasonType))
+                {
+                    // Map ReasonType จากหน้าบ้านให้เป็นคำที่อ่านง่าย
+                    reasonName = payload.ReasonType switch
+                    {
+                        "DAMAGE" => "Damaged",
+                        "LOST" => "Lost",
+                        "EXPIRED" => "Expired",
+                        _ => "Discarded"
+                    };
+                }
+
+                if (string.IsNullOrEmpty(payload.RfidCode)) 
+                    return BadRequest(new { message = "กรุณาระบุ RFID" });
+
+                var linen = await _context.Linens.FirstOrDefaultAsync(l => l.RfidCode == payload.RfidCode);
+                
+                if (linen == null) 
+                    return NotFound(new { message = $"ไม่พบรหัส RFID: {payload.RfidCode}" });
+
+                if (!linen.IsActive)
+                    return BadRequest(new { message = "รายการนี้ถูกจำหน่ายออกไปแล้ว" });
+
+                // ✅ เก็บ Location เดิม
+                string prevLoc = linen.CurrentLocation ?? "-";
+
+                // ✅ เปลี่ยนสถานะ และ ปิดการใช้งาน (Reset Tag)
+                linen.IsActive = false; 
+                linen.Status = reasonName;
+                linen.UpdatedAt = ThaiTime(); 
+
+                // ✅ รับ Note จากหน้าบ้าน (ReasonNote) หรือ Note เดิม
+                string finalNote = !string.IsNullOrEmpty(payload.ReasonNote) ? payload.ReasonNote : payload.Note;
+
+                // ✅ Log Flow: จากที่เดิม -> Disposal
+                // ActivityType = "DISCARD" เพื่อให้ระบบ Reuse ในอนาคตเช็คได้
+                CreateLinenLog(linen.LinenId, "DISCARD", $"แจ้งจำหน่าย/หาย: {reasonName} ({finalNote})", prevLoc, "Disposal");
+                
                 await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
                 return Ok(new { message = "บันทึกแจ้งชำรุดสำเร็จ" });
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 return StatusCode(500, new { message = "Error: " + ex.Message });
             }
         }

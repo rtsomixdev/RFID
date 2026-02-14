@@ -11,7 +11,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import axios from 'axios';
-import { sendNotification } from '../utils/notificationUtil';
+// import { sendNotification } from '../utils/notificationUtil'; // Uncomment if needed
 
 // ⚠️ URL Backend
 const BASE_URL = 'http://localhost:5134/api';
@@ -39,12 +39,13 @@ const Reports: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [currentUser, setCurrentUser] = useState<any>(null);
 
-    // Filter Options
+    // ✅ FIX 1: ปรับ Value ให้ตรงกับ Database (ActivityType) เป๊ะๆ
     const activityTypes = [
         { value: 'All', label: 'ทั้งหมด (All Activities)' },
         { value: 'Add', label: 'เพิ่มเข้าระบบ (Add New)' },
-        { value: 'Wash', label: 'ส่งซัก (Send to Wash)' },
-        { value: 'Restock', label: 'รับผ้าสะอาด (Restock)' },
+        { value: 'SendToWash', label: 'ส่งซัก (Send to Wash)' },      // แก้ Wash -> SendToWash
+        { value: 'ReceiveWash', label: 'รับเข้าโรงซัก (Receive at Laundry)' }, // เพิ่มอันนี้
+        { value: 'Restock', label: 'รับผ้าสะอาด/เติมสต็อก (Restock)' },
         { value: 'Discard', label: 'ตัดจำหน่าย (Discard)' },
         { value: 'Move', label: 'ย้ายตำแหน่ง (Move)' }
     ];
@@ -78,30 +79,25 @@ const Reports: React.FC = () => {
         }
     };
 
-    // ✅ แก้ไขใหม่: Export ข้อมูลจาก "reportData" (สิ่งที่โชว์ในตาราง) โดยตรง
     const handleExportExcel = async () => {
         try {
-            // 1. เช็คว่ามีข้อมูลในตารางไหม
             if (reportData.length === 0) {
                 alert("ไม่มีข้อมูลในตารางให้ Export (กรุณากดค้นหาข้อมูลก่อน)");
                 return;
             }
 
-            // 2. แปลงข้อมูลในตารางเป็น Format Excel (เอาเฉพาะ Column ที่จำเป็น)
             const excelData = reportData.map(item => ({
                 "วัน/เวลา": new Date(item.date).toLocaleString('th-TH'),
                 "ประเภทรายการ": item.type,
                 "สินค้า": item.productName,
-                "เส้นทาง (Flow)": item.flow, // A -> B
-                "จำนวน (ชิ้น)": item.qty,    // ✅ โชว์ยอดรวม (Quantity) ตามที่ขอ
+                "เส้นทาง (Flow)": item.flow,
+                "จำนวน (ชิ้น)": item.qty,
                 "ผู้ดำเนินการ": item.user
             }));
 
-            // 3. สร้าง Workbook
             const workbook = XLSX.utils.book_new();
             const worksheet = XLSX.utils.json_to_sheet(excelData);
 
-            // จัดความกว้าง Column
             worksheet['!cols'] = [
                 { wch: 22 }, // Date
                 { wch: 15 }, // Type
@@ -113,12 +109,8 @@ const Reports: React.FC = () => {
 
             XLSX.utils.book_append_sheet(workbook, worksheet, "Report_Summary");
             
-            // 4. ตั้งชื่อไฟล์ตาม Filter ที่เลือก
             const fileName = `Report_${selectedType}_${startDate}_to_${endDate}.xlsx`;
             XLSX.writeFile(workbook, fileName);
-
-            // แจ้งเตือน (Optional)
-            // await sendNotification("Export Excel", "ดาวน์โหลดรายงานเรียบร้อย", "SUCCESS", "/reports", undefined, 1);
 
         } catch (error) {
             console.error("Export Error:", error);
@@ -276,24 +268,24 @@ const Reports: React.FC = () => {
                                         <Chip 
                                             label={row.type} 
                                             size="small" 
+                                            // ✅ FIX 2: ปรับ Logic สี Chip ให้รองรับ SendToWash และ ReceiveWash
                                             color={
                                                 row.type === 'Add' || row.type === 'Restock' ? 'success' : 
                                                 row.type === 'Discard' ? 'error' : 
-                                                row.type === 'Wash' ? 'info' : 'default'
+                                                (row.type === 'SendToWash' || row.type === 'ReceiveWash') ? 'info' : // สีฟ้าสำหรับกลุ่มซัก
+                                                'default'
                                             } 
                                             variant="outlined" 
                                         />
                                     </TableCell>
                                     <TableCell sx={{ fontWeight: 500 }}>{row.productName}</TableCell>
                                     
-                                    {/* ✅ Flow A -> B */}
                                     <TableCell>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', fontSize: '0.85rem' }}>
                                             {row.flow}
                                         </Box>
                                     </TableCell>
 
-                                    {/* ✅ จำนวน +/- */}
                                     <TableCell align="right" sx={{ fontWeight: 'bold', color: row.qty > 0 ? 'green' : 'red' }}>
                                         {row.qty > 0 ? `+${row.qty}` : row.qty}
                                     </TableCell>

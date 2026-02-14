@@ -870,3 +870,224 @@
 1770994279: mosquitto version 2.1.2 running
 1770994309: New connection from 172.18.0.1:54502 on port 1883.
 1770994309: New client connected from 172.18.0.1:54502 as Backend_Service_ac176292-263f-46b9-b673-2c1bd3f2c8dd (p4, c1, k15).
+1770995818: Client Backend_Service_ac176292-263f-46b9-b673-2c1bd3f2c8dd [172.18.0.1:54502] disconnected.
+1770995941: New connection from 172.18.0.1:60292 on port 1883.
+1770995941: New client connected from 172.18.0.1:60292 as Backend_Sub_5afc2897-a718-4dcf-826e-d4bc6f8869db (p4, c1, k15).
+1770996048: New connection from 172.18.0.1:38662 on port 1883.
+1770996048: New client connected from 172.18.0.1:38662 as ESP32-2ff8 (p4, c1, k15).
+1770996061: New connection from 172.18.0.1:57710 on port 1883.
+1770996061: New client connected from 172.18.0.1:57710 as Backend_Publisher_947665d2-16b0-4c1c-801f-0f957363d68d (p4, c1, k15).
+1770996084: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770996456: New connection from 172.18.0.1:33512 on port 1883.
+1770996456: New client connected from 172.18.0.1:33512 as ESP32-f58e (p4, c1, k15).
+1770996462: Client ESP32-2ff8 [172.18.0.1:38662] disconnected: exceeded timeout.
+1770996462: New connection from 172.18.0.1:50162 on port 1883.
+1770996462: New client connected from 172.18.0.1:50162 as ESP32-8810 (p4, c1, k15).
+1770996471: Client ESP32-f58e [172.18.0.1:33512] disconnected: connection closed by client.
+1770996610: Client Backend_Sub_5afc2897-a718-4dcf-826e-d4bc6f8869db [172.18.0.1:60292] disconnected: connection closed by client.
+1770996610: Client Backend_Publisher_947665d2-16b0-4c1c-801f-0f957363d68d [172.18.0.1:57710] disconnected: connection closed by client.
+1770996625: New connection from 172.18.0.1:33116 on port 1883.
+1770996625: New client connected from 172.18.0.1:33116 as Backend_Sub_53615406-1e85-483b-b10f-a46c03744aa4 (p4, c1, k15).
+1770996652: New connection from 172.18.0.1:53426 on port 1883.
+1770996652: New client connected from 172.18.0.1:53426 as Backend_Publisher_b76df93d-aa2b-41df-9f51-0036400f513a (p4, c1, k15).
+1770996857: New connection from 172.18.0.1:43470 on port 1883.
+1770996857: New client connected from 172.18.0.1:43470 as ESP32-Reader2-70a9 (p4, c1, k15).
+1770996859: New connection from 172.18.0.1:44708 on port 1883.
+1770996859: New client connected from 172.18.0.1:44708 as ESP32-Reader2-5435 (p4, c1, k15).
+1770996860: Client ESP32-Reader2-70a9 [172.18.0.1:43470] disconnected: connection closed by client.
+1770996861: Client ESP32-8810 [172.18.0.1:50162] disconnected: exceeded timeout.
+1770997052: Client Backend_Sub_53615406-1e85-483b-b10f-a46c03744aa4 [172.18.0.1:33116] disconnected: connection closed by client.
+1770997052: Client Backend_Publisher_b76df93d-aa2b-41df-9f51-0036400f513a [172.18.0.1:53426] disconnected: connection closed by client.
+1770997061: New connection from 172.18.0.1:57574 on port 1883.
+1770997061: New client connected from 172.18.0.1:57574 as Backend_Service_Main_44c7d08b-419c-496f-96c8-03a2edd026cb (p4, c1, k15).
+1770997088: New connection from 172.18.0.1:59140 on port 1883.
+1770997088: New client connected from 172.18.0.1:59140 as Backend_Publisher_ae6e3b8d-5dc2-43b1-9918-d099aa60bac1 (p4, c1, k15).
+1770997526: Client Backend_Service_Main_44c7d08b-419c-496f-96c8-03a2edd026cb [172.18.0.1:57574] disconnected: connection closed by client.
+1770997526: Client Backend_Publisher_ae6e3b8d-5dc2-43b1-9918-d099aa60bac1 [172.18.0.1:59140] disconnected: connection closed by client.
+1770997535: New connection from 172.18.0.1:54128 on port 1883.
+1770997535: New client connected from 172.18.0.1:54128 as Backend_Service_Main_2c7e1fc4-8b4c-4e17-b9d1-43bf741b411b (p4, c1, k15).
+1770997543: New connection from 172.18.0.1:33292 on port 1883.
+1770997543: New client connected from 172.18.0.1:33292 as Backend_Publisher_4f464661-b2f9-407a-b70d-2bf0a4998676 (p4, c1, k15).
+1770997893: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1770997966: Client Backend_Service_Main_2c7e1fc4-8b4c-4e17-b9d1-43bf741b411b [172.18.0.1:54128] disconnected: connection closed by client.
+1770997966: Client Backend_Publisher_4f464661-b2f9-407a-b70d-2bf0a4998676 [172.18.0.1:33292] disconnected: connection closed by client.
+1770998118: New connection from 172.18.0.1:59386 on port 1883.
+1770998118: New client connected from 172.18.0.1:59386 as Backend_Service_Main_bf2648b7-23e2-43dc-ae4a-5fcf62c7805c (p4, c1, k15).
+1770998845: New connection from 172.18.0.1:54284 on port 1883.
+1770998845: New client connected from 172.18.0.1:54284 as Backend_Publisher_88e1f3cf-488c-4082-96d6-6dea6673c0c2 (p4, c1, k15).
+1770999100: New connection from 172.18.0.1:52908 on port 1883.
+1770999100: New client connected from 172.18.0.1:52908 as ESP32-Reader2-35f8 (p4, c1, k15).
+1770999116: Client ESP32-Reader2-5435 [172.18.0.1:44708] disconnected: exceeded timeout.
+1770999122: Client ESP32-Reader2-35f8 [172.18.0.1:52908] disconnected: exceeded timeout.
+1770999703: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771001217: Client Backend_Publisher_88e1f3cf-488c-4082-96d6-6dea6673c0c2 [172.18.0.1:54284] disconnected: connection closed by client.
+1771001217: Client Backend_Service_Main_bf2648b7-23e2-43dc-ae4a-5fcf62c7805c [172.18.0.1:59386] disconnected: connection closed by client.
+1771001391: mosquitto version 2.1.2 terminating
+1771001391: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771056885: mosquitto version 2.1.2 starting
+1771056885: Config loaded from /mosquitto/config/mosquitto.conf.
+1771056885: Bridge support available.
+1771056885: Persistence support available.
+1771056885: TLS support available.
+1771056885: TLS-PSK support available.
+1771056885: Websockets support available.
+1771056885: Opening ipv4 listen socket on port 1883.
+1771056885: Opening ipv6 listen socket on port 1883.
+1771056885: Opening ipv4 listen socket on port 9001.
+1771056885: Opening ipv6 listen socket on port 9001.
+1771056885: mosquitto version 2.1.2 running
+1771057417: New connection from 172.18.0.1:41340 on port 1883.
+1771057417: New client connected from 172.18.0.1:41340 as Backend_Service_Main_217f6c07-d008-4ed4-bcb4-22961c9f7c44 (p4, c1, k15).
+1771057834: Client Backend_Service_Main_217f6c07-d008-4ed4-bcb4-22961c9f7c44 [172.18.0.1:41340] disconnected: connection closed by client.
+1771057857: New connection from 172.18.0.1:34776 on port 1883.
+1771057857: New client connected from 172.18.0.1:34776 as Backend_Service_Main_9d3d80a9-4313-4326-b982-adc2b8e54600 (p4, c1, k15).
+1771057934: New connection from 172.18.0.1:38820 on port 1883.
+1771057934: New client connected from 172.18.0.1:38820 as ESP32-Reader2-c196 (p4, c1, k15).
+1771057937: New connection from 172.18.0.1:38828 on port 1883.
+1771057937: New client connected from 172.18.0.1:38828 as Backend_Publisher_f0c510ce-2719-40b2-a0f7-234d75476ca9 (p4, c1, k15).
+1771058727: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771059262: Client Backend_Service_Main_9d3d80a9-4313-4326-b982-adc2b8e54600 [172.18.0.1:34776] disconnected: connection closed by client.
+1771059262: Client Backend_Publisher_f0c510ce-2719-40b2-a0f7-234d75476ca9 [172.18.0.1:38828] disconnected: connection closed by client.
+1771059275: New connection from 172.18.0.1:36814 on port 1883.
+1771059275: New client connected from 172.18.0.1:36814 as Backend_Service_Main_8fd08365 (p4, c1, k15).
+1771059280: New connection from 172.18.0.1:43380 on port 1883.
+1771059280: New client connected from 172.18.0.1:43380 as Backend_Publisher_f46cd1ba-3dde-47c4-82f2-3c01359b5a1b (p4, c1, k15).
+1771059516: Client Backend_Service_Main_8fd08365 [172.18.0.1:36814] disconnected: connection closed by client.
+1771059516: Client Backend_Publisher_f46cd1ba-3dde-47c4-82f2-3c01359b5a1b [172.18.0.1:43380] disconnected: connection closed by client.
+1771059523: New connection from 172.18.0.1:52992 on port 1883.
+1771059523: New client connected from 172.18.0.1:52992 as Backend_Service_Main_4fa7eb52-6ec4-4eb3-a31e-6b0aa26f769a (p4, c1, k15).
+1771059534: New connection from 172.18.0.1:43964 on port 1883.
+1771059534: New client connected from 172.18.0.1:43964 as Backend_Publisher_e516b697-73ce-43b2-a6a2-80551abaff76 (p4, c1, k15).
+1771059712: Client Backend_Service_Main_4fa7eb52-6ec4-4eb3-a31e-6b0aa26f769a [172.18.0.1:52992] disconnected: connection closed by client.
+1771059712: Client Backend_Publisher_e516b697-73ce-43b2-a6a2-80551abaff76 [172.18.0.1:43964] disconnected: connection closed by client.
+1771059718: New connection from 172.18.0.1:43542 on port 1883.
+1771059718: New client connected from 172.18.0.1:43542 as Backend_Service_Main_33f4a58d-bebe-440b-b8b1-a299c5f0ad96 (p4, c1, k15).
+1771059721: New connection from 172.18.0.1:58960 on port 1883.
+1771059721: New client connected from 172.18.0.1:58960 as Backend_Publisher_ea837caf-c4dd-4078-8a1a-6e602c674463 (p4, c1, k15).
+1771059899: Client Backend_Service_Main_33f4a58d-bebe-440b-b8b1-a299c5f0ad96 [172.18.0.1:43542] disconnected: connection closed by client.
+1771059899: Client Backend_Publisher_ea837caf-c4dd-4078-8a1a-6e602c674463 [172.18.0.1:58960] disconnected: connection closed by client.
+1771059906: New connection from 172.18.0.1:59942 on port 1883.
+1771059906: New client connected from 172.18.0.1:59942 as Backend_Service_Main_104e2090-0659-4893-bf44-ef398d8ca002 (p4, c1, k15).
+1771059909: New connection from 172.18.0.1:59958 on port 1883.
+1771059909: New client connected from 172.18.0.1:59958 as Backend_Publisher_50d6f75e-d4c0-4f4d-b2f1-a02f37cc403a (p4, c1, k15).
+1771060270: Client Backend_Service_Main_104e2090-0659-4893-bf44-ef398d8ca002 [172.18.0.1:59942] disconnected: connection closed by client.
+1771060270: Client Backend_Publisher_50d6f75e-d4c0-4f4d-b2f1-a02f37cc403a [172.18.0.1:59958] disconnected: connection closed by client.
+1771060281: New connection from 172.18.0.1:50068 on port 1883.
+1771060281: New client connected from 172.18.0.1:50068 as Backend_Service_Main_71dcb463-0f90-45d9-a347-049e350226dc (p4, c1, k15).
+1771060289: New connection from 172.18.0.1:39264 on port 1883.
+1771060289: New client connected from 172.18.0.1:39264 as Backend_Publisher_cfec648f-c2d9-4bf5-a342-c8afa665e4d3 (p4, c1, k15).
+1771060556: Client Backend_Service_Main_71dcb463-0f90-45d9-a347-049e350226dc [172.18.0.1:50068] disconnected: connection closed by client.
+1771060556: Client Backend_Publisher_cfec648f-c2d9-4bf5-a342-c8afa665e4d3 [172.18.0.1:39264] disconnected: connection closed by client.
+1771060562: New connection from 172.18.0.1:55800 on port 1883.
+1771060562: New client connected from 172.18.0.1:55800 as Backend_Service_Main_5f921bc5-7083-4296-b3a3-8ee7691919a9 (p4, c1, k15).
+1771060575: New connection from 172.18.0.1:52854 on port 1883.
+1771060575: New client connected from 172.18.0.1:52854 as Backend_Publisher_c0ec0c0f-bffd-4e6f-abfd-10a110ca9c96 (p4, c1, k15).
+1771060582: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771060745: Client Backend_Service_Main_5f921bc5-7083-4296-b3a3-8ee7691919a9 [172.18.0.1:55800] disconnected: connection closed by client.
+1771060745: Client Backend_Publisher_c0ec0c0f-bffd-4e6f-abfd-10a110ca9c96 [172.18.0.1:52854] disconnected: connection closed by client.
+1771060750: New connection from 172.18.0.1:42020 on port 1883.
+1771060751: New client connected from 172.18.0.1:42020 as Backend_Service_Main_5c0a7b5d-d2d2-4067-83ae-5ce76152fa68 (p4, c1, k15).
+1771060753: New connection from 172.18.0.1:34798 on port 1883.
+1771060753: New client connected from 172.18.0.1:34798 as Backend_Publisher_62fab7e5-8590-4aac-bf14-c9d0e8b8af2b (p4, c1, k15).
+1771061014: Client Backend_Service_Main_5c0a7b5d-d2d2-4067-83ae-5ce76152fa68 [172.18.0.1:42020] disconnected: connection closed by client.
+1771061014: Client Backend_Publisher_62fab7e5-8590-4aac-bf14-c9d0e8b8af2b [172.18.0.1:34798] disconnected: connection closed by client.
+1771061021: New connection from 172.18.0.1:38128 on port 1883.
+1771061021: New client connected from 172.18.0.1:38128 as Backend_Service_Main_da5211c7-d3a4-40d6-a59d-a31cead08593 (p4, c1, k15).
+1771061046: New connection from 172.18.0.1:40446 on port 1883.
+1771061046: New client connected from 172.18.0.1:40446 as Backend_Publisher_51a34685-2016-4bff-94c3-a80f8b2ecb79 (p4, c1, k15).
+1771061204: Client Backend_Service_Main_da5211c7-d3a4-40d6-a59d-a31cead08593 [172.18.0.1:38128] disconnected: connection closed by client.
+1771061204: Client Backend_Publisher_51a34685-2016-4bff-94c3-a80f8b2ecb79 [172.18.0.1:40446] disconnected: connection closed by client.
+1771061543: New connection from 172.18.0.1:54084 on port 1883.
+1771061543: New client connected from 172.18.0.1:54084 as Backend_Service_Main_8c54da0c-0c6b-4df3-bf54-5704fd595845 (p4, c1, k15).
+1771061547: New connection from 172.18.0.1:54088 on port 1883.
+1771061547: New client connected from 172.18.0.1:54088 as Backend_Publisher_6f1b3de1-ac12-4547-8ab4-85995fa33c1e (p4, c1, k15).
+1771061606: Client Backend_Service_Main_8c54da0c-0c6b-4df3-bf54-5704fd595845 [172.18.0.1:54084] disconnected: connection closed by client.
+1771061606: Client Backend_Publisher_6f1b3de1-ac12-4547-8ab4-85995fa33c1e [172.18.0.1:54088] disconnected: connection closed by client.
+1771061635: New connection from 172.18.0.1:58088 on port 1883.
+1771061635: New client connected from 172.18.0.1:58088 as Backend_Service_Main_d412b9c7-5d5c-4ef5-9076-a5b53c4c085a (p4, c1, k15).
+1771061645: New connection from 172.18.0.1:57632 on port 1883.
+1771061645: New client connected from 172.18.0.1:57632 as Backend_Publisher_8b03fe6a-55ae-4fd4-94a6-07eade5ee5f9 (p4, c1, k15).
+1771062374: mosquitto version 2.1.2 terminating
+1771062374: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771063010: mosquitto version 2.1.2 starting
+1771063010: Config loaded from /mosquitto/config/mosquitto.conf.
+1771063010: Bridge support available.
+1771063010: Persistence support available.
+1771063010: TLS support available.
+1771063010: TLS-PSK support available.
+1771063010: Websockets support available.
+1771063010: Opening ipv4 listen socket on port 1883.
+1771063010: Opening ipv6 listen socket on port 1883.
+1771063010: Opening ipv4 listen socket on port 9001.
+1771063010: Opening ipv6 listen socket on port 9001.
+1771063010: mosquitto version 2.1.2 running
+1771063052: New connection from 172.18.0.1:43502 on port 1883.
+1771063052: New client connected from 172.18.0.1:43502 as Backend_Service_Main_c68c062a-238c-4d76-a690-858a778cd760 (p4, c1, k15).
+1771063414: Client Backend_Service_Main_c68c062a-238c-4d76-a690-858a778cd760 [172.18.0.1:43502] disconnected: connection closed by client.
+1771063417: mosquitto version 2.1.2 terminating
+1771063417: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771077666: mosquitto version 2.1.2 starting
+1771077666: Config loaded from /mosquitto/config/mosquitto.conf.
+1771077666: Bridge support available.
+1771077666: Persistence support available.
+1771077666: TLS support available.
+1771077666: TLS-PSK support available.
+1771077666: Websockets support available.
+1771077666: Opening ipv4 listen socket on port 1883.
+1771077666: Opening ipv6 listen socket on port 1883.
+1771077666: Opening ipv4 listen socket on port 9001.
+1771077666: Opening ipv6 listen socket on port 9001.
+1771077666: mosquitto version 2.1.2 running
+1771077728: New connection from 172.18.0.1:40502 on port 1883.
+1771077728: New client connected from 172.18.0.1:40502 as Backend_Service_Main_75edb26b-4ede-4112-a089-66c08341ec52 (p4, c1, k15).
+1771077997: Client Backend_Service_Main_75edb26b-4ede-4112-a089-66c08341ec52 [172.18.0.1:40502] disconnected: connection closed by client.
+1771078250: New connection from 172.18.0.1:36900 on port 1883.
+1771078250: New client connected from 172.18.0.1:36900 as Backend_Service_Main_e6f129cc-d4d1-411a-9eb2-5320ead610a8 (p4, c1, k15).
+1771078285: New connection from 172.18.0.1:44836 on port 1883.
+1771078285: New client connected from 172.18.0.1:44836 as ESP32-Reader2-5fdd (p4, c1, k15).
+1771078288: New connection from 172.18.0.1:44850 on port 1883.
+1771078288: New client connected from 172.18.0.1:44850 as Backend_Publisher_0cc0e4ad-d2e9-4746-a601-e8a4dd741edc (p4, c1, k15).
+1771079505: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771080058: Client Backend_Service_Main_e6f129cc-d4d1-411a-9eb2-5320ead610a8 [172.18.0.1:36900] disconnected: connection closed by client.
+1771080058: Client Backend_Publisher_0cc0e4ad-d2e9-4746-a601-e8a4dd741edc [172.18.0.1:44850] disconnected: connection closed by client.
+1771080067: New connection from 172.18.0.1:58742 on port 1883.
+1771080067: New client connected from 172.18.0.1:58742 as Backend_Service_Main_88c842cb-de16-45ce-9523-252a8a28175c (p4, c1, k15).
+1771080093: New connection from 172.18.0.1:35722 on port 1883.
+1771080093: New client connected from 172.18.0.1:35722 as Backend_Publisher_cf64628b-29bb-4ece-8d64-96e185e2a361 (p4, c1, k15).
+1771080515: Client Backend_Service_Main_88c842cb-de16-45ce-9523-252a8a28175c [172.18.0.1:58742] disconnected: connection closed by client.
+1771080515: Client Backend_Publisher_cf64628b-29bb-4ece-8d64-96e185e2a361 [172.18.0.1:35722] disconnected: connection closed by client.
+1771080521: New connection from 172.18.0.1:36550 on port 1883.
+1771080521: New client connected from 172.18.0.1:36550 as Backend_Service_Main_8de67c05-aea2-4c3d-a045-2a2324c5e551 (p4, c1, k15).
+1771080945: Client Backend_Service_Main_8de67c05-aea2-4c3d-a045-2a2324c5e551 [172.18.0.1:36550] disconnected: connection closed by client.
+1771081166: New connection from 172.18.0.1:55986 on port 1883.
+1771081166: New client connected from 172.18.0.1:55986 as Backend_Service_Main_921a8fb1-8909-4b65-954e-071aaeb92d15 (p4, c1, k15).
+1771081235: New connection from 172.18.0.1:47378 on port 1883.
+1771081235: New client connected from 172.18.0.1:47378 as Backend_Publisher_55bc1be6-15a3-4aaf-8676-fcac2b537075 (p4, c1, k15).
+1771081351: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771081470: Client Backend_Publisher_55bc1be6-15a3-4aaf-8676-fcac2b537075 [172.18.0.1:47378] disconnected: connection closed by client.
+1771081470: Client Backend_Service_Main_921a8fb1-8909-4b65-954e-071aaeb92d15 [172.18.0.1:55986] disconnected: connection closed by client.
+1771081486: New connection from 172.18.0.1:42624 on port 1883.
+1771081486: New client connected from 172.18.0.1:42624 as Backend_Service_Main_c479e1bb-8d94-4df9-9db0-df9dc6804904 (p4, c1, k15).
+1771081535: New connection from 172.18.0.1:52086 on port 1883.
+1771081535: New client connected from 172.18.0.1:52086 as Backend_Publisher_e7f6a89d-38b1-4c69-8c58-1da2b15883f0 (p4, c1, k15).
+1771081799: Client Backend_Service_Main_c479e1bb-8d94-4df9-9db0-df9dc6804904 [172.18.0.1:42624] disconnected: connection closed by client.
+1771081799: Client Backend_Publisher_e7f6a89d-38b1-4c69-8c58-1da2b15883f0 [172.18.0.1:52086] disconnected: connection closed by client.
+1771081810: New connection from 172.18.0.1:36536 on port 1883.
+1771081810: New client connected from 172.18.0.1:36536 as Backend_Service_Main_5d8ca75d-5a11-4762-a259-39c817644109 (p4, c1, k15).
+1771082072: New connection from 172.18.0.1:43552 on port 1883.
+1771082072: New client connected from 172.18.0.1:43552 as Backend_Publisher_630f9f40-bee0-4052-9449-0fd98dc35318 (p4, c1, k15).
+1771082543: Client ESP32-Reader2-5fdd [172.18.0.1:44836] disconnected: exceeded timeout.
+1771082560: New connection from 172.18.0.1:54200 on port 1883.
+1771082560: New client connected from 172.18.0.1:54200 as ESP32-Reader2-9631 (p4, c1, k15).
+1771082868: Client Backend_Service_Main_5d8ca75d-5a11-4762-a259-39c817644109 [172.18.0.1:36536] disconnected: connection closed by client.
+1771082868: Client Backend_Publisher_630f9f40-bee0-4052-9449-0fd98dc35318 [172.18.0.1:43552] disconnected: connection closed by client.
+1771082901: New connection from 172.18.0.1:45522 on port 1883.
+1771082901: New client connected from 172.18.0.1:45522 as Backend_Service_Main_e8355e9c-3777-454c-946c-358c749c8d7c (p4, c1, k15).
+1771082930: New connection from 172.18.0.1:44002 on port 1883.
+1771082930: New client connected from 172.18.0.1:44002 as Backend_Publisher_386ee3b9-7e20-4a2b-903b-d6c2c1e9d405 (p4, c1, k15).
+1771083200: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771085054: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771085219: Client Backend_Service_Main_e8355e9c-3777-454c-946c-358c749c8d7c [172.18.0.1:45522] disconnected: connection closed by client.
+1771085219: Client Backend_Publisher_386ee3b9-7e20-4a2b-903b-d6c2c1e9d405 [172.18.0.1:44002] disconnected: connection closed by client.
+1771085221: mosquitto version 2.1.2 terminating
+1771085221: Saving in-memory database to /mosquitto/data//mosquitto.db.

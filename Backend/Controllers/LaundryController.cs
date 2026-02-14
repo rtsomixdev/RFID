@@ -94,6 +94,8 @@ namespace Backend.Controllers
                     LinenId = linen.LinenId,
                     ActivityType = "WASH", 
                     Description = $"ส่งซักที่ร้าน ID: {request.VendorId}",
+                    FromLocation = linen.CurrentLocation ?? "Ward",
+                    ToLocation = "Laundry",
                     Timestamp = ThaiTime() // ✅ เวลาไทย
                 });
             }
@@ -132,6 +134,7 @@ namespace Backend.Controllers
                 linen.WashCount += 1;
                 linen.LastWashDate = ThaiTime(); // ✅ เวลาไทย
                 linen.VendorId = null;
+                linen.CurrentLocation = "Stock";
                 linen.UpdatedAt = ThaiTime(); // ✅ เวลาไทย
 
                 _context.LinenLogs.Add(new LinenLog
@@ -139,6 +142,8 @@ namespace Backend.Controllers
                     LinenId = linen.LinenId,
                     ActivityType = "RETURN", 
                     Description = "รับผ้าสะอาดกลับเข้าคลัง",
+                    FromLocation = "Laundry",
+                    ToLocation = "Stock",
                     Timestamp = ThaiTime() // ✅ เวลาไทย
                 });
             }
@@ -148,7 +153,7 @@ namespace Backend.Controllers
         }
 
         // ==========================================
-        // 5. ดึงรายการสำหรับ Dropdown (Searchable Candidates) ✅ เพิ่มใหม่
+        // 5. ดึงรายการสำหรับ Dropdown (Searchable Candidates)
         // ==========================================
         [HttpGet("Candidates/{mode}")] // mode = "send" หรือ "receive"
         public async Task<ActionResult<IEnumerable<object>>> GetCandidates(string mode)
@@ -182,7 +187,9 @@ namespace Backend.Controllers
             return Ok(list);
         }
 
-        // ... (History, Cancel เหมือนเดิม) ...
+        // ==========================================
+        // 6. ประวัติการส่งซัก (Washing List)
+        // ==========================================
         [HttpGet("History")]
         public async Task<ActionResult<IEnumerable<object>>> GetWashingList()
         {
@@ -197,20 +204,39 @@ namespace Backend.Controllers
                     VendorName = l.Vendor.VendorName,
                     SentDate = l.UpdatedAt 
                 })
+                .OrderByDescending(l => l.SentDate)
                 .ToListAsync();
             return Ok(washingList);
         }
         
+        // ==========================================
+        // 7. ยกเลิกรายการส่งซัก (เผื่อส่งผิด)
+        // ==========================================
         [HttpPost("Cancel")]
         public async Task<IActionResult> CancelLaundry([FromBody] List<string> rfidCodes)
         {
             var linens = await _context.Linens.Where(l => rfidCodes.Contains(l.RfidCode)).ToListAsync();
             if (!linens.Any()) return NotFound("ไม่พบรายการ");
+            
             foreach (var linen in linens)
             {
-                linen.Status = "Available"; 
-                linen.VendorId = null;
-                linen.UpdatedAt = ThaiTime(); // ✅ เวลาไทย
+                // ถ้ายกเลิกสถานะ Washing ให้กลับไปเป็น Dirty เหมือนเดิม (หรือ In Use)
+                if (linen.Status == "Washing")
+                {
+                    linen.Status = "Dirty"; // Default กลับเป็น Dirty
+                    linen.VendorId = null;
+                    linen.UpdatedAt = ThaiTime(); // ✅ เวลาไทย
+                    
+                    _context.LinenLogs.Add(new LinenLog
+                    {
+                        LinenId = linen.LinenId,
+                        ActivityType = "CANCEL_WASH", 
+                        Description = "ยกเลิกการส่งซัก",
+                        FromLocation = "Laundry",
+                        ToLocation = "Ward",
+                        Timestamp = ThaiTime()
+                    });
+                }
             }
             await _context.SaveChangesAsync();
             return Ok(new { message = $"ยกเลิกรายการเรียบร้อย {linens.Count} รายการ" });

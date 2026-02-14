@@ -57,6 +57,7 @@ const RfidConnect: React.FC = () => {
   const actionOptions = [
     { value: 'Normal', label: '🟢 โหมดปกติ (Tracking Only)', color: '#10b981' },
     { value: 'MODE_WASH', label: '🔵 โหมดส่งซัก (Send to Laundry)', color: '#3b82f6' },
+    { value: 'MODE_RECEIVE_LAUNDRY', label: '🧺 โหมดรับผ้าเข้าโรงซัก (Receive at Laundry)', color: '#9333ea' }, // ✅ เพิ่มตรงนี้
     { value: 'MODE_DISCARD', label: '🔴 โหมดจำหน่าย/ทิ้ง (Discard)', color: '#ef4444' },
     { value: 'MODE_RESTOCK', label: '🟡 โหมดรับคืน/เติมสต็อก (Restock)', color: '#f59e0b' },
   ];
@@ -328,7 +329,7 @@ const RfidConnect: React.FC = () => {
                   />
                 </Grid>
                 <Grid item xs={12} md={4}>
-                   <FormControl fullWidth>
+                    <FormControl fullWidth>
                       <InputLabel>หน้าที่ (Function)</InputLabel>
                       <Select
                         value={readerForm.func}
@@ -339,7 +340,7 @@ const RfidConnect: React.FC = () => {
                         <MenuItem value="WASH">ส่งซัก (Wash)</MenuItem>
                         <MenuItem value="RECEIVE">รับผ้า (Restock)</MenuItem>
                       </Select>
-                   </FormControl>
+                    </FormControl>
                 </Grid>
 
                 <Grid item xs={12} sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
@@ -392,7 +393,7 @@ const RfidConnect: React.FC = () => {
                             sx={{ fontWeight: 'bold', minWidth: 80 }}
                           />
                         </TableCell>
-                         <TableCell>
+                          <TableCell>
                              <Chip label={r.currentMode || 'Normal'} size="small" variant="outlined" color="secondary" />
                         </TableCell>
                         <TableCell align="center">
