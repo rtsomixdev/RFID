@@ -4,7 +4,7 @@ import {
   TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Select, MenuItem, FormControl, InputLabel, Chip,
   Stack, ToggleButton, ToggleButtonGroup, Card, CardContent,
-  FormHelperText, Tooltip
+  FormHelperText, Tooltip, useTheme, alpha
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import {
@@ -14,8 +14,11 @@ import {
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
 import { sendNotification } from '../utils/notificationUtil';
+import PageHeader from '../components/ui/PageHeader';
+import FormLabel from '../components/ui/FormLabel';
 
 const Requests: React.FC = () => {
+  const theme = useTheme();
   // --- States ---
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -117,16 +120,15 @@ const Requests: React.FC = () => {
     let damageReasonId: number | null = null;
     if (typeId === 2 && formData.damageReasonId) damageReasonId = parseInt(formData.damageReasonId);
 
-    // 🔥🔥 แก้ไข Payload ตรงนี้เพื่อให้ตรงกับ [JsonPropertyName] ใน Backend 🔥🔥
     const payload = {
       requestType: typeId,
       requestedByUserId: user.userId,
       targetWardId: wardId,
       currentStatusId: 1,
-      requestItems: [{ 
-        product_id: productId, // ✅ ใช้ Snake Case
-        quantity: qty,         // ✅ ส่งค่าจำนวนที่ถูกต้อง
-        damage_reason_id: damageReasonId // ✅ ใช้ Snake Case
+      requestItems: [{
+        product_id: productId,
+        quantity: qty,
+        damage_reason_id: damageReasonId
       }]
     };
 
@@ -152,10 +154,9 @@ const Requests: React.FC = () => {
         1
       );
 
-      // ✅ รีเซ็ตฟอร์มหลังจากส่งข้อมูลสำเร็จ
       setFormData(prev => ({ ...prev, quantity: '', damageReasonId: '', productId: '' }));
-      setCurrentStock(null); // เคลียร์ stock หลังส่ง
-      fetchRequests(); // ดึงข้อมูลรายการใหม่
+      setCurrentStock(null);
+      fetchRequests();
     } catch (err: any) {
       const msg = err.response?.data?.message || 'ไม่สามารถส่งคำร้องได้';
       Swal.fire('Error', msg, 'error');
@@ -168,7 +169,7 @@ const Requests: React.FC = () => {
       title: `ยืนยันการ${action}?`,
       icon: isApprove ? 'question' : 'warning',
       showCancelButton: true,
-      confirmButtonColor: isApprove ? '#10b981' : '#ef4444',
+      confirmButtonColor: isApprove ? theme.palette.success.main : theme.palette.error.main,
       confirmButtonText: 'ยืนยัน',
       cancelButtonText: 'ยกเลิก'
     }).then(async (result) => {
@@ -224,76 +225,72 @@ const Requests: React.FC = () => {
   return (
     <Box sx={{ pb: 5 }}>
       {/* Header */}
-      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#e0f2fe', color: '#0284c7' }}>
-          <Assignment fontSize="large" />
-        </Paper>
-        <Box>
-          <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
-            ระบบจัดการคำร้อง
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            สร้างคำร้องและจัดการรายการเบิก/เปลี่ยนผ้า
-          </Typography>
-        </Box>
-      </Box>
+      <PageHeader
+        title="ระบบจัดการคำร้อง (Request)"
+        subtitle="สร้างคำร้องและจัดการรายการเบิก/เปลี่ยนผ้า"
+        icon={<Assignment fontSize="large" />}
+        breadcrumbs={[
+          { label: 'หน้าหลัก', href: '/' },
+          { label: 'คำร้อง' }
+        ]}
+      />
 
       {/* 1. ส่วน Form */}
-      <Card elevation={2} sx={{ mb: 4, borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-        <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Card elevation={0} sx={{ mb: 4, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
+        <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 1 }}>
           <Send color="primary" />
           <Typography variant="subtitle1" fontWeight="bold" color="primary.main">
             สร้างคำร้องใหม่ (New Request)
           </Typography>
         </Box>
-        <CardContent sx={{ p: 3 }}>
-          <Grid container spacing={3} alignItems="center">
+        <CardContent sx={{ p: 4 }}>
+          <Grid container spacing={3} alignItems="flex-start">
             <Grid item xs={12} md={4}>
-              <Typography variant="caption" fontWeight="bold" color="textSecondary" sx={{ mb: 1, display: 'block' }}>ประเภทคำร้อง</Typography>
-              <ToggleButtonGroup
-                color="primary"
-                value={requestType}
-                exclusive
-                onChange={(e, v) => v && setRequestType(v)}
-                fullWidth
-                size="small"
-              >
-                <ToggleButton value="1">เบิกผ้า</ToggleButton>
-                <ToggleButton value="2">เปลี่ยนผ้า</ToggleButton>
-              </ToggleButtonGroup>
+              <FormLabel label="ประเภทคำร้อง">
+                <ToggleButtonGroup
+                  color="primary"
+                  value={requestType}
+                  exclusive
+                  onChange={(e, v) => v && setRequestType(v)}
+                  fullWidth
+                  size="small"
+                >
+                  <ToggleButton value="1">เบิกผ้า</ToggleButton>
+                  <ToggleButton value="2">เปลี่ยนผ้า</ToggleButton>
+                </ToggleButtonGroup>
+              </FormLabel>
             </Grid>
 
             <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel>วอร์ด/แผนก</InputLabel>
+              <FormLabel label="วอร์ด/แผนก" required>
                 <Select
                   value={formData.wardId}
-                  label="วอร์ด/แผนก"
                   onChange={e => setFormData({ ...formData, wardId: e.target.value.toString() })}
+                  displayEmpty
                 >
+                  <MenuItem value="" disabled>เลือกวอร์ด</MenuItem>
                   {wards.map((w) => <MenuItem key={w.wardId} value={w.wardId}>{w.wardName}</MenuItem>)}
                 </Select>
-              </FormControl>
+              </FormLabel>
             </Grid>
 
             <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel>หมวดผ้า</InputLabel>
+              <FormLabel label="หมวดผ้า">
                 <Select
                   value={formData.categoryId}
-                  label="หมวดผ้า"
                   onChange={e => setFormData({ ...formData, categoryId: e.target.value.toString(), productId: '' })}
+                  displayEmpty
                 >
                   <MenuItem value=""><em>ทั้งหมด</em></MenuItem>
                   {categories.map((c) => <MenuItem key={c.categoryId} value={c.categoryId}>{c.categoryName}</MenuItem>)}
                 </Select>
-              </FormControl>
+              </FormLabel>
             </Grid>
 
             <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <InputLabel>รายการผ้า</InputLabel>
-                <Select value={formData.productId} label="รายการผ้า" onChange={e => setFormData({ ...formData, productId: e.target.value.toString() })}>
+              <FormLabel label="รายการผ้า" required>
+                <Select value={formData.productId} onChange={e => setFormData({ ...formData, productId: e.target.value.toString() })} displayEmpty>
+                  <MenuItem value="" disabled>เลือกสินค้า</MenuItem>
                   {filteredProducts.map((p) => <MenuItem key={p.productId} value={p.productId}>{p.productName} ({p.sizeSpec})</MenuItem>)}
                 </Select>
                 {currentStock !== null && (
@@ -302,45 +299,47 @@ const Requests: React.FC = () => {
                     คงเหลือที่เบิกได้: {currentStock} ชิ้น
                   </FormHelperText>
                 )}
-              </FormControl>
+              </FormLabel>
             </Grid>
 
-            <Grid item xs={12} md={2}>
-              <TextField
-                fullWidth
-                type="number"
-                label="จำนวน (ชิ้น)"
-                value={formData.quantity}
-                onChange={e => setFormData({ ...formData, quantity: e.target.value })}
-                InputProps={{ inputProps: { min: 1, max: currentStock || 999 } }}
-                error={currentStock !== null && Number(formData.quantity) > currentStock}
-                helperText={currentStock !== null && Number(formData.quantity) > currentStock ? "เกินจำนวนที่มีในคลัง" : ""}
-              />
+            <Grid item xs={12} md={4}>
+              <FormLabel label="จำนวน (ชิ้น)" required>
+                <TextField
+                  fullWidth
+                  type="number"
+                  placeholder="0"
+                  value={formData.quantity}
+                  onChange={e => setFormData({ ...formData, quantity: e.target.value })}
+                  InputProps={{ inputProps: { min: 1, max: currentStock || 999 } }}
+                  error={currentStock !== null && Number(formData.quantity) > currentStock}
+                  helperText={currentStock !== null && Number(formData.quantity) > currentStock ? "เกินจำนวนที่มีในคลัง" : ""}
+                />
+              </FormLabel>
             </Grid>
 
             {requestType === '2' && (
               <Grid item xs={12} md={4}>
-                <FormControl fullWidth>
-                  <InputLabel>สาเหตุชำรุด</InputLabel>
+                <FormLabel label="สาเหตุชำรุด">
                   <Select
                     value={formData.damageReasonId}
-                    label="สาเหตุชำรุด"
                     onChange={e => setFormData({ ...formData, damageReasonId: e.target.value.toString() })}
+                    displayEmpty
                   >
+                    <MenuItem value="" disabled>เลือกสาเหตุ</MenuItem>
                     {reasons.map((r) => <MenuItem key={r.reasonId} value={r.reasonId}>{r.reasonName}</MenuItem>)}
                   </Select>
-                </FormControl>
+                </FormLabel>
               </Grid>
             )}
 
             <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
-              <Button variant="outlined" size="large" onClick={() => setFormData({ ...formData, quantity: '', productId: '' })}>ล้างข้อมูล</Button>
+              <Button variant="outlined" color="inherit" size="large" onClick={() => setFormData({ ...formData, quantity: '', productId: '' })}>ล้างข้อมูล</Button>
               <Button
                 variant="contained"
                 size="large"
                 onClick={handleSubmit}
                 startIcon={requestType === '1' ? <AddCircle /> : <Autorenew />}
-                sx={{ px: 5 }}
+                sx={{ px: 4 }}
                 disabled={currentStock !== null && (currentStock === 0 || Number(formData.quantity) > currentStock)}
               >
                 {requestType === '1' ? 'ส่งคำร้องเบิก' : 'ส่งคำร้องเปลี่ยน'}
@@ -351,20 +350,19 @@ const Requests: React.FC = () => {
       </Card>
 
       {/* 2. ส่วน Table */}
-      <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-        <Box sx={{ p: 2, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+      <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
+        <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <ListAlt color="action" />
-            <Typography variant="subtitle1" fontWeight="bold" color="textSecondary">
+            <Typography variant="h6" fontWeight="bold" color="text.primary">
               {isAdmin ? 'รายการรออนุมัติ / ประวัติทั้งหมด' : 'ประวัติคำร้องของฉัน'}
             </Typography>
-            <Chip label={`${requests.length} รายการ`} size="small" color="default" />
+            <Chip label={`${requests.length} รายการ`} size="small" color="default" sx={{ fontWeight: 'bold' }} />
           </Box>
         </Box>
 
         <TableContainer>
           <Table>
-            <TableHead sx={{ bgcolor: '#f1f5f9' }}>
+            <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
               <TableRow>
                 <TableCell sx={{ fontWeight: 'bold', width: '15%' }}>เลขที่ / วันที่</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', width: '20%' }}>ผู้เบิก / แผนก</TableCell>
@@ -375,7 +373,7 @@ const Requests: React.FC = () => {
             </TableHead>
             <TableBody>
               {requests.length === 0 ? (
-                <TableRow><TableCell colSpan={5} align="center" sx={{ py: 5, color: '#94a3b8' }}>ไม่พบข้อมูลคำร้อง</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} align="center" sx={{ py: 5, color: 'text.secondary' }}>ไม่พบข้อมูลคำร้อง</TableCell></TableRow>
               ) : requests.map((req) => (
                 <TableRow key={req.requestId} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                   <TableCell>
@@ -399,17 +397,14 @@ const Requests: React.FC = () => {
                   <TableCell>
                     {req.requestItems?.map((item: any, idx: number) => (
                       <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1, borderBottom: idx !== req.requestItems.length - 1 ? '1px dashed #eee' : 'none' }}>
-                        <Box sx={{ minWidth: 60, textAlign: 'center', bgcolor: '#f1f5f9', p: 0.5, borderRadius: 2 }}>
-                          <Typography variant="h6" color="primary" fontWeight="bold" sx={{ lineHeight: 1 }}>
+                        <Box sx={{ minWidth: 50, textAlign: 'center', bgcolor: alpha(theme.palette.primary.main, 0.1), p: 0.5, borderRadius: 2 }}>
+                          <Typography variant="body2" color="primary" fontWeight="bold">
                             {item.quantityRequested || item.quantity || 0}
-                          </Typography>
-                          <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>
-                            ชิ้น
                           </Typography>
                         </Box>
                         <Box>
                           <Typography variant="body2" fontWeight="500">
-                            {item.product?.productName} <span style={{ color: '#64748b', fontSize: '0.85em' }}>({item.product?.sizeSpec})</span>
+                            {item.product?.productName} <Typography component="span" variant="caption" color="text.secondary">({item.product?.sizeSpec})</Typography>
                           </Typography>
                           {item.damageReason && (
                             <Typography variant="caption" color="error" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -430,7 +425,7 @@ const Requests: React.FC = () => {
                           <Tooltip title="อนุมัติ">
                             <IconButton
                               size="small"
-                              sx={{ color: '#10b981', bgcolor: '#ecfdf5', border: '1px solid #10b981', '&:hover': { bgcolor: '#d1fae5' } }}
+                              sx={{ color: theme.palette.success.main, bgcolor: alpha(theme.palette.success.main, 0.1) }}
                               onClick={() => handleApprove(req.requestId, true)}
                             >
                               <CheckCircle fontSize="small" />
@@ -439,7 +434,7 @@ const Requests: React.FC = () => {
                           <Tooltip title="ปฏิเสธ">
                             <IconButton
                               size="small"
-                              sx={{ color: '#f59e0b', bgcolor: '#fffbeb', border: '1px solid #f59e0b', '&:hover': { bgcolor: '#fef3c7' } }}
+                              sx={{ color: theme.palette.warning.main, bgcolor: alpha(theme.palette.warning.main, 0.1) }}
                               onClick={() => handleApprove(req.requestId, false)}
                             >
                               <Cancel fontSize="small" />

@@ -1,36 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import {
   AppBar, Toolbar, IconButton, Typography, Box, Badge, Stack,
-  Menu, Button, MenuItem, Avatar, ListItemButton, ListItemAvatar, ListItemText
+  Menu, Button, MenuItem, Avatar, ListItemButton, ListItemAvatar, ListItemText, Divider
 } from '@mui/material';
 import {
   Menu as MenuIcon, Notifications, CheckCircle, Info, Warning, Error as ErrorIcon, AccessTime
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { alpha, useTheme } from '@mui/material/styles';
 import axios from '../api/axiosClient';
 
 const drawerWidth = 280;
 
 interface NavbarProps {
   onMenuClick: () => void;
-  // Support either prop name just in case
   onSidebarOpen?: () => void;
 }
 
 const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
-  // Handle both prop names for compatibility during refactor
   const handleToggle = onMenuClick || onSidebarOpen;
-
+  const theme = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [time, setTime] = useState(new Date());
 
-  // State สำหรับ Notification
+  // Notification State
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // ดึง User ปัจจุบัน
   const userStr = localStorage.getItem('currentUser');
   const user = userStr ? JSON.parse(userStr) : null;
 
@@ -39,7 +37,6 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
     return () => clearInterval(timer);
   }, []);
 
-  // --- Logic Notification ---
   const fetchNotifications = async () => {
     if (!user) return;
     try {
@@ -87,11 +84,11 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
 
   const getIcon = (type: string) => {
     switch (type?.toUpperCase()) {
-      case 'SUCCESS': return <CheckCircle sx={{ color: 'success.main' }} />;
-      case 'WARNING': return <Warning sx={{ color: 'warning.main' }} />;
+      case 'SUCCESS': return <CheckCircle sx={{ color: theme.palette.success.main }} />;
+      case 'WARNING': return <Warning sx={{ color: theme.palette.warning.main }} />;
       case 'DANGER':
-      case 'ERROR': return <ErrorIcon sx={{ color: 'error.main' }} />;
-      default: return <Info sx={{ color: 'info.main' }} />;
+      case 'ERROR': return <ErrorIcon sx={{ color: theme.palette.error.main }} />;
+      default: return <Info sx={{ color: theme.palette.info.main }} />;
     }
   };
 
@@ -122,58 +119,61 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
       sx={{
         width: { sm: `calc(100% - ${drawerWidth}px)` },
         ml: { sm: `${drawerWidth}px` },
-        bgcolor: 'rgba(255, 255, 255, 0.8)', // Glassmorphism
+        // Glassmorphism effect
+        bgcolor: alpha('#ffffff', 0.8),
         backdropFilter: 'blur(12px)',
-        boxShadow: 'none', // Remove shadow
-        borderBottom: '1px solid rgba(241, 245, 249, 0.8)', // Subtle border
-        color: '#1e293b',
+        boxShadow: 'none', // Flat look
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        color: theme.palette.text.primary,
         zIndex: (theme) => theme.zIndex.drawer + 1
       }}
     >
-      <Toolbar sx={{ justifyContent: 'space-between' }}>
+      <Toolbar sx={{ justifyContent: 'space-between', minHeight: '64px' }}>
 
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <IconButton
             color="inherit"
             edge="start"
             onClick={handleToggle}
-            sx={{ mr: 2, display: { sm: 'none' }, color: '#64748b' }}
+            sx={{ mr: 2, display: { sm: 'none' }, color: theme.palette.text.secondary }}
           >
             <MenuIcon />
           </IconButton>
 
           <Box>
-            <Typography variant="h6" fontWeight="700" sx={{ color: '#0f172a', letterSpacing: -0.5 }}>
+            <Typography variant="h6" fontWeight="700" sx={{ color: theme.palette.text.primary, letterSpacing: -0.5 }}>
               {getPageTitle(location.pathname)}
             </Typography>
           </Box>
         </Box>
 
-        <Stack direction="row" alignItems="center" spacing={2}>
+        <Stack direction="row" alignItems="center" spacing={2.5}>
 
-          <Box sx={{ textAlign: 'right', display: { xs: 'none', md: 'block' }, mr: 1 }}>
-            <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: '"Inter", monospace', color: '#4f46e5', lineHeight: 1 }}>
+          <Box sx={{ textAlign: 'right', display: { xs: 'none', md: 'block' } }}>
+            <Typography variant="h6" sx={{ fontFamily: '"Inter", monospace', color: theme.palette.primary.main, lineHeight: 1, fontWeight: 700 }}>
               {time.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 500 }}>
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 500 }}>
               {time.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
             </Typography>
           </Box>
 
+          <Divider orientation="vertical" flexItem sx={{ height: 24, alignSelf: 'center', borderColor: theme.palette.divider }} />
+
           <IconButton
             onClick={handleOpenMenu}
             sx={{
-              bgcolor: '#f1f5f9',
-              border: '1px solid #e2e8f0',
-              '&:hover': { bgcolor: '#e2e8f0' }
+              bgcolor: alpha(theme.palette.background.default, 0.8),
+              border: `1px solid ${theme.palette.divider}`,
+              '&:hover': { bgcolor: theme.palette.background.default }
             }}
           >
             <Badge badgeContent={unreadCount} color="error">
-              <Notifications sx={{ color: '#64748b' }} />
+              <Notifications sx={{ color: theme.palette.text.secondary }} />
             </Badge>
           </IconButton>
 
-          {/* ✅ Menu (โครงสร้างใหม่) */}
+          {/* Notification Menu */}
           <Menu
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
@@ -183,30 +183,29 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
               sx: {
                 overflow: 'hidden',
                 filter: 'drop-shadow(0px 10px 30px rgba(0,0,0,0.1))',
-                mt: 1.5,
-                width: 360,
-                borderRadius: 3,
-                border: '1px solid #f1f5f9'
+                mt: 2,
+                width: 380,
+                borderRadius: '16px',
+                border: `1px solid ${theme.palette.divider}`
               },
             }}
-            // ใช้ padding 0 เพื่อให้เราจัด Layout เอง
             MenuListProps={{ style: { padding: 0 } }}
             transformOrigin={{ horizontal: 'right', vertical: 'top' }}
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
-            {/* 1. ส่วนหัว (Header) - ติดอยู่ด้านบนเสมอ */}
-            <Box sx={{ p: 2, borderBottom: '1px solid #f1f5f9', bgcolor: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="subtitle1" fontWeight="bold">การแจ้งเตือน</Typography>
+            {/* Header */}
+            <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle1" fontWeight="700">การแจ้งเตือน</Typography>
               {unreadCount > 0 && (
-                <Button size="small" onClick={handleReadAll} sx={{ fontSize: '0.8rem' }}>อ่านทั้งหมด</Button>
+                <Button size="small" onClick={handleReadAll} sx={{ fontSize: '0.8rem', fontWeight: 600 }}>อ่านทั้งหมด</Button>
               )}
             </Box>
 
-            {/* 2. ส่วนรายการ (Content List) - กำหนด MaxHeight และ Scroll ที่นี่ */}
-            <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
+            {/* Content */}
+            <Box sx={{ maxHeight: 420, overflowY: 'auto' }}>
               {notifications.length === 0 ? (
-                <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
-                  ไม่มีการแจ้งเตือนใหม่
+                <Box sx={{ p: 5, textAlign: 'center', color: theme.palette.text.secondary }}>
+                  <Typography variant="body2">ไม่มีการแจ้งเตือนใหม่</Typography>
                 </Box>
               ) : (
                 notifications.map((noti) => (
@@ -214,37 +213,43 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
                     key={noti.id}
                     onClick={() => handleRead(noti)}
                     sx={{
-                      bgcolor: noti.isRead ? 'transparent' : '#f8fafc',
-                      borderBottom: '1px solid #f8fafc',
+                      bgcolor: noti.isRead ? 'transparent' : alpha(theme.palette.primary.main, 0.04),
+                      borderBottom: `1px solid ${theme.palette.divider}`,
                       alignItems: 'flex-start',
-                      py: 1.5
+                      py: 2,
+                      px: 2.5,
+                      transition: 'background-color 0.2s',
+                      '&:hover': {
+                        bgcolor: alpha(theme.palette.primary.main, 0.08)
+                      }
                     }}
                   >
-                    <ListItemAvatar sx={{ minWidth: 40, mt: 0.5 }}>
-                      <Avatar sx={{ bgcolor: 'transparent', width: 32, height: 32 }}>
+                    <ListItemAvatar sx={{ minWidth: 48, mt: 0.5 }}>
+                      <Avatar sx={{ bgcolor: 'transparent', width: 36, height: 36, border: '1px solid #e2e8f0' }}>
                         {getIcon(noti.type)}
                       </Avatar>
                     </ListItemAvatar>
                     <ListItemText
                       primary={
-                        <Typography variant="subtitle2" fontWeight="bold" sx={{ lineHeight: 1.2, mb: 0.5, color: '#1e293b' }}>
+                        <Typography variant="subtitle2" fontWeight="700" sx={{ lineHeight: 1.3, mb: 0.5, color: theme.palette.text.primary }}>
                           {noti.title}
                         </Typography>
                       }
                       secondary={
                         <Box>
-                          <Typography variant="body2" color="text.secondary" sx={{
+                          <Typography variant="body2" sx={{
+                            color: theme.palette.text.secondary,
                             display: '-webkit-box',
                             WebkitLineClamp: 2,
                             WebkitBoxOrient: 'vertical',
                             overflow: 'hidden',
-                            lineHeight: 1.4,
+                            lineHeight: 1.5,
                             wordBreak: 'break-word',
-                            fontSize: '0.85rem'
+                            fontSize: '0.875rem'
                           }}>
                             {noti.message}
                           </Typography>
-                          <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Typography variant="caption" sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5, color: theme.palette.text.disabled, fontWeight: 500 }}>
                             <AccessTime fontSize="inherit" />
                             {new Date(noti.createdAt).toLocaleString('th-TH')}
                           </Typography>
@@ -256,16 +261,15 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
               )}
             </Box>
 
-            {/* 3. ส่วนท้าย (Footer) - ติดอยู่ด้านล่างเสมอ */}
-            <Box sx={{ p: 1.5, textAlign: 'center', borderTop: '1px solid #f1f5f9', bgcolor: '#fff' }}>
-              <Button fullWidth onClick={() => { handleCloseMenu(); navigate('/notifications'); }}>
+            {/* Footer */}
+            <Box sx={{ p: 1.5, textAlign: 'center', borderTop: `1px solid ${theme.palette.divider}`, bgcolor: '#ffffff' }}>
+              <Button fullWidth onClick={() => { handleCloseMenu(); navigate('/notifications'); }} sx={{ fontWeight: 600 }}>
                 ดูประวัติทั้งหมด
               </Button>
             </Box>
           </Menu>
 
         </Stack>
-
       </Toolbar>
     </AppBar>
   );

@@ -1091,3 +1091,21 @@
 1771085219: Client Backend_Publisher_386ee3b9-7e20-4a2b-903b-d6c2c1e9d405 [172.18.0.1:44002] disconnected: connection closed by client.
 1771085221: mosquitto version 2.1.2 terminating
 1771085221: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771085411: mosquitto version 2.1.2 starting
+1771085411: Config loaded from /mosquitto/config/mosquitto.conf.
+1771085411: Bridge support available.
+1771085411: Persistence support available.
+1771085411: TLS support available.
+1771085411: TLS-PSK support available.
+1771085411: Websockets support available.
+1771085411: Opening ipv4 listen socket on port 1883.
+1771085411: Opening ipv6 listen socket on port 1883.
+1771085411: Opening ipv4 listen socket on port 9001.
+1771085411: Opening ipv6 listen socket on port 9001.
+1771085411: mosquitto version 2.1.2 running
+1771085418: New connection from 172.18.0.1:60602 on port 1883.
+1771085418: New client connected from 172.18.0.1:60602 as ESP32-Reader2-2ab (p4, c1, k15).
+1771085421: New connection from 172.18.0.1:60608 on port 1883.
+1771085421: New client connected from 172.18.0.1:60608 as Backend_Service_Main_c80491e1-cddc-46fd-be46-cf9c814584ec (p4, c1, k15).
+1771085981: Client ESP32-Reader2-2ab [172.18.0.1:60602] disconnected: exceeded timeout.
+1771087153: Client Backend_Service_Main_c80491e1-cddc-46fd-be46-cf9c814584ec [172.18.0.1:60608] disconnected: connection closed by client.

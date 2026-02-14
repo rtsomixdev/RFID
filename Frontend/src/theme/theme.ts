@@ -1,60 +1,116 @@
-import { createTheme } from '@mui/material/styles';
+import { createTheme, alpha } from '@mui/material/styles';
 
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#4f46e5', // Indigo-600: Premium & Modern
+      main: '#2563eb', // Soft Blue (Blue-600) - More professional/medical than Indigo
+      light: '#60a5fa',
+      dark: '#1e40af',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#10b981', // Emerald-500
+      main: '#64748b', // Neutral Gray (Slate-500)
+      light: '#94a3b8',
+      dark: '#334155',
       contrastText: '#ffffff',
     },
+    success: {
+      main: '#10b981', // Emerald-500
+      light: '#34d399',
+      dark: '#059669',
+    },
+    warning: {
+      main: '#f59e0b', // Amber-500
+      light: '#fbbf24',
+      dark: '#d97706',
+    },
+    error: {
+      main: '#ef4444', // Red-500
+      light: '#f87171',
+      dark: '#b91c1c',
+    },
     background: {
-      default: '#f8fafc', // Slate-50: Clean background
+      default: '#f1f5f9', // Slate-100: Standard Application Background
       paper: '#ffffff',
     },
     text: {
-      primary: '#1e293b', // Slate-800: Sharp text
-      secondary: '#64748b', // Slate-500: Softer details
+      primary: '#0f172a', // Slate-900: High contrast for readability
+      secondary: '#475569', // Slate-600: Readable secondary text
+      disabled: '#94a3b8',
     },
+    divider: '#e2e8f0',
+  },
+  shape: {
+    borderRadius: 10, // Requirement: 10
   },
   typography: {
     fontFamily: [
       '"Inter"',
       '"Sarabun"', // Thai font support
+      '-apple-system',
+      'BlinkMacSystemFont',
+      '"Segoe UI"',
+      'Roboto',
+      '"Helvetica Neue"',
+      'Arial',
       'sans-serif',
     ].join(','),
     h4: {
       fontWeight: 700,
-      color: '#1e293b',
+      color: '#0f172a',
+      letterSpacing: '-0.02em',
     },
     h5: {
       fontWeight: 600,
-      color: '#1e293b',
+      color: '#0f172a',
+      letterSpacing: '-0.01em',
+    },
+    h6: {
+      fontWeight: 600,
+      color: '#0f172a',
+    },
+    subtitle1: {
+      fontWeight: 500,
+      color: '#334155',
+    },
+    subtitle2: {
+      fontWeight: 600,
+      color: '#475569',
+    },
+    button: {
+      textTransform: 'none', // Remove uppercase (Modern look)
+      fontWeight: 600,
     },
   },
   components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          backgroundColor: '#f1f5f9',
+          color: '#0f172a',
+        },
+      },
+    },
     MuiButton: {
       styleOverrides: {
         root: {
-          borderRadius: 8, // Professional look
-          textTransform: 'none',
-          fontWeight: 600,
-          padding: '10px 24px',
-          minWidth: '100px', // ✅ Prevent text truncation (ex. "ห..")
+          borderRadius: 8,
+          padding: '8px 20px',
           boxShadow: 'none',
-          transition: 'all 0.2s ease-in-out',
+          minHeight: 40, // Standard height
           '&:hover': {
-            boxShadow: '0 4px 6px -1px rgba(79, 70, 229, 0.2)', // Soft indigo shadow
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
             transform: 'translateY(-1px)',
           },
         },
         containedPrimary: {
-          background: '#4f46e5',
           '&:hover': {
-            background: '#4338ca',
+            backgroundColor: '#1d4ed8', // Darker blue on hover
           },
+        },
+        sizeLarge: {
+          padding: '10px 24px',
+          fontSize: '1rem',
         },
       },
     },
@@ -62,130 +118,135 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           backgroundImage: 'none',
-        }
-      }
+        },
+        elevation1: {
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+        },
+        elevation2: {
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        },
+        elevation3: {
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Use for Dropdowns/Modals
+        },
+      },
     },
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 12, // Professional radius
-          boxShadow: '0 4px 20px rgba(0,0,0,0.08)', // Soft shadow
-          border: 'none',
-          overflow: 'visible', // Ensure dropdowns don't get clipped if z-index issues
+          borderRadius: 12,
+          border: '1px solid #e2e8f0', // Subtle border
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)', // Elevation 1 equivalent
+          overflow: 'visible',
         },
       },
     },
     MuiCardContent: {
       styleOverrides: {
         root: {
-          padding: '24px', // Increased padding for breathing room
+          padding: 24,
           '&:last-child': {
-            paddingBottom: '24px',
+            paddingBottom: 24,
           },
         },
       },
     },
-    // --- Global Defaults ---
+    // --- Input & Form Fields ---
     MuiTextField: {
       defaultProps: {
-        fullWidth: true, // ✅ Global Default
-        size: 'small',
+        fullWidth: true,
+        size: 'medium', // Requirement: Standard height (medium)
         variant: 'outlined',
-      },
-      styleOverrides: {
-        root: {
-          '& .MuiInputBase-root': {
-            backgroundColor: '#ffffff',
-            // lineHeight: 1.6, // Optional: for better Thai font rendering
-          }
-        }
-      }
-    },
-    MuiFormControl: {
-      defaultProps: {
-        fullWidth: true,
-        size: 'small',
-      },
-    },
-    MuiSelect: {
-      defaultProps: {
-        fullWidth: true,
-        size: 'small',
-        variant: 'outlined',
-      }
-    },
-    // --- Form & Input Standardization ---
-    MuiInputLabel: {
-      styleOverrides: {
-        root: {
-          fontSize: '0.9rem',
-          color: '#64748b',
-          '&.Mui-focused': {
-            color: '#4f46e5',
-          },
-        },
-      }
-    },
-    MuiOutlinedInput: {
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
-          backgroundColor: '#f8fafc',
-          transition: 'all 0.2s ease-in-out',
-          '&:hover': {
-            backgroundColor: '#f1f5f9',
-          },
-          '&.Mui-focused': {
-            backgroundColor: '#ffffff',
-            boxShadow: '0 0 0 3px rgba(79, 70, 229, 0.1)',
-          },
-        },
-        notchedOutline: {
-          borderColor: '#e2e8f0',
-        },
-        input: {
-          padding: '12px 14px', // ✅ Increased Vertical Padding for Thai Ascenders/Descenders
-          fontSize: '0.95rem',
-          color: '#1e293b',
-        },
-      },
-    },
-    MuiAutocomplete: {
-      defaultProps: {
-        fullWidth: true,
       },
       styleOverrides: {
         root: {
           '& .MuiOutlinedInput-root': {
-            padding: '4px 8px',
+            borderRadius: 8,
+            backgroundColor: '#ffffff',
+            transition: 'all 0.2s',
+            '&:hover': {
+              backgroundColor: '#f8fafc',
+            },
+            '&.Mui-focused': {
+              backgroundColor: '#ffffff',
+              boxShadow: `0 0 0 3px ${alpha('#2563eb', 0.15)}`, // Blue ring focus
+            },
           },
         },
-        paper: {
-          borderRadius: 8,
-          marginTop: 8,
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-          border: '1px solid #e2e8f0',
-          minWidth: 250, // Ensure listbox is wide enough
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        input: {
+          padding: '10.5px 14px', // Adjust internal padding for 'medium' size to look neat
         },
-        listbox: {
-          padding: 4,
+        notchedOutline: {
+          borderColor: '#cbd5e1', // Slate-300
         },
-        option: {
-          fontSize: '0.9rem',
-          padding: '8px 16px',
-          whiteSpace: 'nowrap', // Prevent wrapping
-          overflow: 'hidden',
-          textOverflow: 'ellipsis', // Ellipsis for overflow
-          display: 'block', // Required for textOverflow
-          '&:hover': {
-            backgroundColor: '#f1f5f9',
-          },
-          '&[aria-selected="true"]': {
-            backgroundColor: '#e0e7ff',
-            color: '#4f46e5',
-          }
+      },
+    },
+    MuiInputLabel: {
+      styleOverrides: {
+        root: {
+          fontSize: '0.875rem',
+          color: '#475569',
+          // We will likely encourage using "FormLabel" above the input, 
+          // but if `label` prop is used in TextField, style it well.
+        },
+        outlined: {
+          // Adjust position if needed, but standard Material behavior is fine for fallback
         }
       }
+    },
+    MuiSelect: {
+      defaultProps: {
+        fullWidth: true,
+        size: 'medium',
+        variant: 'outlined',
+      },
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+        }
+      }
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          fontWeight: 600,
+          borderRadius: 6,
+        },
+        colorPrimary: {
+          backgroundColor: alpha('#2563eb', 0.1),
+          color: '#1e40af',
+          '&:hover': { backgroundColor: alpha('#2563eb', 0.2) }
+        },
+        colorSuccess: {
+          backgroundColor: alpha('#10b981', 0.1),
+          color: '#047857',
+        },
+        colorWarning: {
+          backgroundColor: alpha('#f59e0b', 0.1),
+          color: '#b45309',
+        },
+        colorError: {
+          backgroundColor: alpha('#ef4444', 0.1),
+          color: '#b91c1c',
+        },
+      }
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        head: {
+          fontWeight: 600,
+          backgroundColor: '#f8fafc',
+          color: '#475569',
+          borderBottom: '1px solid #e2e8f0',
+        },
+        root: {
+          borderBottom: '1px solid #f1f5f9',
+          padding: '12px 16px',
+        },
+      },
     },
   },
 });

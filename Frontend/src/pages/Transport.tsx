@@ -4,7 +4,7 @@ import {
     MenuItem, Select, FormControl, InputLabel,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Chip, Alert, Stack, Card, CardContent, Tabs, Tab, Divider, Autocomplete,
-    Tooltip
+    Tooltip, useTheme, alpha
 } from '@mui/material';
 import {
     LocalShipping, QrCodeScanner, CheckCircle, ErrorOutline,
@@ -14,6 +14,8 @@ import {
 import axiosClient from '../api/axiosClient';
 import Swal from 'sweetalert2';
 import { sendNotification } from '../utils/notificationUtil';
+import PageHeader from '../components/ui/PageHeader';
+import FormLabel from '../components/ui/FormLabel';
 
 interface Reader {
     readerId: number;
@@ -48,6 +50,7 @@ interface RequestItem {
 }
 
 const Transport: React.FC = () => {
+    const theme = useTheme();
     // --- States ---
     const [readers, setReaders] = useState<Reader[]>([]);
     const [selectedReader, setSelectedReader] = useState<string>('');
@@ -81,7 +84,7 @@ const Transport: React.FC = () => {
     // ✅ Real-time Auto Scan Listener
     useEffect(() => {
         const handleAutoScan = (e: any) => {
-            const incomingData = e.detail; 
+            const incomingData = e.detail;
             const rfid = typeof incomingData === 'object' ? incomingData.rfid : incomingData;
             const readerName = typeof incomingData === 'object' ? incomingData.reader : null;
 
@@ -102,7 +105,7 @@ const Transport: React.FC = () => {
             const currentReaderObj = readers.find(r => r.readerId === parseInt(selectedReader));
             if (currentReaderObj && readerName && currentReaderObj.readerName !== readerName) {
                 console.warn(`⚠️ Ignore scan from ${readerName} (Current: ${currentReaderObj.readerName})`);
-                return; 
+                return;
             }
 
             if (rfid) handleAddRfidLogic(rfid);
@@ -120,7 +123,7 @@ const Transport: React.FC = () => {
             ]);
             setReaders(readerRes.data);
             setProducts(prodRes.data);
-            
+
             // Auto Select Online Reader
             if (readerRes.data.length > 0) {
                 const online = readerRes.data.find((r: any) => r.isActive);
@@ -142,7 +145,7 @@ const Transport: React.FC = () => {
         if (!selectedRequest) return '-';
         // Logic นี้เป็นแค่การ Mock เบื้องต้น เพราะ RFID Code ไม่ได้บอก Product ID โดยตรง
         // ในระบบจริงอาจจะต้องมี API: GET /Linen/Check/{rfid} เพื่อดึงชื่อสินค้าจริงมาโชว์
-        return '-'; 
+        return '-';
     };
 
     const handleAddRfidLogic = (code: string) => {
@@ -158,10 +161,10 @@ const Transport: React.FC = () => {
 
         const guessedName = guessProductFromRequest(cleanCode);
 
-        setScannedList(prev => [{ 
-            rfid: cleanCode, 
-            productName: guessedName, 
-            status: 'pending' 
+        setScannedList(prev => [{
+            rfid: cleanCode,
+            productName: guessedName,
+            status: 'pending'
         }, ...prev]);
     };
 
@@ -170,7 +173,7 @@ const Transport: React.FC = () => {
         e.preventDefault();
         if (!selectedReader) return Swal.fire('เตือน', 'เลือก Reader ก่อน', 'warning');
         if (tabValue === 0 && !selectedRequest) return Swal.fire('เตือน', 'เลือกใบคำร้องก่อน', 'warning');
-        
+
         handleAddRfidLogic(inputRfid);
         setInputRfid('');
         setTimeout(() => inputRef.current?.focus(), 100);
@@ -256,27 +259,26 @@ const Transport: React.FC = () => {
     };
 
     return (
-        <Box>
-            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <LocalShipping sx={{ fontSize: 40, color: '#1e293b' }} />
-                <Box>
-                    <Typography variant="h4" fontWeight="bold" sx={{ color: '#1e293b' }}>
-                        ระบบขนส่ง (Transport Logistics)
-                    </Typography>
-                    <Typography variant="body1" color="textSecondary">
-                        จัดการการรับ-ส่งผ้า ตามใบคำร้อง (Request Based)
-                    </Typography>
-                </Box>
-            </Box>
+        <Box sx={{ pb: 5 }}>
+            <PageHeader
+                title="ระบบขนส่ง (Transport Logistics)"
+                subtitle="จัดการการรับ-ส่งผ้า ตามใบคำร้อง (Request Based)"
+                icon={<LocalShipping fontSize="large" />}
+                breadcrumbs={[
+                    { label: 'หน้าหลัก', href: '/' },
+                    { label: 'ขนส่ง' }
+                ]}
+            />
 
             {/* Tab Selection */}
-            <Paper sx={{ mb: 3, borderRadius: 2 }}>
+            <Paper elevation={0} sx={{ mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
                 <Tabs
                     value={tabValue}
                     onChange={(e, v) => setTabValue(v)}
                     variant="fullWidth"
                     indicatorColor={tabValue === 0 ? "primary" : "success"}
                     textColor={tabValue === 0 ? "primary" : "inherit"}
+                    sx={{ bgcolor: alpha(tabValue === 0 ? theme.palette.primary.main : theme.palette.success.main, 0.05) }}
                 >
                     <Tab icon={<CallMade />} label="1. ส่งของออก (DISPATCH)" />
                     <Tab icon={<CallReceived />} label="2. รับของเข้า (RECEIVE)" />
@@ -286,32 +288,36 @@ const Transport: React.FC = () => {
             <Grid container spacing={3}>
                 {/* Left Panel: Controls */}
                 <Grid item xs={12} md={4}>
-                    <Card elevation={2} sx={{ borderRadius: 3, mb: 3, borderTop: tabValue === 0 ? '5px solid #1976d2' : '5px solid #2e7d32', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                    <Card elevation={0} sx={{ borderRadius: 3, mb: 3, borderTop: tabValue === 0 ? `5px solid ${theme.palette.primary.main}` : `5px solid ${theme.palette.success.main}`, border: `1px solid ${theme.palette.divider}`, height: '100%' }}>
                         <CardContent>
                             <Typography variant="h6" fontWeight="bold" gutterBottom color={tabValue === 0 ? "primary" : "success.main"}>
                                 {tabValue === 0 ? "เตรียมส่งของ (ตามใบเบิก)" : "เตรียมรับของเข้า"}
                             </Typography>
+                            <Divider sx={{ mb: 3 }} />
 
                             {/* ✅ Reader Selection */}
-                            <FormControl fullWidth sx={{ mb: 2 }} size="small">
-                                <InputLabel>จุดสแกน (Reader) *</InputLabel>
+                            <FormLabel label="จุดสแกน (Reader)" required>
                                 <Select
                                     value={selectedReader}
-                                    label="จุดสแกน (Reader) *"
+                                    displayEmpty
                                     onChange={(e) => setSelectedReader(e.target.value)}
                                 >
+                                    <MenuItem value="" disabled>เลือกจุดสแกน</MenuItem>
                                     {readers.map((r) => (
                                         <MenuItem key={r.readerId} value={r.readerId}>
-                                            {r.readerName} {r.isActive ? '🟢' : '🔴'}
+                                            <Stack direction="row" justifyContent="space-between" width="100%">
+                                                {r.readerName}
+                                                {r.isActive ? <CheckCircle fontSize="small" color="success" /> : <ErrorOutline fontSize="small" style={{ color: '#ccc' }} />}
+                                            </Stack>
                                         </MenuItem>
                                     ))}
                                 </Select>
-                            </FormControl>
+                            </FormLabel>
 
                             {/* ✅ Request Selection (Only for Dispatch) */}
                             {tabValue === 0 && (
                                 <Box sx={{ mb: 2 }}>
-                                    <Box sx={{ p: 2, bgcolor: '#eff6ff', borderRadius: 2, border: '1px dashed #bfdbfe', mb: 2 }}>
+                                    <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2, border: `1px dashed ${theme.palette.primary.light}`, mb: 2 }}>
                                         <Typography variant="caption" fontWeight="bold" color="primary" sx={{ mb: 1, display: 'block' }}>
                                             <Description sx={{ fontSize: 14, verticalAlign: 'middle', mr: 0.5 }} />
                                             เลือกใบคำร้องที่อนุมัติแล้ว *
@@ -321,9 +327,9 @@ const Transport: React.FC = () => {
                                             getOptionLabel={(option) => `${option.requestCode} - ${option.targetWard?.wardName}`}
                                             value={selectedRequest}
                                             onChange={(e, newVal) => setSelectedRequest(newVal)}
-                                            size="small"
+                                            size="medium"
                                             renderInput={(params) => (
-                                                <TextField {...params} label="ค้นหาใบคำร้อง..." size="small" placeholder="พิมพ์เลขที่เอกสาร" />
+                                                <TextField {...params} variant="standard" placeholder="ค้นหาใบคำร้อง..." />
                                             )}
                                             noOptionsText="ไม่มีรายการรอส่ง"
                                         />
@@ -336,12 +342,12 @@ const Transport: React.FC = () => {
 
                                     {/* Request Items Table */}
                                     {selectedRequest && (
-                                        <Box sx={{ mb: 2, maxHeight: 200, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 2 }}>
+                                        <Box sx={{ mb: 2, maxHeight: 200, overflowY: 'auto', border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
                                             <Table size="small" stickyHeader>
                                                 <TableHead>
                                                     <TableRow>
-                                                        <TableCell sx={{ bgcolor: '#f8fafc', fontWeight: 'bold' }}>สินค้า</TableCell>
-                                                        <TableCell align="center" sx={{ bgcolor: '#f8fafc', fontWeight: 'bold', width: 80 }}>จำนวน</TableCell>
+                                                        <TableCell sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05), fontWeight: 'bold' }}>สินค้า</TableCell>
+                                                        <TableCell align="center" sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05), fontWeight: 'bold', width: 80 }}>จำนวน</TableCell>
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
@@ -355,7 +361,7 @@ const Transport: React.FC = () => {
                                                                 </Tooltip>
                                                                 <Typography variant="caption" display="block" color="textSecondary">{item.product.sizeSpec}</Typography>
                                                             </TableCell>
-                                                            <TableCell align="center" sx={{ fontWeight: 'bold', color: '#1e293b' }}>
+                                                            <TableCell align="center" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
                                                                 {item.quantity}
                                                             </TableCell>
                                                         </TableRow>
@@ -367,29 +373,28 @@ const Transport: React.FC = () => {
                                 </Box>
                             )}
 
-                            <Divider sx={{ mb: 2 }}>
-                                <Chip label="SCAN AREA" size="small" icon={<SettingsRemote />} />
-                            </Divider>
-
                             {/* ✅ Manual Input */}
                             <form onSubmit={handleManualSubmit}>
-                                <TextField
-                                    inputRef={inputRef}
-                                    fullWidth
-                                    size="small"
-                                    label={tabValue === 0 ? "สแกนของที่จะส่ง..." : "สแกนของที่จะรับ..."}
-                                    variant="outlined"
-                                    value={inputRfid}
-                                    onChange={(e) => setInputRfid(e.target.value)}
-                                    placeholder="RFID Code / Barcode"
-                                    InputProps={{ endAdornment: <QrCodeScanner color="action" /> }}
-                                    sx={{ mb: 2, bgcolor: '#f8fafc' }}
-                                    autoComplete="off"
-                                    disabled={tabValue === 0 && !selectedRequest}
-                                />
+                                <FormLabel label="SCAN AREA">
+                                    <TextField
+                                        inputRef={inputRef}
+                                        fullWidth
+                                        size="medium"
+                                        variant="outlined"
+                                        value={inputRfid}
+                                        onChange={(e) => setInputRfid(e.target.value)}
+                                        placeholder="RFID Code / Barcode"
+                                        InputProps={{ endAdornment: <QrCodeScanner color="action" /> }}
+                                        autoComplete="off"
+                                        disabled={tabValue === 0 && !selectedRequest}
+                                    />
+                                </FormLabel>
                             </form>
 
-                            <Stack direction="row" spacing={1}>
+                            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                                <Button variant="outlined" color="error" onClick={handleClear} disabled={loading}>
+                                    <RestartAlt />
+                                </Button>
                                 <Button
                                     variant="contained"
                                     color={tabValue === 0 ? "primary" : "success"}
@@ -401,9 +406,6 @@ const Transport: React.FC = () => {
                                 >
                                     {tabValue === 0 ? "ยืนยันส่งออก" : "ยืนยันรับของ"}
                                 </Button>
-                                <Button variant="outlined" color="error" onClick={handleClear} disabled={loading}>
-                                    <RestartAlt />
-                                </Button>
                             </Stack>
                         </CardContent>
                     </Card>
@@ -411,14 +413,14 @@ const Transport: React.FC = () => {
 
                 {/* Right Panel: List */}
                 <Grid item xs={12} md={8}>
-                    <Paper elevation={2} sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                        <Box sx={{ p: 2, bgcolor: '#f1f5f9', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden', border: `1px solid ${theme.palette.divider}`, height: '100%' }}>
+                        <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography variant="h6" fontWeight="bold" color="text.primary">
                                 รายการสแกน ({scannedList.length})
                             </Typography>
                             {tabValue === 0
-                                ? <Chip label="Mode: Dispatch" size="small" color="primary" variant="outlined" />
-                                : <Chip label="Mode: Receive" size="small" color="success" variant="outlined" />
+                                ? <Chip label="Mode: Dispatch" size="small" color="primary" variant="filled" />
+                                : <Chip label="Mode: Receive" size="small" color="success" variant="filled" />
                             }
                         </Box>
 
@@ -426,11 +428,11 @@ const Transport: React.FC = () => {
                             <Table stickyHeader>
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell>#</TableCell>
-                                        <TableCell>RFID Code</TableCell>
-                                        <TableCell>สินค้า (ถ้ามี)</TableCell>
-                                        <TableCell>สถานะ</TableCell>
-                                        <TableCell align="center">ลบ</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>#</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>RFID Code</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>สินค้า (ถ้ามี)</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>สถานะ</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>ลบ</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -449,7 +451,7 @@ const Transport: React.FC = () => {
                                                 <TableCell>{scannedList.length - index}</TableCell>
                                                 <TableCell sx={{ maxWidth: 150 }}>
                                                     <Tooltip title={item.rfid}>
-                                                        <Typography variant="body2" fontFamily="monospace" fontWeight="bold" noWrap>
+                                                        <Typography variant="body2" fontFamily="monospace" fontWeight="bold" noWrap color="primary">
                                                             {item.rfid}
                                                         </Typography>
                                                     </Tooltip>

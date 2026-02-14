@@ -2,23 +2,24 @@ import React, { useEffect, useState } from 'react';
 import {
   Box, Paper, Typography, TextField, Button, Grid, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton,
-  Card, InputAdornment, Stack, Chip, Tooltip
+  Card, InputAdornment, Stack, Chip, Tooltip, useTheme, alpha
 } from '@mui/material';
 import {
-  Delete, AddCircle, Business, Badge, Edit, Storefront, ListAlt, Save, Cancel
+  Delete, AddCircle, Business, Badge, Edit, Storefront, ListAlt, Save, Cancel, Search
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 import { sendNotification } from '../utils/notificationUtil';
+import PageHeader from '../components/ui/PageHeader';
+import FormLabel from '../components/ui/FormLabel';
 
-// ⚠️ URL ของ Backend (Port 5134)
+// ⚠️ URL ของ Backend
 const API_URL = 'http://localhost:5134/api/Vendor';
 
 const Vendor: React.FC = () => {
+  const theme = useTheme();
   const [vendors, setVendors] = useState<any[]>([]);
   const [formData, setFormData] = useState({ vendorName: '', registrationNumber: '' });
-  
-  // ✅ 1. เพิ่ม State สำหรับเก็บ ID ที่กำลังแก้ไข
   const [editId, setEditId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -34,19 +35,15 @@ const Vendor: React.FC = () => {
     }
   };
 
-  // ✅ 2. ฟังก์ชันเมื่อกดปุ่มดินสอ (Edit)
   const handleEdit = (vendor: any) => {
-    setEditId(vendor.vendorId); // จำ ID ที่จะแก้
+    setEditId(vendor.vendorId);
     setFormData({
       vendorName: vendor.vendorName,
       registrationNumber: vendor.registrationNumber || ''
-    }); // ดึงข้อมูลเก่ามาใส่ฟอร์ม
-    
-    // เลื่อนหน้าจอขึ้นไปที่ฟอร์ม
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ✅ 3. ฟังก์ชันยกเลิกการแก้ไข
   const handleCancel = () => {
     setEditId(null);
     setFormData({ vendorName: '', registrationNumber: '' });
@@ -65,25 +62,15 @@ const Vendor: React.FC = () => {
 
     try {
       if (editId) {
-        // 🟡 กรณีแก้ไข (PUT)
         await axios.put(`${API_URL}/${editId}`, {
-          vendorId: editId, // ส่ง ID กลับไปยืนยัน
+          vendorId: editId,
           ...formData
         });
-
-        Swal.fire('แก้ไขสำเร็จ', 'ข้อมูลถูกอัปเดตแล้ว', 'success');
-        handleCancel(); // เคลียร์ฟอร์มกลับเป็นโหมดปกติ
+        Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', text: 'ข้อมูลถูกอัปเดตแล้ว', showConfirmButton: false, timer: 1500 });
+        handleCancel();
       } else {
-        // 🟢 กรณีเพิ่มใหม่ (POST)
         await axios.post(API_URL, formData);
-
-        Swal.fire({
-          icon: 'success',
-          title: 'สำเร็จ',
-          text: 'เพิ่มบริษัทเรียบร้อย',
-          timer: 1500,
-          showConfirmButton: false
-        });
+        Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'เพิ่มบริษัทเรียบร้อย', showConfirmButton: false, timer: 1500 });
 
         await sendNotification(
           "เพิ่มบริษัทคู่ค้าใหม่",
@@ -93,11 +80,9 @@ const Vendor: React.FC = () => {
           undefined,
           1
         );
-
         setFormData({ vendorName: '', registrationNumber: '' });
       }
-
-      fetchVendors(); // โหลดข้อมูลใหม่
+      fetchVendors();
     } catch (err) {
       console.error(err);
       Swal.fire('Error', 'บันทึกไม่สำเร็จ', 'error');
@@ -110,18 +95,16 @@ const Vendor: React.FC = () => {
       text: "ข้อมูลจะถูกลบออกจากระบบถาวร",
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#64748b',
+      confirmButtonColor: theme.palette.error.main,
+      cancelButtonColor: theme.palette.text.secondary,
       confirmButtonText: 'ลบข้อมูล',
       cancelButtonText: 'ยกเลิก'
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
           const vendorName = vendors.find(v => v.vendorId === id)?.vendorName || 'ไม่ระบุชื่อ';
-          
           await axios.delete(`${API_URL}/${id}`);
-
-          Swal.fire('ลบสำเร็จ', 'ข้อมูลถูกลบแล้ว', 'success');
+          Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', showConfirmButton: false, timer: 1500 });
 
           await sendNotification(
             "ลบบริษัทคู่ค้า",
@@ -135,14 +118,7 @@ const Vendor: React.FC = () => {
           fetchVendors();
         } catch (err: any) {
           console.error("Delete Error:", err);
-          const serverMessage = err.response?.data?.message || 'ไม่สามารถลบข้อมูลได้ (อาจมีข้อมูลผูกพัน)';
-          
-          Swal.fire({
-            icon: 'error',
-            title: 'ลบไม่ได้!',
-            text: serverMessage,
-            confirmButtonColor: '#d33'
-          });
+          Swal.fire({ icon: 'error', title: 'ลบไม่ได้', text: err.response?.data?.message || 'ไม่สามารถลบข้อมูลได้' });
         }
       }
     });
@@ -150,90 +126,65 @@ const Vendor: React.FC = () => {
 
   return (
     <Box sx={{ pb: 5 }}>
-      {/* Header */}
-      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#e0f2fe', color: '#0284c7' }}>
-          <Storefront fontSize="large" />
-        </Paper>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1e293b' }}>
-            จัดการข้อมูลบริษัทคู่ค้า
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            บริหารจัดการรายชื่อ Supplier และข้อมูลการติดต่อ
-          </Typography>
-        </Box>
-      </Box>
+      <PageHeader
+        title="จัดการข้อมูลบริษัทคู่ค้า"
+        subtitle="บริหารจัดการรายชื่อ Supplier และข้อมูลการติดต่อ"
+        icon={<Storefront fontSize="large" />}
+        breadcrumbs={[
+          { label: 'หน้าหลัก', href: '/' },
+          { label: 'จัดการข้อมูล', href: '' },
+          { label: 'บริษัทคู่ค้า' }
+        ]}
+      />
 
-      {/* Content Card */}
-      <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-
+      <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
         {/* Form Section */}
-        {/* เปลี่ยนสีพื้นหลังเล็กน้อยเมื่ออยู่ในโหมดแก้ไข จะได้รู้ตัว */}
-        <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9', bgcolor: editId ? '#fffbeb' : 'inherit' }}>
-          <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: editId ? '#d97706' : '#334155' }}>
-            {editId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />} 
+        <Box sx={{ p: 4, bgcolor: editId ? alpha(theme.palette.warning.light, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
+          <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: editId ? theme.palette.warning.dark : theme.palette.primary.dark }}>
+            <Box sx={{
+              width: 32, height: 32, borderRadius: '50%',
+              bgcolor: editId ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.primary.main, 0.1),
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: editId ? theme.palette.warning.main : theme.palette.primary.main
+            }}>
+              {editId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />}
+            </Box>
             {editId ? 'แก้ไขข้อมูลบริษัท' : 'เพิ่มบริษัทคู่ค้าใหม่'}
           </Typography>
+
           <Grid container spacing={3} alignItems="flex-start">
             <Grid item xs={12} md={5}>
-              <TextField
-                fullWidth
-                size="small"
-                label="ชื่อบริษัท / ร้านค้า *"
-                placeholder="ตัวอย่าง: บริษัท ซักอบรีด จำกัด"
-                value={formData.vendorName}
-                onChange={e => setFormData({ ...formData, vendorName: e.target.value })}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start"><Business fontSize="small" color="action" /></InputAdornment>,
-                }}
-              />
+              <FormLabel label="ชื่อบริษัท / ร้านค้า" required>
+                <TextField
+                  placeholder="ตัวอย่าง: บริษัท ซักอบรีด จำกัด"
+                  value={formData.vendorName}
+                  onChange={e => setFormData({ ...formData, vendorName: e.target.value })}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><Business fontSize="small" color="action" /></InputAdornment> }}
+                />
+              </FormLabel>
             </Grid>
             <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                size="small"
-                label="เลขทะเบียน / เบอร์โทร"
-                placeholder="ระบุข้อมูลติดต่อ..."
-                value={formData.registrationNumber}
-                onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start"><Badge fontSize="small" color="action" /></InputAdornment>,
-                }}
-              />
+              <FormLabel label="เลขทะเบียน / เบอร์โทร">
+                <TextField
+                  placeholder="ระบุข้อมูลติดต่อ..."
+                  value={formData.registrationNumber}
+                  onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><Badge fontSize="small" color="action" /></InputAdornment> }}
+                />
+              </FormLabel>
             </Grid>
-            <Grid item xs={12} md={3} sx={{ display: 'flex', gap: 1 }}>
+            <Grid item xs={12} md={3} sx={{ display: 'flex', gap: 1, pt: 3.2 }}>
               {editId ? (
                 <>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    color="warning"
-                    startIcon={<Save />}
-                    onClick={handleSubmit}
-                    sx={{ height: 40, borderRadius: 2 }}
-                  >
+                  <Button fullWidth variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmit}>
                     บันทึก
                   </Button>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    color="inherit"
-                    startIcon={<Cancel />}
-                    onClick={handleCancel}
-                    sx={{ height: 40, borderRadius: 2 }}
-                  >
+                  <Button fullWidth variant="outlined" color="inherit" onClick={handleCancel}>
                     ยกเลิก
                   </Button>
                 </>
               ) : (
-                <Button
-                  fullWidth
-                  variant="contained"
-                  startIcon={<AddCircle />}
-                  onClick={handleSubmit}
-                  sx={{ height: 40, borderRadius: 2 }}
-                >
+                <Button fullWidth variant="contained" startIcon={<AddCircle />} onClick={handleSubmit}>
                   เพิ่มข้อมูล
                 </Button>
               )}
@@ -242,70 +193,51 @@ const Vendor: React.FC = () => {
         </Box>
 
         {/* Table Section */}
-        <Box sx={{ p: 3 }}>
-          <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="subtitle2" fontWeight="bold" color="textSecondary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <ListAlt fontSize="small" /> รายชื่อบริษัททั้งหมด
+        <Box sx={{ p: 4 }}>
+          <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6" fontWeight="700" color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ListAlt fontSize="medium" color="disabled" /> รายชื่อบริษัททั้งหมด ({vendors.length})
             </Typography>
-            <Chip label={`${vendors.length} รายการ`} size="small" color="primary" variant="outlined" />
           </Box>
 
           <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
             <Table>
-              <TableHead sx={{ bgcolor: '#f1f5f9' }}>
+              <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold', color: '#475569' }}>ชื่อบริษัท</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', color: '#475569' }}>เลขทะเบียน / ติดต่อ</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 'bold', color: '#475569', width: 120 }}>จัดการ</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>ชื่อบริษัท</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>เลขทะเบียน / ติดต่อ</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, width: 120 }}>จัดการ</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {vendors.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={3} align="center" sx={{ py: 4, color: '#94a3b8' }}>
-                      ไม่พบข้อมูล
+                  <TableRow><TableCell colSpan={3} align="center" sx={{ py: 6, color: 'text.disabled' }}>ไม่พบข้อมูล</TableCell></TableRow>
+                ) : vendors.map((v) => (
+                  <TableRow key={v.vendorId} hover selected={editId === v.vendorId}>
+                    <TableCell>
+                      <Tooltip title={v.vendorName}>
+                        <Typography variant="body2" fontWeight={600} noWrap>
+                          {v.vendorName}
+                        </Typography>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary" noWrap>
+                        {v.registrationNumber || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Stack direction="row" spacing={1} justifyContent="center">
+                        <IconButton size="small" onClick={() => handleEdit(v)} sx={{ color: theme.palette.primary.main }}>
+                          <Edit fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => handleDelete(v.vendorId)} sx={{ color: theme.palette.error.main }}>
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </Stack>
                     </TableCell>
                   </TableRow>
-                ) : (
-                  vendors.map((v) => (
-                    <TableRow key={v.vendorId} hover selected={editId === v.vendorId}>
-                      <TableCell sx={{ fontWeight: 500, color: '#1e293b', maxWidth: 200 }}>
-                        <Tooltip title={v.vendorName}>
-                          <Typography variant="body2" fontWeight={500} noWrap>
-                            {v.vendorName}
-                          </Typography>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell sx={{ color: '#64748b', maxWidth: 200 }}>
-                        <Tooltip title={v.registrationNumber || '-'}>
-                          <Typography variant="body2" noWrap>
-                            {v.registrationNumber || '-'}
-                          </Typography>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Stack direction="row" spacing={1} justifyContent="center">
-                          {/* ✅ ปุ่มแก้ไข ใส่ onClick แล้ว */}
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleEdit(v)}
-                            sx={{ color: '#3b82f6', bgcolor: '#eff6ff', '&:hover': { bgcolor: '#dbeafe' } }}
-                          >
-                            <Edit fontSize="small" />
-                          </IconButton>
-                          
-                          <IconButton
-                            onClick={() => handleDelete(v.vendorId)}
-                            size="small"
-                            sx={{ color: '#ef4444', bgcolor: '#fef2f2', '&:hover': { bgcolor: '#fee2e2' } }}
-                          >
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                ))}
               </TableBody>
             </Table>
           </TableContainer>

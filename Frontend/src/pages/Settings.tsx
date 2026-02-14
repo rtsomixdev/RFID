@@ -28,7 +28,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Divider
+  Divider,
+  useTheme,
+  alpha
 } from "@mui/material";
 import {
   Save,
@@ -38,8 +40,11 @@ import {
   NotificationsActive,
   Edit,
   Close,
-  CheckCircle
+  CheckCircle,
+  SettingsSuggest
 } from "@mui/icons-material";
+import PageHeader from '../components/ui/PageHeader';
+import FormLabel from '../components/ui/FormLabel';
 
 const DEFAULT_GLOBAL_SETTINGS = {
   LOW_STOCK_THRESHOLD: "20",
@@ -57,6 +62,7 @@ interface ProductRule {
 }
 
 const Settings = () => {
+  const theme = useTheme();
   const [loading, setLoading] = useState(false);
   const [globalValues, setGlobalValues] = useState(DEFAULT_GLOBAL_SETTINGS);
   const [products, setProducts] = useState<ProductRule[]>([]);
@@ -236,40 +242,38 @@ const Settings = () => {
   };
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e0e0e0', pb: 2 }}>
-        <Box>
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
-            <Tune color="primary" sx={{ fontSize: 32 }} />
-            <Typography variant="h4" sx={{ fontWeight: 600, color: "#1e293b" }}>
-              System Configuration
-            </Typography>
-          </Stack>
-          <Typography variant="body1" color="text.secondary">
-            จัดการการแจ้งเตือนและเกณฑ์อายุผ้า (รายชนิด)
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          size="large"
-          startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Save />}
-          onClick={handleSave}
-          disabled={loading}
-          sx={{ height: 48, px: 4, borderRadius: 2, textTransform: 'none', fontWeight: 'bold' }}
-        >
-          บันทึกการตั้งค่าทั้งหมด
-        </Button>
-      </Box>
+    <Box sx={{ pb: 5 }}>
+      <PageHeader
+        title="ตั้งค่าระบบ (System Configuration)"
+        subtitle="จัดการการแจ้งเตือนและเกณฑ์อายุผ้า (รายชนิด)"
+        icon={<SettingsSuggest fontSize="large" />}
+        breadcrumbs={[
+          { label: 'หน้าหลัก', href: '/' },
+          { label: 'ตั้งค่า' }
+        ]}
+        action={
+          <Button
+            variant="contained"
+            size="medium"
+            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Save />}
+            onClick={handleSave}
+            disabled={loading}
+            sx={{ px: 3 }}
+          >
+            บันทึกทั้งหมด
+          </Button>
+        }
+      />
 
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', height: '100%' }}>
+        <Grid item xs={12} md={6}>
+          <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, height: '100%' }}>
             <CardHeader
-              avatar={<Inventory color="primary" />}
+              avatar={<Paper elevation={0} sx={{ p: 1, bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 2 }}><Inventory color="primary" /></Paper>}
               title={<Typography variant="h6" fontWeight={600}>Inventory Alerts</Typography>}
               subheader="แจ้งเตือนเมื่อสต็อกต่ำ (ภาพรวม)"
-              sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}
             />
+            <Divider />
             <CardContent sx={{ p: 3 }}>
               <FormControlLabel
                 control={
@@ -280,35 +284,34 @@ const Settings = () => {
                   />
                 }
                 label={<Typography fontWeight={500}>เปิดใช้งานการเตือนสินค้าใกล้หมด</Typography>}
-                sx={{ mb: 3, display: 'block' }}
+                sx={{ mb: 3 }}
               />
-              <TextField
-                label="จุดสั่งซื้อขั้นต่ำ (Global Threshold)"
-                type="number"
-                value={globalValues.LOW_STOCK_THRESHOLD}
-                onChange={(e) => handleGlobalChange("LOW_STOCK_THRESHOLD", e.target.value)}
-                disabled={globalValues.ENABLE_LOW_STOCK_ALERT === "false"}
-                fullWidth
-                variant="outlined"
-                InputProps={{ endAdornment: <InputAdornment position="end">ชิ้น</InputAdornment> }}
-                helperText="ใช้เกณฑ์นี้ร่วมกันทุกสินค้า (ถ้าไม่ได้แยกรายตัว)"
-              />
+              <FormLabel label="จุดสั่งซื้อขั้นต่ำ (Global Threshold)">
+                <TextField
+                  type="number"
+                  value={globalValues.LOW_STOCK_THRESHOLD}
+                  onChange={(e) => handleGlobalChange("LOW_STOCK_THRESHOLD", e.target.value)}
+                  disabled={globalValues.ENABLE_LOW_STOCK_ALERT === "false"}
+                  fullWidth
+                  size="medium"
+                  InputProps={{ endAdornment: <InputAdornment position="end">ชิ้น</InputAdornment> }}
+                  helperText="ใช้เกณฑ์นี้ร่วมกันทุกสินค้า (ถ้าไม่ได้แยกรายตัว)"
+                />
+              </FormLabel>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', height: '100%' }}>
+        <Grid item xs={12} md={6}>
+          <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, height: '100%' }}>
             <CardHeader
-              avatar={<NotificationsActive color="warning" />}
+              avatar={<Paper elevation={0} sx={{ p: 1, bgcolor: alpha(theme.palette.warning.main, 0.1), borderRadius: 2 }}><NotificationsActive color="warning" /></Paper>}
               title={<Typography variant="h6" fontWeight={600}>Web Notifications</Typography>}
               subheader="การแจ้งเตือนบนหน้าจอ"
-              sx={{ bgcolor: '#fffbeb', borderBottom: '1px solid #fef3c7' }}
             />
+            <Divider />
             <CardContent sx={{ p: 3 }}>
               <Stack spacing={2}>
-                {/* ❌ เอาส่วนสวิตช์เปิดปิดเสียงออก ตามที่ขอครับ */}
-
                 <FormControlLabel
                   control={
                     <Switch
@@ -329,24 +332,24 @@ const Settings = () => {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12 }}>
-          <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+        <Grid item xs={12}>
+          <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
             <CardHeader
-              avatar={<EventBusy color="error" />}
-              title={<Typography variant="h6" fontWeight={600}>Product Expiration Rules (รายชนิด)</Typography>}
+              avatar={<Paper elevation={0} sx={{ p: 1, bgcolor: alpha(theme.palette.error.main, 0.1), borderRadius: 2 }}><EventBusy color="error" /></Paper>}
+              title={<Typography variant="h6" fontWeight={600}>Product Expiration Rules</Typography>}
               subheader="กำหนดอายุการใช้งานของผ้าแต่ละประเภทแยกกัน (1 Type : 1 Rule)"
-              sx={{ bgcolor: '#fef2f2', borderBottom: '1px solid #fee2e2' }}
             />
+            <Divider />
             <CardContent sx={{ p: 0 }}>
               <TableContainer component={Paper} elevation={0} sx={{ maxHeight: 600 }}>
                 <Table stickyHeader sx={{ minWidth: 650 }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 'bold', bgcolor: '#fafafa' }}>ชื่อสินค้า (Product Name)</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', bgcolor: '#fafafa' }}>หมวดหมู่</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold', width: 180, bgcolor: '#fafafa' }}>Max Wash (รอบ)</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold', width: 180, bgcolor: '#fafafa' }}>Max Age (วัน)</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold', width: 100, bgcolor: '#fafafa' }}>แก้ไข</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>ชื่อสินค้า (Product Name)</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>หมวดหมู่</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', width: 180, bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Max Wash (รอบ)</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', width: 180, bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Max Age (วัน)</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 'bold', width: 100, bgcolor: alpha(theme.palette.primary.main, 0.04) }}>แก้ไข</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -378,7 +381,8 @@ const Settings = () => {
                             <IconButton
                               color="primary"
                               onClick={() => handleEditClick(row)}
-                              sx={{ bgcolor: '#eff6ff', '&:hover': { bgcolor: '#dbeafe' } }}
+                              sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}
+                              size="small"
                             >
                               <Edit fontSize="small" />
                             </IconButton>
@@ -403,7 +407,7 @@ const Settings = () => {
         fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e0e0e0' }}>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${theme.palette.divider}` }}>
           <Typography variant="h6" fontWeight="bold">แก้ไขเกณฑ์สินค้า</Typography>
           <IconButton onClick={() => setOpenDialog(false)} size="small"><Close /></IconButton>
         </DialogTitle>
@@ -415,34 +419,37 @@ const Settings = () => {
                 <Typography variant="h6" color="primary">{currentRule.productName}</Typography>
               </Box>
               <Divider />
-              <TextField
-                label="จำนวนรอบการซักสูงสุด (Max Wash Cycle)"
-                type="number"
-                fullWidth
-                value={currentRule.maxWashCount}
-                onChange={(e) => handleModalChange('maxWashCount', e.target.value)}
-                InputProps={{ endAdornment: <InputAdornment position="end">รอบ</InputAdornment> }}
-                helperText="เมื่อซักครบจำนวนนี้ ระบบจะแจ้งเตือนให้จำหน่ายออก"
-              />
-              <TextField
-                label="อายุการใช้งานสูงสุด (Max Lifespan)"
-                type="number"
-                fullWidth
-                value={currentRule.maxLifespanDays}
-                onChange={(e) => handleModalChange('maxLifespanDays', e.target.value)}
-                InputProps={{ endAdornment: <InputAdornment position="end">วัน</InputAdornment> }}
-                helperText="นับจากวันที่ลงทะเบียนเข้าระบบ"
-              />
+              <FormLabel label="จำนวนรอบการซักสูงสุด (Max Wash Cycle)">
+                <TextField
+                  type="number"
+                  fullWidth
+                  value={currentRule.maxWashCount}
+                  onChange={(e) => handleModalChange('maxWashCount', e.target.value)}
+                  InputProps={{ endAdornment: <InputAdornment position="end">รอบ</InputAdornment> }}
+                  helperText="เมื่อซักครบจำนวนนี้ ระบบจะแจ้งเตือนให้จำหน่ายออก"
+                />
+              </FormLabel>
+              <FormLabel label="อายุการใช้งานสูงสุด (Max Lifespan)">
+                <TextField
+                  type="number"
+                  fullWidth
+                  value={currentRule.maxLifespanDays}
+                  onChange={(e) => handleModalChange('maxLifespanDays', e.target.value)}
+                  InputProps={{ endAdornment: <InputAdornment position="end">วัน</InputAdornment> }}
+                  helperText="นับจากวันที่ลงทะเบียนเข้าระบบ"
+                />
+              </FormLabel>
             </Stack>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, borderTop: '1px solid #e0e0e0', bgcolor: '#f9fafb' }}>
-          <Button onClick={() => setOpenDialog(false)} color="inherit">ยกเลิก</Button>
+        <DialogActions sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.action.hover, 0.1) }}>
+          <Button onClick={() => setOpenDialog(false)} color="inherit" size="large">ยกเลิก</Button>
           <Button
             onClick={handleModalConfirm}
             variant="contained"
             startIcon={<CheckCircle />}
             disableElevation
+            size="large"
           >
             ยืนยันการแก้ไข
           </Button>

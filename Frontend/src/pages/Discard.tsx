@@ -2,15 +2,19 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Paper, Typography, TextField, Button, Grid, Table,
     TableBody, TableCell, TableContainer, TableHead, TableRow,
-    IconButton, Card, CardContent, FormControl, InputLabel, Select, MenuItem,
-    Stack, Autocomplete, Tooltip, Collapse
+    IconButton, Card, CardContent, FormControl, Select, MenuItem,
+    Stack, Autocomplete, Tooltip, Collapse, useTheme, alpha,
+    Alert
 } from '@mui/material';
 import {
-    LinkOff, Delete, Search, Build, BugReport, DeleteForever
+    LinkOff, Delete, Search, Build, BugReport, DeleteForever,
+    PlaylistRemove, History, RestartAlt
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
 import { sendNotification } from '../utils/notificationUtil';
+import PageHeader from '../components/ui/PageHeader';
+import FormLabel from '../components/ui/FormLabel';
 
 interface CandidateItem {
     rfidCode: string;
@@ -19,6 +23,7 @@ interface CandidateItem {
 }
 
 const Discard: React.FC = () => {
+    const theme = useTheme();
     const [reasons, setReasons] = useState<any[]>([]);
     const [candidates, setCandidates] = useState<CandidateItem[]>([]);
     const [searchSelection, setSearchSelection] = useState<CandidateItem | null>(null);
@@ -72,7 +77,7 @@ const Discard: React.FC = () => {
         try {
             // ใช้ API Search เพื่อหาข้อมูล (แม้ Active=false)
             const res = await axiosClient.get(`/Linen/Search?rfid=${rfid}`);
-            
+
             if (res.data && res.data.length > 0) {
                 const foundItem = res.data[0];
                 const newItem: CandidateItem = {
@@ -84,11 +89,11 @@ const Discard: React.FC = () => {
                 setScannedItems(prev => {
                     // เช็คซ้ำอีกรอบกันพลาด
                     if (prev.find(s => s.rfidCode === newItem.rfidCode)) return prev;
-                    
+
                     // แจ้งเตือนเล็กๆ
                     const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
                     Toast.fire({ icon: 'success', title: `รับค่า: ${newItem.productName}` });
-                    
+
                     return [newItem, ...prev];
                 });
             } else {
@@ -163,7 +168,7 @@ const Discard: React.FC = () => {
         `,
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#f97316',
+            confirmButtonColor: theme.palette.warning.main,
             confirmButtonText: 'ยืนยัน (Reset Tag)'
         }).then(async (result) => {
             if (result.isConfirmed) {
@@ -171,7 +176,7 @@ const Discard: React.FC = () => {
                     const payload = {
                         rfidCodes: scannedItems.map(i => i.rfidCode),
                         damageReasonId: parseInt(selectedReason),
-                        note: note || "", 
+                        note: note || "",
                         reportedByUserId: currentUser?.userId || 1
                     };
 
@@ -204,7 +209,7 @@ const Discard: React.FC = () => {
             icon: 'error',
             showCancelButton: true,
             confirmButtonText: 'ลบทิ้งทันที',
-            confirmButtonColor: '#d32f2f'
+            confirmButtonColor: theme.palette.error.main
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
@@ -228,92 +233,97 @@ const Discard: React.FC = () => {
 
     return (
         <Box sx={{ pb: 5 }}>
-            {/* Header */}
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#fee2e2', color: '#dc2626' }}>
-                    <LinkOff fontSize="large" />
-                </Paper>
-                <Box>
-                    <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
-                        แจ้งตัดจำหน่าย & คืนค่าแท็ก (Discard & Reset Tag)
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                        จัดการผ้าชำรุด/สูญหาย และรีเซ็ตสถานะ Tag ให้ว่างเพื่อนำกลับมาใช้ใหม่ (Reuse)
-                    </Typography>
-                </Box>
-            </Box>
+            <PageHeader
+                title="แจ้งตัดจำหน่าย & คืนค่าแท็ก (Discard & Reset Tag)"
+                subtitle="จัดการผ้าชำรุด/สูญหาย และรีเซ็ตสถานะ Tag ให้ว่างเพื่อนำกลับมาใช้ใหม่"
+                icon={<PlaylistRemove fontSize="large" />}
+                breadcrumbs={[
+                    { label: 'หน้าหลัก', href: '/' },
+                    { label: 'ตัดจำหน่าย' }
+                ]}
+            />
 
             {/* Main Card */}
-            <Card elevation={2} sx={{ mb: 3, borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <Card elevation={0} sx={{ mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
                 <CardContent sx={{ p: 3 }}>
                     <Grid container spacing={3}>
                         {/* 1. Search (Full Width) */}
                         <Grid item xs={12}>
-                            <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>1. ค้นหา / สแกน (จากรายชื่อ)</Typography>
-                            <Autocomplete
-                                value={searchSelection}
-                                onChange={(event, newValue) => handleSelectItem(newValue)}
-                                options={candidates.filter(c => !scannedItems.find(s => s.rfidCode === c.rfidCode))}
-                                getOptionLabel={(option) => `${option.productName} (${option.rfidCode})`}
-                                autoHighlight autoSelect blurOnSelect
-                                size="small"
-                                renderInput={(params) => (
-                                    <TextField
-                                        {...params}
-                                        label="ค้นหาผ้า..."
-                                        placeholder="พิมพ์ชื่อ หรือสแกน RFID..."
-                                        InputProps={{ ...params.InputProps, startAdornment: <Search color="action" sx={{ mr: 1 }} /> }}
-                                    />
-                                )}
-                                noOptionsText="ไม่พบข้อมูล (ลองใช้โหมดแก้ปัญหาด้านล่าง)"
-                                fullWidth
-                            />
+                            <FormLabel label="1. ค้นหา / สแกน (จากรายชื่อ)">
+                                <Autocomplete
+                                    value={searchSelection}
+                                    onChange={(event, newValue) => handleSelectItem(newValue)}
+                                    options={candidates.filter(c => !scannedItems.find(s => s.rfidCode === c.rfidCode))}
+                                    getOptionLabel={(option) => `${option.productName} (${option.rfidCode})`}
+                                    autoHighlight autoSelect blurOnSelect
+                                    size="medium"
+                                    renderInput={(params) => (
+                                        <TextField
+                                            {...params}
+                                            placeholder="พิมพ์ชื่อ หรือสแกน RFID..."
+                                            InputProps={{ ...params.InputProps, startAdornment: <Search color="action" sx={{ mr: 1 }} /> }}
+                                        />
+                                    )}
+                                    noOptionsText="ไม่พบข้อมูล (ลองใช้โหมดแก้ปัญหาด้านล่าง)"
+                                    fullWidth
+                                />
+                            </FormLabel>
                         </Grid>
 
                         {/* 2. Action (Full Width) */}
                         <Grid item xs={12}>
-                            <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>2. ระบุสาเหตุ</Typography>
-                            <Grid container spacing={3}>
-                                <Grid item xs={12} md={6}>
-                                    <FormControl fullWidth size="small">
-                                        <InputLabel>สาเหตุ</InputLabel>
-                                        <Select value={selectedReason} label="สาเหตุ" onChange={(e) => setSelectedReason(e.target.value)}>
-                                            {reasons.map((r: any) => (
-                                                <MenuItem key={r.reasonId || r.id} value={String(r.reasonId || r.id)}>{r.reasonName}</MenuItem>
-                                            ))}
-                                        </Select>
-                                    </FormControl>
+                            <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1, color: 'text.secondary' }}>2. ระบุสาเหตุการตัดจำหน่าย</Typography>
+                            <Paper variant="outlined" sx={{ p: 2, bgcolor: alpha(theme.palette.warning.main, 0.05), borderColor: alpha(theme.palette.warning.main, 0.3) }}>
+                                <Grid container spacing={3}>
+                                    <Grid item xs={12} md={6}>
+                                        <FormLabel label="สาเหตุ (Reason)" required>
+                                            <Select value={selectedReason} displayEmpty onChange={(e) => setSelectedReason(e.target.value)}>
+                                                <MenuItem value="" disabled>เลือกสาเหตุ</MenuItem>
+                                                {reasons.map((r: any) => (
+                                                    <MenuItem key={r.reasonId || r.id} value={String(r.reasonId || r.id)}>{r.reasonName}</MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormLabel>
+                                    </Grid>
+                                    <Grid item xs={12} md={6}>
+                                        <FormLabel label="หมายเหตุ (Note)">
+                                            <TextField fullWidth placeholder="ระบุรายละเอียดเพิ่มเติม..." value={note} onChange={e => setNote(e.target.value)} />
+                                        </FormLabel>
+                                    </Grid>
                                 </Grid>
-                                <Grid item xs={12} md={6}>
-                                    <TextField fullWidth size="small" label="หมายเหตุ (Note)" value={note} onChange={e => setNote(e.target.value)} />
-                                </Grid>
-                            </Grid>
 
-                            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                                <Button
-                                    variant="contained"
-                                    color="warning"
-                                    startIcon={<LinkOff />}
-                                    onClick={handleDiscardAndUnbind}
-                                    disabled={scannedItems.length === 0}
-                                    sx={{ fontWeight: 'bold', px: 3 }}
-                                >
-                                    ยืนยันตัดจำหน่าย (Reset Tag)
-                                </Button>
-                            </Box>
+                                <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                                    <Button
+                                        variant="outlined" color="inherit" onClick={clearForm} startIcon={<RestartAlt />}
+                                        disabled={scannedItems.length === 0}
+                                    >
+                                        ล้างค่า
+                                    </Button>
+                                    <Button
+                                        variant="contained"
+                                        color="warning"
+                                        startIcon={<LinkOff />}
+                                        onClick={handleDiscardAndUnbind}
+                                        disabled={scannedItems.length === 0}
+                                        sx={{ fontWeight: 'bold', px: 4, boxShadow: theme.shadows[4] }}
+                                    >
+                                        ยืนยันตัดจำหน่าย (Reset Tag)
+                                    </Button>
+                                </Box>
+                            </Paper>
                         </Grid>
                     </Grid>
 
                     {/* List Table */}
                     {scannedItems.length > 0 && (
-                        <TableContainer sx={{ mt: 3, maxHeight: 300, border: '1px solid #e2e8f0', borderRadius: 2 }}>
+                        <TableContainer sx={{ mt: 3, maxHeight: 300, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
                             <Table stickyHeader size="small">
                                 <TableHead>
-                                    <TableRow>
-                                        <TableCell>สินค้า</TableCell>
-                                        <TableCell>RFID Code</TableCell>
-                                        <TableCell>สถานะ</TableCell>
-                                        <TableCell align="center">ลบ</TableCell>
+                                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>สินค้า</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>RFID Code</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>สถานะ</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>ลบ</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -328,14 +338,14 @@ const Discard: React.FC = () => {
                                             </TableCell>
                                             <TableCell sx={{ maxWidth: 150 }}>
                                                 <Tooltip title={item.rfidCode}>
-                                                    <Typography variant="body2" fontFamily="monospace" color="#64748b" noWrap>
+                                                    <Typography variant="body2" fontFamily="monospace" color="primary.main" noWrap>
                                                         {item.rfidCode}
                                                     </Typography>
                                                 </Tooltip>
                                             </TableCell>
                                             <TableCell>{item.status}</TableCell>
                                             <TableCell align="center">
-                                                <IconButton size="small" color="default" onClick={() => handleRemoveItem(item.rfidCode)}>
+                                                <IconButton size="small" color="error" onClick={() => handleRemoveItem(item.rfidCode)}>
                                                     <Delete fontSize="small" />
                                                 </IconButton>
                                             </TableCell>
@@ -350,21 +360,27 @@ const Discard: React.FC = () => {
 
             {/* 🔥 Troubleshoot Zone */}
             <Box sx={{ mb: 3 }}>
-                <Button onClick={() => setShowTroubleshoot(!showTroubleshoot)} startIcon={<Build />} sx={{ color: '#64748b' }}>
+                <Button
+                    onClick={() => setShowTroubleshoot(!showTroubleshoot)}
+                    startIcon={<Build />}
+                    color="error" sx={{ textTransform: 'none' }}
+                >
                     {showTroubleshoot ? 'ซ่อนเครื่องมือแก้ปัญหา' : 'เครื่องมือแก้ปัญหา Tag ค้าง (Troubleshoot)'}
                 </Button>
                 <Collapse in={showTroubleshoot}>
-                    <Card sx={{ mt: 1, border: '2px dashed #f87171', bgcolor: '#fef2f2' }}>
+                    <Card sx={{ mt: 1, border: `1px dashed ${theme.palette.error.main}`, bgcolor: alpha(theme.palette.error.main, 0.05) }}>
                         <CardContent>
                             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
                                 <BugReport color="error" />
-                                <Typography variant="subtitle1" fontWeight="bold" color="#b91c1c">แก้ปัญหา Tag ค้าง / ลบไม่ออก</Typography>
+                                <Typography variant="subtitle1" fontWeight="bold" color="error">แก้ปัญหา Tag ค้าง / ลบไม่ออก</Typography>
                             </Stack>
                             <Grid container spacing={3} alignItems="center">
                                 <Grid item xs={12} md={8}>
-                                    <TextField fullWidth size="small" placeholder="ใส่รหัส RFID ที่มีปัญหาที่นี่ (เช่น E200...)" value={manualRfid} onChange={e => setManualRfid(e.target.value)} sx={{ bgcolor: '#fff' }} />
+                                    <FormLabel label="ระบุ RFID Tag ที่มีปัญหา">
+                                        <TextField fullWidth size="small" placeholder="เช่น E200..." value={manualRfid} onChange={e => setManualRfid(e.target.value)} sx={{ bgcolor: 'white' }} />
+                                    </FormLabel>
                                 </Grid>
-                                <Grid item xs={12} md={4} sx={{ display: 'flex', gap: 2 }}>
+                                <Grid item xs={12} md={4} sx={{ display: 'flex', gap: 2, alignItems: 'flex-end', pb: '2px' }}>
                                     <Button variant="contained" onClick={handleManualCheck} disabled={!manualRfid} sx={{ height: 40 }}>ตรวจสอบ</Button>
                                     <Button variant="contained" color="error" onClick={handleForceDelete} disabled={scannedItems.length === 0} startIcon={<DeleteForever />} sx={{ height: 40 }}>ลบถาวร</Button>
                                 </Grid>
@@ -375,23 +391,26 @@ const Discard: React.FC = () => {
             </Box>
 
             {/* History */}
-            <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                <Box sx={{ p: 2, borderBottom: '1px solid #f1f5f9' }}>
-                    <Typography variant="subtitle2" fontWeight="bold" sx={{ color: '#475569' }}>ประวัติการดำเนินการล่าสุด</Typography>
+            <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
+                <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <History fontSize="small" color="action" />
+                    <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">ประวัติการดำเนินการล่าสุด</Typography>
                 </Box>
                 <TableContainer sx={{ maxHeight: 300 }}>
                     <Table size="small">
                         <TableBody>
-                            {deleteHistory.map((log: any) => (
+                            {deleteHistory.length === 0 ? (
+                                <TableRow><TableCell colSpan={2} align="center" sx={{ color: 'text.secondary', py: 2 }}>ไม่มีประวัติล่าสุด</TableCell></TableRow>
+                            ) : deleteHistory.map((log: any) => (
                                 <TableRow key={log.id}>
-                                    <TableCell sx={{ color: '#334155', maxWidth: 250 }}>
+                                    <TableCell sx={{ color: 'text.primary', maxWidth: 250 }}>
                                         <Tooltip title={log.item}>
                                             <Typography variant="body2" noWrap>
                                                 {log.item}
                                             </Typography>
                                         </Tooltip>
                                     </TableCell>
-                                    <TableCell align="right" sx={{ color: '#64748b', fontSize: '0.85rem' }}>{log.time}</TableCell>
+                                    <TableCell align="right" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>{log.time}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>

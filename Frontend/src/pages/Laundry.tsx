@@ -3,17 +3,19 @@ import {
     Box, Paper, Typography, Button, Grid, Table,
     TableBody, TableCell, TableContainer, TableHead, TableRow,
     IconButton, Tabs, Tab, Card, CardContent, Chip,
-    FormControl, InputLabel, Select, MenuItem,
-    Alert, Stack, Autocomplete, TextField, Tooltip
+    FormControl, Select, MenuItem,
+    Alert, Stack, Autocomplete, TextField, Tooltip, useTheme, alpha
 } from '@mui/material';
 import {
     LocalLaundryService, Outbound, MoveToInbox,
     Delete, CheckCircle, Refresh, Info, History, Search,
-    SettingsRemote, QrCodeScanner, RestartAlt
+    SettingsRemote, QrCodeScanner, RestartAlt, ErrorOutline
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
 import { sendNotification } from '../utils/notificationUtil';
+import PageHeader from '../components/ui/PageHeader';
+import FormLabel from '../components/ui/FormLabel';
 
 // Interface
 interface Vendor {
@@ -42,6 +44,7 @@ interface CandidateItem {
 }
 
 const Laundry: React.FC = () => {
+    const theme = useTheme();
     const [tabValue, setTabValue] = useState(0);
 
     // Reader State
@@ -56,10 +59,8 @@ const Laundry: React.FC = () => {
     const [candidates, setCandidates] = useState<CandidateItem[]>([]);
     const [searchValue, setSearchValue] = useState<CandidateItem | null>(null);
     const [rfidInput, setRfidInput] = useState('');
-    
+
     const inputRef = useRef<HTMLInputElement>(null);
-    
-    // 🔥🔥🔥 1. สร้าง Ref เพื่อเก็บค่า scannedItems ล่าสุด (แก้บั๊ก Stale Closure) 🔥🔥🔥
     const scannedItemsRef = useRef<ScannedItem[]>([]);
 
     useEffect(() => {
@@ -71,7 +72,6 @@ const Laundry: React.FC = () => {
         fetchCandidates();
     }, [tabValue, washingList]);
 
-    // 🔥🔥🔥 2. อัปเดต Ref ทุกครั้งที่ State เปลี่ยน 🔥🔥🔥
     useEffect(() => {
         scannedItemsRef.current = scannedItems;
     }, [scannedItems]);
@@ -79,7 +79,7 @@ const Laundry: React.FC = () => {
     // Real-time Auto Scan Listener
     useEffect(() => {
         const handleAutoScan = (e: any) => {
-            const incomingData = e.detail; 
+            const incomingData = e.detail;
             const rfid = typeof incomingData === 'object' ? incomingData.rfid : incomingData;
             const readerName = typeof incomingData === 'object' ? incomingData.reader : null;
 
@@ -95,13 +95,12 @@ const Laundry: React.FC = () => {
             }
             if (readerName && selectedReader !== readerName) return;
 
-            // เรียก handleAddItem โดยส่งค่า rfid ไป
             if (rfid) handleAddItem(rfid);
         };
 
         window.addEventListener("RFID_SCANNED", handleAutoScan);
         return () => window.removeEventListener("RFID_SCANNED", handleAutoScan);
-    }, [selectedReader, selectedVendor, tabValue, candidates]); // ลบ scannedItems ออกจาก dependency เพราะเราใช้ Ref แล้ว
+    }, [selectedReader, selectedVendor, tabValue, candidates]);
 
     const fetchMasterData = async () => {
         try {
@@ -142,29 +141,25 @@ const Laundry: React.FC = () => {
         fetchCandidates();
     };
 
-    // ✅ ฟังก์ชันเพิ่มรายการ (แก้บั๊ก Duplicate + Unknown)
     const handleAddItem = async (rfid: string) => {
         const cleanRfid = rfid.trim().toUpperCase();
         if (!cleanRfid) return;
 
-        // 🔥🔥🔥 3. ใช้ Ref เช็คค่าซ้ำ แทน State (แก้บั๊กสแกนซ้ำได้แล้ว!) 🔥🔥🔥
         if (scannedItemsRef.current.find(s => s.rfid === cleanRfid)) {
             const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1000 });
             Toast.fire({ icon: 'warning', title: `รายการ ${cleanRfid} สแกนไปแล้ว` });
-            return; // จบการทำงานทันที ไม่เพิ่มซ้ำ
+            return;
         }
 
         let productName = 'Unknown Item';
         let status = '';
 
-        // ลองหาใน Candidates (Local Memory)
         const candidate = candidates.find(c => c.rfidCode === cleanRfid);
-        
+
         if (candidate) {
             productName = candidate.productName;
             status = candidate.status;
         } else {
-            // ถ้าไม่เจอ ให้วิ่งไปถาม Backend (แก้บั๊ก Unknown)
             try {
                 const res = await axiosClient.get(`/Laundry/Check/${cleanRfid}`);
                 if (res.data) {
@@ -176,15 +171,13 @@ const Laundry: React.FC = () => {
             }
         }
 
-        // เพิ่มลงตาราง
         const newItem: ScannedItem = {
             rfid: cleanRfid,
             productName: productName,
             status: status,
             timestamp: new Date()
         };
-        
-        // อัปเดต State (ซึ่งจะไปอัปเดต Ref ผ่าน useEffect เอง)
+
         setScannedItems(prev => [newItem, ...prev]);
     };
 
@@ -198,7 +191,7 @@ const Laundry: React.FC = () => {
         e.preventDefault();
         if (!selectedReader) return Swal.fire('เตือน', 'กรุณาเลือก Reader ก่อน', 'warning');
         if (tabValue === 0 && !selectedVendor) return Swal.fire('เตือน', 'กรุณาเลือกบริษัทคู่ค้า', 'warning');
-        
+
         handleAddItem(rfidInput);
         setRfidInput('');
         setTimeout(() => inputRef.current?.focus(), 100);
@@ -221,17 +214,18 @@ const Laundry: React.FC = () => {
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'ยืนยัน',
-            confirmButtonColor: '#0ea5e9'
+            confirmButtonColor: theme.palette.primary.main,
+            cancelButtonColor: theme.palette.text.secondary
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
                     const payload = tabValue === 0
                         ? { vendorId: selectedVendor ? parseInt(selectedVendor) : 0, rfidCodes: scannedItems.map(item => item.rfid) }
-                        : { rfidCodes: scannedItems.map(item => item.rfid) }; 
+                        : { rfidCodes: scannedItems.map(item => item.rfid) };
 
                     await axiosClient.post(apiEndpoint, payload);
 
-                    Swal.fire('สำเร็จ', `บันทึกเรียบร้อย`, 'success');
+                    Swal.fire({ icon: 'success', title: 'สำเร็จ', text: `บันทึกเรียบร้อย`, showConfirmButton: false, timer: 1500 });
 
                     // Notify
                     if (tabValue === 0) {
@@ -267,114 +261,129 @@ const Laundry: React.FC = () => {
 
     return (
         <Box sx={{ pb: 5 }}>
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#e0f2fe', color: '#0284c7' }}>
-                    <LocalLaundryService fontSize="large" />
-                </Paper>
-                <Box>
-                    <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
-                        ระบบซักรีด (Laundry Management)
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                        บันทึกการส่งผ้าเปื้อนไปซัก และรับผ้าสะอาดกลับเข้าคลัง
-                    </Typography>
-                </Box>
-            </Box>
+            <PageHeader
+                title="ระบบซักรีด (Laundry Management)"
+                subtitle="บันทึกการส่งผ้าเปื้อนไปซัก และรับผ้าสะอาดกลับเข้าคลัง"
+                icon={<LocalLaundryService fontSize="large" />}
+                breadcrumbs={[
+                    { label: 'หน้าหลัก', href: '/' },
+                    { label: 'ซักรีด' }
+                ]}
+            />
 
-            <Card elevation={2} sx={{ mb: 4, borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <Card elevation={0} sx={{ mb: 4, borderRadius: 3, border: 'none', bgcolor: 'transparent', boxShadow: 'none' }}>
                 <Tabs
                     value={tabValue}
                     onChange={handleTabChange}
-                    sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#f8fafc' }}
-                    variant="fullWidth"
+                    sx={{
+                        minHeight: 56,
+                        '& .MuiTab-root': {
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            fontSize: '1rem',
+                            mr: 1,
+                            bgcolor: '#fff',
+                            borderRadius: '12px 12px 0 0',
+                            border: `1px solid ${theme.palette.divider}`,
+                            borderBottom: 'none',
+                            '&.Mui-selected': { bgcolor: '#fff', color: theme.palette.primary.main, borderTop: `2px solid ${theme.palette.primary.main}` }
+                        },
+                        '& .MuiTabs-indicator': { display: 'none' }
+                    }}
                 >
-                    <Tab label="1. ส่งผ้าเปื้อน (Send)" icon={<Outbound />} iconPosition="start" />
-                    <Tab label="2. รับผ้าสะอาด (Receive)" icon={<MoveToInbox />} iconPosition="start" />
+                    <Tab label="1. ส่งผ้าเปื้อน (Send)" icon={<Outbound fontSize="small" />} iconPosition="start" />
+                    <Tab label="2. รับผ้าสะอาด (Receive)" icon={<MoveToInbox fontSize="small" />} iconPosition="start" />
                 </Tabs>
 
-                <CardContent sx={{ p: 3 }}>
-                    <Grid container spacing={2} alignItems="flex-end" sx={{ mb: 3 }}>
-                        <Grid item xs={12} md={4}>
-                            <FormControl fullWidth size="small">
-                                <InputLabel>เลือกเครื่องอ่าน (Reader) *</InputLabel>
-                                <Select value={selectedReader} label="เลือกเครื่องอ่าน (Reader) *" onChange={(e) => setSelectedReader(e.target.value)}>
-                                    {readers.map((r: any) => (
-                                        <MenuItem key={r.readerId} value={r.readerName}>
-                                            {r.readerName} {r.isActive ? '🟢' : '🔴'}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                        </Grid>
-                        {tabValue === 0 && (
+                <Card sx={{ mt: -0.2, borderRadius: '0 12px 12px 12px', border: `1px solid ${theme.palette.divider}` }}>
+                    <CardContent sx={{ p: 3 }}>
+                        <Grid container spacing={3} alignItems="flex-end" sx={{ mb: 3 }}>
                             <Grid item xs={12} md={4}>
-                                <FormControl fullWidth size="small">
-                                    <InputLabel>เลือกบริษัทคู่ค้า *</InputLabel>
-                                    <Select value={selectedVendor} label="เลือกบริษัทคู่ค้า *" onChange={(e) => setSelectedVendor(e.target.value)}>
-                                        {vendors.map(v => <MenuItem key={v.vendorId} value={v.vendorId}>{v.vendorName}</MenuItem>)}
+                                <FormLabel label="เลือกเครื่องอ่าน (Reader)" required>
+                                    <Select value={selectedReader} onChange={(e) => setSelectedReader(e.target.value)} displayEmpty>
+                                        <MenuItem value="" disabled>-- เลือกเครื่องอ่าน --</MenuItem>
+                                        {readers.map((r: any) => (
+                                            <MenuItem key={r.readerId} value={r.readerName}>
+                                                <Stack direction="row" alignItems="center" justifyContent="space-between" width="100%">
+                                                    {r.readerName} {r.isActive ? <CheckCircle fontSize="small" color="success" /> : <ErrorOutline fontSize="small" color="error" />}
+                                                </Stack>
+                                            </MenuItem>
+                                        ))}
                                     </Select>
-                                </FormControl>
+                                </FormLabel>
                             </Grid>
-                        )}
-                        <Grid item xs={12} md={tabValue === 0 ? 4 : 8}>
-                            <form onSubmit={handleManualInput}>
-                                <TextField
-                                    fullWidth size="small" inputRef={inputRef} value={rfidInput} onChange={(e) => setRfidInput(e.target.value)}
-                                    label="สแกน RFID / ยิงบาร์โค้ด" placeholder="คลิกแล้วยิง..."
-                                    disabled={!selectedReader || (tabValue === 0 && !selectedVendor)}
-                                    InputProps={{ startAdornment: <QrCodeScanner fontSize="small" color="action" sx={{ mr: 1 }} /> }}
-                                />
-                            </form>
-                        </Grid>
-                    </Grid>
 
-                    <Box sx={{ mb: 3 }}>
-                        <Autocomplete
-                            fullWidth size="small" value={searchValue}
-                            onChange={(event, newValue) => handleSelectFromDropdown(newValue)}
-                            options={candidates.filter(c => !scannedItems.find(s => s.rfid === c.rfidCode))}
-                            getOptionLabel={(option) => `${option.productName} (${option.rfidCode}) - ${option.status}`}
-                            renderInput={(params) => (
-                                <TextField {...params} label={tabValue === 0 ? "ค้นหาผ้าที่จะส่งซัก (จากระบบ)" : "ค้นหาผ้าที่กำลังซัก (จากระบบ)"} placeholder="พิมพ์ชื่อสินค้า..." InputProps={{ ...params.InputProps, startAdornment: <Search color="action" sx={{ mr: 1 }} /> }} />
+                            {tabValue === 0 && (
+                                <Grid item xs={12} md={4}>
+                                    <FormLabel label="เลือกบริษัทคู่ค้า" required>
+                                        <Select value={selectedVendor} onChange={(e) => setSelectedVendor(e.target.value)} displayEmpty>
+                                            <MenuItem value="" disabled>เลือกบริษัท</MenuItem>
+                                            {vendors.map(v => <MenuItem key={v.vendorId} value={v.vendorId}>{v.vendorName}</MenuItem>)}
+                                        </Select>
+                                    </FormLabel>
+                                </Grid>
                             )}
-                            noOptionsText="ไม่พบรายการที่ตรงเงื่อนไข"
-                        />
-                    </Box>
 
-                    {scannedItems.length > 0 && (
-                        <Alert severity="info" sx={{ mb: 3, py: 0 }} icon={<Info />}>
-                            <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1} sx={{ py: 1 }}>
-                                <Typography variant="subtitle2" fontWeight="bold" sx={{ mr: 1 }}>สรุปรายการ:</Typography>
-                                {Object.entries(summary).map(([name, count]) => (
-                                    <Chip key={name} label={`${name}: ${count}`} size="small" sx={{ bgcolor: 'white', border: '1px solid #bae6fd' }} />
-                                ))}
-                                <Box sx={{ flexGrow: 1 }} />
-                                <Button size="small" color="error" startIcon={<RestartAlt />} onClick={() => setScannedItems([])}>ล้างรายการ</Button>
-                            </Stack>
-                        </Alert>
-                    )}
+                            <Grid item xs={12} md={tabValue === 0 ? 4 : 8}>
+                                <form onSubmit={handleManualInput}>
+                                    <FormLabel label="สแกน RFID / ยิงบาร์โค้ด">
+                                        <TextField
+                                            fullWidth inputRef={inputRef} value={rfidInput} onChange={(e) => setRfidInput(e.target.value)}
+                                            placeholder="คลิกแล้วยิง..."
+                                            disabled={!selectedReader || (tabValue === 0 && !selectedVendor)}
+                                            InputProps={{ startAdornment: <QrCodeScanner fontSize="small" color="action" sx={{ mr: 1 }} /> }}
+                                        />
+                                    </FormLabel>
+                                </form>
+                            </Grid>
+                        </Grid>
 
-                    <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', mb: 3 }}>
-                        <TableContainer sx={{ maxHeight: 300 }}>
+                        <Box sx={{ mb: 3 }}>
+                            <Autocomplete
+                                fullWidth size="small" value={searchValue}
+                                onChange={(event, newValue) => handleSelectFromDropdown(newValue)}
+                                options={candidates.filter(c => !scannedItems.find(s => s.rfid === c.rfidCode))}
+                                getOptionLabel={(option) => `${option.productName} (${option.rfidCode}) - ${option.status}`}
+                                renderInput={(params) => (
+                                    <TextField {...params} label={tabValue === 0 ? "ค้นหาผ้าที่จะส่งซัก (จากระบบ)" : "ค้นหาผ้าที่กำลังซัก (จากระบบ)"} placeholder="พิมพ์ชื่อสินค้า..." InputProps={{ ...params.InputProps, startAdornment: <Search color="action" sx={{ mr: 1 }} /> }} />
+                                )}
+                                noOptionsText="ไม่พบรายการที่ตรงเงื่อนไข"
+                            />
+                        </Box>
+
+                        {scannedItems.length > 0 && (
+                            <Alert severity="info" sx={{ mb: 3, py: 0 }} icon={<Info />}>
+                                <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1} sx={{ py: 1 }}>
+                                    <Typography variant="subtitle2" fontWeight="bold" sx={{ mr: 1 }}>สรุปรายการ:</Typography>
+                                    {Object.entries(summary).map(([name, count]) => (
+                                        <Chip key={name} label={`${name}: ${count}`} size="small" sx={{ bgcolor: 'white', border: '1px solid #bae6fd' }} />
+                                    ))}
+                                    <Box sx={{ flexGrow: 1 }} />
+                                    <Button size="small" color="error" startIcon={<RestartAlt />} onClick={() => setScannedItems([])}>ล้างรายการ</Button>
+                                </Stack>
+                            </Alert>
+                        )}
+
+                        <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', mb: 3, maxHeight: 300 }}>
                             <Table stickyHeader size="small">
                                 <TableHead>
-                                    <TableRow>
-                                        <TableCell>ลำดับ</TableCell>
-                                        <TableCell>RFID Code</TableCell>
-                                        <TableCell>สินค้า</TableCell>
-                                        <TableCell>สถานะปัจจุบัน</TableCell>
-                                        <TableCell>เวลา</TableCell>
-                                        <TableCell align="center">ลบ</TableCell>
+                                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
+                                        <TableCell sx={{ fontWeight: 600 }}>ลำดับ</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>RFID Code</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>สินค้า</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>สถานะปัจจุบัน</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>เวลา</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600 }}>ลบ</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {scannedItems.length === 0 ? (
-                                        <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4, color: '#94a3b8' }}>ยังไม่ได้เลือกรายการ...</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.disabled' }}>ยังไม่ได้เลือกรายการ...</TableCell></TableRow>
                                     ) : (
                                         scannedItems.map((item, index) => (
                                             <TableRow key={item.rfid} hover>
                                                 <TableCell>{scannedItems.length - index}</TableCell>
-                                                <TableCell sx={{ maxWidth: 200, fontFamily: 'monospace', color: 'primary.main', fontWeight: 'bold' }}>{item.rfid}</TableCell>
+                                                <TableCell sx={{ maxWidth: 200, fontFamily: 'monospace', color: 'primary.main', fontWeight: 600 }}>{item.rfid}</TableCell>
                                                 <TableCell sx={{ maxWidth: 250 }}>{item.productName}</TableCell>
                                                 <TableCell>
                                                     {item.status ? <Chip label={item.status} size="small" variant="outlined" color={item.status === 'Available' ? 'success' : 'default'} /> : '-'}
@@ -389,23 +398,29 @@ const Laundry: React.FC = () => {
                                 </TableBody>
                             </Table>
                         </TableContainer>
-                    </Paper>
 
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <Button
-                            variant="contained" size="large" onClick={handleSubmit}
-                            disabled={scannedItems.length === 0 || (tabValue === 0 && !selectedVendor)}
-                            color={tabValue === 0 ? "error" : "success"}
-                            startIcon={tabValue === 0 ? <Outbound /> : <CheckCircle />}
-                            sx={{ px: 4, py: 1.2, fontSize: '1.1rem', borderRadius: 2 }}
-                        >
-                            ยืนยันรายการ ({scannedItems.length})
-                        </Button>
-                    </Box>
-                </CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                            <Button
+                                variant="outlined" size="large" onClick={() => setScannedItems([])}
+                                disabled={scannedItems.length === 0}
+                            >
+                                ยกเลิก
+                            </Button>
+                            <Button
+                                variant="contained" size="large" onClick={handleSubmit}
+                                disabled={scannedItems.length === 0 || (tabValue === 0 && !selectedVendor)}
+                                color={tabValue === 0 ? "warning" : "success"}
+                                startIcon={tabValue === 0 ? <Outbound /> : <CheckCircle />}
+                                sx={{ px: 4 }}
+                            >
+                                ยืนยันรายการ ({scannedItems.length})
+                            </Button>
+                        </Box>
+                    </CardContent>
+                </Card>
             </Card>
 
-            <Card elevation={2} sx={{ borderRadius: 3, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
                 <CardContent sx={{ p: 3 }}>
                     <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2 }}>
                         <History color="action" />
@@ -417,7 +432,7 @@ const Laundry: React.FC = () => {
                     <TableContainer sx={{ maxHeight: 400 }}>
                         <Table stickyHeader size="small">
                             <TableHead>
-                                <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                                <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
                                     <TableCell sx={{ fontWeight: 'bold' }}>RFID Code</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold' }}>ชื่อสินค้า</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold' }}>ส่งไปร้าน</TableCell>
@@ -427,7 +442,7 @@ const Laundry: React.FC = () => {
                             </TableHead>
                             <TableBody>
                                 {washingList.length === 0 ? (
-                                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3 }}>ไม่พบรายการที่กำลังซัก</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>ไม่พบรายการที่กำลังซัก</TableCell></TableRow>
                                 ) : (
                                     washingList.map((item) => (
                                         <TableRow key={item.rfidCode} hover>

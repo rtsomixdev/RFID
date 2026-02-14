@@ -2,19 +2,23 @@ import React, { useEffect, useState } from 'react';
 import {
   Box, Paper, Typography, TextField, Button, Grid, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow,
-  IconButton, Tabs, Tab, Select, MenuItem, FormControl, InputLabel,
-  Card, Chip, InputAdornment, Stack, CircularProgress, Alert
+  IconButton, Tabs, Tab, Select, MenuItem, FormControl,
+  Card, Chip, InputAdornment, Stack, CircularProgress, Alert,
+  Divider, CardContent, CardActions, useTheme, alpha
 } from '@mui/material';
 import {
-  AddCircle, Delete, Domain, MeetingRoom, Edit, ListAlt, Apartment, CorporateFare, Save, Cancel
+  AddCircle, Delete, Domain, MeetingRoom, Edit, ListAlt, Apartment, CorporateFare, Save, Cancel,
+  Business, LocalHospital, KeyboardArrowRight
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
-import axios from 'axios'; 
-import { useNavigate } from 'react-router-dom'; // ✅ เพิ่ม useNavigate
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import { sendNotification } from '../utils/notificationUtil';
+import PageHeader from '../components/ui/PageHeader';
+import FormLabel from '../components/ui/FormLabel';
 
-// ⚠️ Config URL (Port 5134) - ตรวจสอบให้แน่ใจว่า Backend Run Port นี้อยู่
-const API_BASE_URL = 'http://localhost:5134/api'; 
+// ⚠️ Config URL
+const API_BASE_URL = 'http://localhost:5134/api';
 const API_HOSPITAL = `${API_BASE_URL}/Hospital`;
 const API_WARD = `${API_BASE_URL}/Ward`;
 
@@ -35,7 +39,8 @@ interface Ward {
 }
 
 const HospitalPage: React.FC = () => {
-  const navigate = useNavigate(); // ✅ ใช้สำหรับ Redirect ถ้า Token หลุด
+  const theme = useTheme();
+  const navigate = useNavigate();
 
   // --- States ---
   const [tabValue, setTabValue] = useState(0);
@@ -53,9 +58,9 @@ const HospitalPage: React.FC = () => {
   const [wardForm, setWardForm] = useState({ name: '', hospitalId: '' });
   const [editWardId, setEditWardId] = useState<number | null>(null);
 
-  // ✅ ฟังก์ชันช่วยสร้าง Header พร้อม Token
+  // ✅ Auth Config
   const getAuthConfig = () => {
-    const token = localStorage.getItem('token') || localStorage.getItem('accessToken'); // เช็ค key ที่คุณใช้เก็บ
+    const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
     return {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -64,7 +69,6 @@ const HospitalPage: React.FC = () => {
     };
   };
 
-  // ✅ ฟังก์ชันจัดการ Error 401
   const handleApiError = (err: any) => {
     console.error("API Error:", err);
     if (err.response && err.response.status === 401) {
@@ -75,7 +79,7 @@ const HospitalPage: React.FC = () => {
         timer: 2000,
         showConfirmButton: false
       }).then(() => {
-        navigate('/login'); // ดีดไปหน้า Login
+        navigate('/login');
       });
     } else {
       Swal.fire('Error', err.response?.data?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
@@ -91,7 +95,6 @@ const HospitalPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // ✅ ใส่ getAuthConfig() เพื่อแนบ Token
       const [hospRes, wardRes] = await Promise.all([
         axios.get(API_HOSPITAL, getAuthConfig()),
         axios.get(API_WARD, getAuthConfig())
@@ -101,10 +104,10 @@ const HospitalPage: React.FC = () => {
       setWards(wardRes.data || []);
     } catch (err: any) {
       if (err.response && err.response.status === 401) {
-         setError("Session หมดอายุ กรุณา Login ใหม่");
+        setError("Session หมดอายุ กรุณา Login ใหม่");
       } else {
-         console.error("Fetch Error:", err);
-         setError("ไม่สามารถโหลดข้อมูลได้ ตรวจสอบว่า Backend เปิดอยู่หรือไม่");
+        console.error("Fetch Error:", err);
+        setError("ไม่สามารถโหลดข้อมูลได้ ตรวจสอบว่า Backend เปิดอยู่หรือไม่");
       }
     } finally {
       setLoading(false);
@@ -139,24 +142,22 @@ const HospitalPage: React.FC = () => {
 
     try {
       const payload = {
-        hospitalId: editHospitalId || 0, // ส่ง ID กลับไปเผื่อ Backend ใช้
+        hospitalId: editHospitalId || 0,
         hospitalName: hospitalForm.name,
         address: hospitalForm.address,
         contactInfo: hospitalForm.contact
       };
 
       if (editHospitalId) {
-        // 🟡 Update (PUT) - อย่าลืม config
         await axios.put(`${API_HOSPITAL}/${editHospitalId}`, payload, getAuthConfig());
-        Swal.fire('แก้ไขสำเร็จ', 'ข้อมูลโรงพยาบาลถูกอัปเดตแล้ว', 'success');
+        Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', text: 'ข้อมูลโรงพยาบาลถูกอัปเดตแล้ว', showConfirmButton: false, timer: 1500 });
       } else {
-        // 🟢 Create (POST) - อย่าลืม config
         await axios.post(API_HOSPITAL, payload, getAuthConfig());
-        Swal.fire('สำเร็จ', 'เพิ่มโรงพยาบาลเรียบร้อย', 'success');
-        
+        Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'เพิ่มโรงพยาบาลเรียบร้อย', showConfirmButton: false, timer: 1500 });
+
         await sendNotification("เพิ่มโรงพยาบาลใหม่", `โรงพยาบาล ${hospitalForm.name} เข้าระบบแล้ว`, "INFO", "/hospital", undefined, 1);
       }
-      
+
       handleCancelHospital();
       fetchData();
     } catch (err) {
@@ -170,15 +171,16 @@ const HospitalPage: React.FC = () => {
       text: `ต้องการลบโรงพยาบาล "${name}" หรือไม่? ข้อมูลวอร์ดที่เกี่ยวข้องอาจถูกลบด้วย`,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#d33',
-      confirmButtonText: 'ยืนยันลบ'
+      confirmButtonColor: theme.palette.error.main,
+      cancelButtonColor: theme.palette.text.secondary,
+      confirmButtonText: 'ยืนยันลบ',
+      cancelButtonText: 'ยกเลิก'
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          // 🔴 Delete - config อยู่ parameter ที่ 2
           await axios.delete(`${API_HOSPITAL}/${id}`, getAuthConfig());
-          Swal.fire('ลบแล้ว', 'ข้อมูลถูกลบเรียบร้อย', 'success');
-          
+          Swal.fire({ icon: 'success', title: 'ลบแล้ว', text: 'ข้อมูลถูกลบเรียบร้อย', showConfirmButton: false, timer: 1500 });
+
           await sendNotification("ลบโรงพยาบาล", `ข้อมูล ${name} ถูกลบแล้ว`, "WARNING", "/hospital", undefined, 1);
           fetchData();
         } catch (err) {
@@ -216,14 +218,12 @@ const HospitalPage: React.FC = () => {
       };
 
       if (editWardId) {
-        // 🟡 Update
         await axios.put(`${API_WARD}/${editWardId}`, payload, getAuthConfig());
-        Swal.fire('แก้ไขสำเร็จ', 'ข้อมูลวอร์ดถูกอัปเดตแล้ว', 'success');
+        Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', text: 'ข้อมูลวอร์ดถูกอัปเดตแล้ว', showConfirmButton: false, timer: 1500 });
       } else {
-        // 🟢 Create
         await axios.post(API_WARD, payload, getAuthConfig());
-        Swal.fire('สำเร็จ', 'เพิ่มวอร์ดเรียบร้อย', 'success');
-        
+        Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'เพิ่มวอร์ดเรียบร้อย', showConfirmButton: false, timer: 1500 });
+
         const hospitalName = hospitals.find(h => h.hospitalId === parseInt(wardForm.hospitalId))?.hospitalName;
         await sendNotification("เพิ่มแผนกใหม่", `แผนก ${wardForm.name} (${hospitalName}) เข้าระบบแล้ว`, "INFO", "/hospital", undefined, 1);
       }
@@ -241,15 +241,16 @@ const HospitalPage: React.FC = () => {
       text: `ต้องการลบวอร์ด "${name}" หรือไม่?`,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#d33',
-      confirmButtonText: 'ยืนยันลบ'
+      confirmButtonColor: theme.palette.error.main,
+      cancelButtonColor: theme.palette.text.secondary,
+      confirmButtonText: 'ยืนยันลบ',
+      cancelButtonText: 'ยกเลิก'
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          // 🔴 Delete
           await axios.delete(`${API_WARD}/${id}`, getAuthConfig());
-          Swal.fire('ลบแล้ว', 'ข้อมูลถูกลบเรียบร้อย', 'success');
-          
+          Swal.fire({ icon: 'success', title: 'ลบแล้ว', text: 'ข้อมูลถูกลบเรียบร้อย', showConfirmButton: false, timer: 1500 });
+
           await sendNotification("ลบแผนก", `ข้อมูล ${name} ถูกลบแล้ว`, "WARNING", "/hospital", undefined, 1);
           fetchData();
         } catch (err) {
@@ -262,8 +263,8 @@ const HospitalPage: React.FC = () => {
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', flexDirection: 'column', gap: 2 }}>
-        <CircularProgress size={50} thickness={4} />
-        <Typography color="textSecondary">กำลังโหลดข้อมูล...</Typography>
+        <CircularProgress size={40} thickness={4} />
+        <Typography color="textSecondary" variant="body2">กำลังโหลดข้อมูล...</Typography>
       </Box>
     );
   }
@@ -271,8 +272,8 @@ const HospitalPage: React.FC = () => {
   if (error) {
     return (
       <Box sx={{ p: 4, display: 'flex', justifyContent: 'center' }}>
-        <Alert severity="error" sx={{ width: '100%', maxWidth: 600 }}>
-          {error} <Button size="small" onClick={fetchData} sx={{ ml: 2 }}>ลองใหม่</Button>
+        <Alert severity="error" sx={{ width: '100%', maxWidth: 600, boxShadow: 2, borderRadius: 2 }}>
+          {error} <Button size="small" onClick={fetchData} sx={{ ml: 2, fontWeight: 'bold' }}>ลองใหม่</Button>
         </Alert>
       </Box>
     );
@@ -280,64 +281,84 @@ const HospitalPage: React.FC = () => {
 
   return (
     <Box sx={{ pb: 5 }}>
-      {/* Header */}
-      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#e0f2fe', color: '#0284c7' }}>
-          <Domain fontSize="large" />
-        </Paper>
-        <Box>
-          <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
-            จัดการข้อมูลองค์กร
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            บริหารจัดการข้อมูลโรงพยาบาลและแผนก/วอร์ด
-          </Typography>
-        </Box>
-      </Box>
+      {/* 1. Page Header */}
+      <PageHeader
+        title="จัดการข้อมูลองค์กร"
+        subtitle="บริหารจัดการข้อมูลโรงพยาบาลและแผนก/วอร์ด"
+        icon={<Domain fontSize="large" />}
+        breadcrumbs={[
+          { label: 'หน้าหลัก', href: '/' },
+          { label: 'จัดการข้อมูล', href: '' },
+          { label: 'โรงพยาบาล' }
+        ]}
+      />
 
-      {/* Tabs Navigation */}
-      <Card sx={{ mb: 4, overflow: 'hidden' }}>
+      {/* 2. Tabs */}
+      <Card sx={{ mb: 4, overflow: 'visible', border: 'none', boxShadow: 'none', bgcolor: 'transparent' }}>
         <Tabs
           value={tabValue}
           onChange={handleTabChange}
-          sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#f8fafc' }}
-          textColor="primary"
-          indicatorColor="primary"
+          sx={{
+            minHeight: 56,
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: '1rem',
+              mr: 1,
+              bgcolor: '#fff',
+              borderRadius: '12px 12px 0 0',
+              border: `1px solid ${theme.palette.divider}`,
+              borderBottom: 'none',
+              '&.Mui-selected': { bgcolor: '#fff', color: theme.palette.primary.main, borderTop: `2px solid ${theme.palette.primary.main}` }
+            },
+            '& .MuiTabs-indicator': { display: 'none' } // Hide default indicator for card-tab look
+          }}
         >
-          <Tab label="1. ข้อมูลโรงพยาบาล" icon={<Apartment />} iconPosition="start" sx={{ minHeight: 64, fontWeight: 'bold' }} />
-          <Tab label="2. ข้อมูลวอร์ด/แผนก" icon={<MeetingRoom />} iconPosition="start" sx={{ minHeight: 64, fontWeight: 'bold' }} />
+          <Tab label="1. ข้อมูลโรงพยาบาล" icon={<Apartment fontSize="small" />} iconPosition="start" />
+          <Tab label="2. ข้อมูลวอร์ด/แผนก" icon={<MeetingRoom fontSize="small" />} iconPosition="start" />
         </Tabs>
 
-        <Box sx={{ p: 0 }}>
-          {/* --- Tab 1: Hospital Content --- */}
+        {/* --- Tab 1: Hospital Content --- */}
+        <Card sx={{ mt: -0.2, borderRadius: '0 12px 12px 12px', border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
           <Box sx={{ display: tabValue === 0 ? 'block' : 'none' }}>
+
             {/* Form Section */}
-            <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9', bgcolor: editHospitalId ? '#fffbeb' : '#fff' }}>
-              <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: editHospitalId ? '#d97706' : '#334155' }}>
-                {editHospitalId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />} 
+            <Box sx={{ p: 4, bgcolor: editHospitalId ? alpha(theme.palette.warning.light, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
+              <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: editHospitalId ? theme.palette.warning.dark : theme.palette.primary.dark }}>
+                <Box sx={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  bgcolor: editHospitalId ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.primary.main, 0.1),
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: editHospitalId ? theme.palette.warning.main : theme.palette.primary.main
+                }}>
+                  {editHospitalId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />}
+                </Box>
                 {editHospitalId ? 'แก้ไขข้อมูลโรงพยาบาล' : 'เพิ่มโรงพยาบาลใหม่'}
               </Typography>
-              <Grid container spacing={3} alignItems="flex-start">
+
+              <Grid container spacing={3}>
                 <Grid item xs={12} md={4}>
-                  <TextField
-                    label="ชื่อโรงพยาบาล"
-                    placeholder="ระบุชื่อโรงพยาบาล..."
-                    value={hospitalForm.name}
-                    onChange={e => setHospitalForm({ ...hospitalForm, name: e.target.value })}
-                    InputProps={{ startAdornment: <InputAdornment position="start"><CorporateFare fontSize="small" color="action" /></InputAdornment> }}
-                    fullWidth
-                  />
+                  <FormLabel label="ชื่อโรงพยาบาล" required>
+                    <TextField
+                      placeholder="ระบุชื่อโรงพยาบาล..."
+                      value={hospitalForm.name}
+                      onChange={e => setHospitalForm({ ...hospitalForm, name: e.target.value })}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start"><CorporateFare fontSize="small" color="action" /></InputAdornment>
+                      }}
+                    />
+                  </FormLabel>
                 </Grid>
                 <Grid item xs={12} md={5}>
-                  <TextField
-                    label="ที่อยู่ / ข้อมูลติดต่อ"
-                    placeholder="ที่อยู่ หรือ เบอร์โทรศัพท์..."
-                    value={hospitalForm.address}
-                    onChange={e => setHospitalForm({ ...hospitalForm, address: e.target.value })}
-                    fullWidth
-                  />
+                  <FormLabel label="ที่อยู่ / ข้อมูลติดต่อ">
+                    <TextField
+                      placeholder="ที่อยู่ หรือ เบอร์โทรศัพท์..."
+                      value={hospitalForm.address}
+                      onChange={e => setHospitalForm({ ...hospitalForm, address: e.target.value })}
+                    />
+                  </FormLabel>
                 </Grid>
-                <Grid item xs={12} md={3} sx={{ display: 'flex', gap: 1 }}>
+                <Grid item xs={12} md={3} sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
                   {editHospitalId ? (
                     <>
                       <Button variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmitHospital} fullWidth>
@@ -348,8 +369,8 @@ const HospitalPage: React.FC = () => {
                       </Button>
                     </>
                   ) : (
-                    <Button variant="contained" startIcon={<AddCircle />} onClick={handleSubmitHospital} fullWidth sx={{ borderRadius: 2, height: 40 }}>
-                      เพิ่มข้อมูล
+                    <Button variant="contained" startIcon={<AddCircle />} onClick={handleSubmitHospital} fullWidth>
+                      เพิ่มข้อมูลใหม่
                     </Button>
                   )}
                 </Grid>
@@ -357,43 +378,52 @@ const HospitalPage: React.FC = () => {
             </Box>
 
             {/* Table Section */}
-            <Box sx={{ p: 3 }}>
-              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="subtitle2" fontWeight="bold" color="textSecondary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <ListAlt fontSize="small" /> รายชื่อโรงพยาบาลในระบบ
+            <Box sx={{ p: 4 }}>
+              <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="h6" fontWeight="700" color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <ListAlt fontSize="medium" color="disabled" /> รายชื่อโรงพยาบาล ({hospitals.length})
                 </Typography>
-                <Chip label={`${hospitals.length} แห่ง`} size="small" color="primary" variant="outlined" />
+                <TextField
+                  size="small"
+                  placeholder="ค้นหา..."
+                  sx={{ width: 250 }}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><LocalHospital fontSize="small" /></InputAdornment> }}
+                />
               </Box>
 
               <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
                 <Table>
-                  <TableHead sx={{ bgcolor: '#f8fafc' }}>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 'bold' }}>ชื่อโรงพยาบาล</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>ที่อยู่ / ติดต่อ</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold', width: 120 }}>จัดการ</TableCell>
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
+                      <TableCell width="35%">ชื่อโรงพยาบาล</TableCell>
+                      <TableCell width="45%">ที่อยู่ / ติดต่อ</TableCell>
+                      <TableCell width="20%" align="center">จัดการ</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {hospitals.length === 0 ? (
-                      <TableRow><TableCell colSpan={3} align="center" sx={{ py: 6, color: '#94a3b8' }}>ยังไม่มีข้อมูล</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={3} align="center" sx={{ py: 6, color: 'text.disabled' }}>ยังไม่มีข้อมูล</TableCell></TableRow>
                     ) : hospitals.map((h) => (
                       <TableRow key={h.hospitalId} hover selected={editHospitalId === h.hospitalId}>
-                        <TableCell sx={{ fontWeight: 600, maxWidth: 250 }}>{h.hospitalName}</TableCell>
-                        <TableCell sx={{ color: 'text.secondary', maxWidth: 350 }}>{h.address || '-'}</TableCell>
+                        <TableCell>
+                          <Typography fontWeight={600} variant="body2">{h.hospitalName}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary" noWrap>{h.address || '-'}</Typography>
+                        </TableCell>
                         <TableCell align="center">
                           <Stack direction="row" spacing={1} justifyContent="center">
-                            <IconButton 
-                              size="small" 
+                            <IconButton
+                              size="small"
                               onClick={() => handleEditHospital(h)}
-                              sx={{ color: '#3b82f6', bgcolor: '#eff6ff', '&:hover': { bgcolor: '#dbeafe' } }}
+                              sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}
                             >
                               <Edit fontSize="small" />
                             </IconButton>
                             <IconButton
                               size="small"
-                              sx={{ color: '#ef4444', bgcolor: '#fef2f2', '&:hover': { bgcolor: '#fee2e2' } }}
                               onClick={() => handleDeleteHospital(h.hospitalId, h.hospitalName)}
+                              sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) } }}
                             >
                               <Delete fontSize="small" />
                             </IconButton>
@@ -409,36 +439,44 @@ const HospitalPage: React.FC = () => {
 
           {/* --- Tab 2: Ward Content --- */}
           <Box sx={{ display: tabValue === 1 ? 'block' : 'none' }}>
-            <Box sx={{ p: 3, borderBottom: '1px solid #f1f5f9', bgcolor: editWardId ? '#fffbeb' : '#fff' }}>
-              <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: editWardId ? '#d97706' : '#334155' }}>
-                {editWardId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />} 
-                {editWardId ? 'แก้ไขข้อมูลวอร์ด' : 'เพิ่มวอร์ด / แผนกใหม่'}
+            <Box sx={{ p: 4, bgcolor: editWardId ? alpha(theme.palette.warning.light, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
+              <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: editWardId ? theme.palette.warning.dark : theme.palette.primary.dark }}>
+                <Box sx={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  bgcolor: editWardId ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.primary.main, 0.1),
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: editWardId ? theme.palette.warning.main : theme.palette.primary.main
+                }}>
+                  {editWardId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />}
+                </Box>
+                {editWardId ? 'แก้ไขข้อมูลวอร์ด / แผนก' : 'เพิ่มวอร์ด / แผนกใหม่'}
               </Typography>
-              <Grid container spacing={3} alignItems="flex-start">
+
+              <Grid container spacing={3}>
                 <Grid item xs={12} md={4}>
-                  <FormControl fullWidth>
-                    <InputLabel>สังกัดโรงพยาบาล</InputLabel>
+                  <FormLabel label="สังกัดโรงพยาบาล" required>
                     <Select
                       value={wardForm.hospitalId}
-                      label="สังกัดโรงพยาบาล"
+                      displayEmpty
                       onChange={e => setWardForm({ ...wardForm, hospitalId: e.target.value })}
                       startAdornment={<InputAdornment position="start"><Domain fontSize="small" color="action" /></InputAdornment>}
                     >
+                      <MenuItem value="" disabled>เลือกโรงพยาบาล</MenuItem>
                       {hospitals.map(h => <MenuItem key={h.hospitalId} value={h.hospitalId}>{h.hospitalName}</MenuItem>)}
                     </Select>
-                  </FormControl>
+                  </FormLabel>
                 </Grid>
                 <Grid item xs={12} md={5}>
-                  <TextField
-                    label="ชื่อวอร์ด / แผนก"
-                    placeholder="เช่น อายุรกรรม, ห้องฉุกเฉิน..."
-                    value={wardForm.name}
-                    onChange={e => setWardForm({ ...wardForm, name: e.target.value })}
-                    InputProps={{ startAdornment: <InputAdornment position="start"><MeetingRoom fontSize="small" color="action" /></InputAdornment> }}
-                    fullWidth
-                  />
+                  <FormLabel label="ชื่อวอร์ด / แผนก" required>
+                    <TextField
+                      placeholder="เช่น อายุรกรรม, ห้องฉุกเฉิน..."
+                      value={wardForm.name}
+                      onChange={e => setWardForm({ ...wardForm, name: e.target.value })}
+                      InputProps={{ startAdornment: <InputAdornment position="start"><MeetingRoom fontSize="small" color="action" /></InputAdornment> }}
+                    />
+                  </FormLabel>
                 </Grid>
-                <Grid item xs={12} md={3} sx={{ display: 'flex', gap: 1 }}>
+                <Grid item xs={12} md={3} sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
                   {editWardId ? (
                     <>
                       <Button variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmitWard} fullWidth>
@@ -449,53 +487,54 @@ const HospitalPage: React.FC = () => {
                       </Button>
                     </>
                   ) : (
-                    <Button variant="contained" startIcon={<AddCircle />} onClick={handleSubmitWard} fullWidth sx={{ borderRadius: 2, height: 40 }}>
-                      เพิ่มข้อมูล
+                    <Button variant="contained" startIcon={<AddCircle />} onClick={handleSubmitWard} fullWidth>
+                      เพิ่มข้อมูลใหม่
                     </Button>
                   )}
                 </Grid>
               </Grid>
             </Box>
 
-            <Box sx={{ p: 3 }}>
-              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="subtitle2" fontWeight="bold" color="textSecondary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <ListAlt fontSize="small" /> รายชื่อวอร์ดทั้งหมด
+            <Box sx={{ p: 4 }}>
+              <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="h6" fontWeight="700" color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <ListAlt fontSize="medium" color="disabled" /> รายชื่อแผนก ({wards.length})
                 </Typography>
-                <Chip label={`${wards.length} แผนก`} size="small" color="primary" variant="outlined" />
               </Box>
 
               <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
                 <Table>
-                  <TableHead sx={{ bgcolor: '#f8fafc' }}>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 'bold' }}>ชื่อวอร์ด / แผนก</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>สังกัดโรงพยาบาล</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 'bold', width: 120 }}>จัดการ</TableCell>
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
+                      <TableCell width="35%">ชื่อวอร์ด / แผนก</TableCell>
+                      <TableCell width="45%">สังกัดโรงพยาบาล</TableCell>
+                      <TableCell width="20%" align="center">จัดการ</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {wards.length === 0 ? (
-                      <TableRow><TableCell colSpan={3} align="center" sx={{ py: 6, color: '#94a3b8' }}>ยังไม่มีข้อมูล</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={3} align="center" sx={{ py: 6, color: 'text.disabled' }}>ยังไม่มีข้อมูล</TableCell></TableRow>
                     ) : wards.map((w) => (
                       <TableRow key={w.wardId} hover selected={editWardId === w.wardId}>
-                        <TableCell sx={{ fontWeight: 600, maxWidth: 250 }}>{w.wardName}</TableCell>
-                        <TableCell sx={{ color: 'text.secondary' }}>
-                          <Chip label={w.hospital?.hospitalName || '-'} size="small" variant="outlined" />
+                        <TableCell>
+                          <Typography fontWeight={600} variant="body2">{w.wardName}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={w.hospital?.hospitalName || 'Unknown'} size="small" variant="outlined" icon={<Business />} />
                         </TableCell>
                         <TableCell align="center">
                           <Stack direction="row" spacing={1} justifyContent="center">
-                            <IconButton 
-                              size="small" 
+                            <IconButton
+                              size="small"
                               onClick={() => handleEditWard(w)}
-                              sx={{ color: '#3b82f6', bgcolor: '#eff6ff', '&:hover': { bgcolor: '#dbeafe' } }}
+                              sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}
                             >
                               <Edit fontSize="small" />
                             </IconButton>
                             <IconButton
                               size="small"
-                              sx={{ color: '#ef4444', bgcolor: '#fef2f2', '&:hover': { bgcolor: '#fee2e2' } }}
                               onClick={() => handleDeleteWard(w.wardId, w.wardName)}
+                              sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) } }}
                             >
                               <Delete fontSize="small" />
                             </IconButton>
@@ -508,7 +547,7 @@ const HospitalPage: React.FC = () => {
               </TableContainer>
             </Box>
           </Box>
-        </Box>
+        </Card>
       </Card>
     </Box>
   );

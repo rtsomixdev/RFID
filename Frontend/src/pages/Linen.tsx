@@ -2,18 +2,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Typography, TextField, Button, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow,
-  IconButton, Card, CardContent, FormControl, InputLabel, Select, MenuItem,
-  Stack, Divider, InputAdornment, Autocomplete, createFilterOptions, Collapse, Tooltip, Alert, Chip, Paper
+  IconButton, Card, CardContent, Select, MenuItem,
+  Stack, InputAdornment, Autocomplete, createFilterOptions, Collapse, Alert, Chip, Paper,
+  useTheme, alpha, Divider, Grid
 } from '@mui/material';
-import Grid from '@mui/material/Grid';
 import {
   AppRegistration, Delete, PlaylistAddCheck, QrCodeScanner, RestartAlt,
   LocalLaundryService, Info, Save,
   Category, FiberNew, SettingsRemote,
-  CheckCircle, ErrorOutline, AddCircleOutline, Room
+  CheckCircle, ErrorOutline, AddCircleOutline, Room,
+  FitnessCenter, Straighten
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
+import PageHeader from '../components/ui/PageHeader';
+import FormLabel from '../components/ui/FormLabel';
 
 const filter = createFilterOptions<any>();
 
@@ -33,11 +36,13 @@ interface Reader {
   readerId: number;
   readerName: string;
   isActive: boolean;
-  installedAtRoomId?: number; // ✅ เพิ่ม Field นี้สำหรับ Auto Location
+  installedAtRoomId?: number;
   installedAtRoom?: { roomId: number; roomName: string; };
 }
 
 const RegisterLinen: React.FC = () => {
+  const theme = useTheme();
+
   // --- Master Data ---
   const [products, setProducts] = useState<Product[]>([]);
   const [hospitals, setHospitals] = useState<any[]>([]);
@@ -122,7 +127,6 @@ const RegisterLinen: React.FC = () => {
         toastWarning(`รหัสซ้ำ: ${cleanRfid}`);
         return prev;
       }
-      // Add to top
       return [cleanRfid, ...prev];
     });
   };
@@ -149,13 +153,12 @@ const RegisterLinen: React.FC = () => {
     if (hospData.length > 0 && !selectedHospital) setSelectedHospital(hospData[0].hospitalId);
 
     const readerData = await fetchData('/Reader', setReaders);
-    
+
     // ✅ Logic ใหม่: Auto-select Reader และ Location ของมัน
     if (readerData.length > 0 && !selectedReader) {
       const active = readerData.find((r: Reader) => r.isActive);
       if (active) {
         setSelectedReader(active.readerName);
-        // ถ้าเครื่องอ่านนี้ผูกกับห้องไว้ ให้เลือกห้องนั้นเลย
         if (active.installedAtRoomId) {
           setSelectedLocation(active.installedAtRoomId.toString());
         }
@@ -164,21 +167,16 @@ const RegisterLinen: React.FC = () => {
   };
 
   // --- Event Handlers ---
-  
-  // ✅ Handle Reader Change + Auto Location
   const handleReaderChange = (event: any) => {
     const readerName = event.target.value;
     setSelectedReader(readerName);
 
-    // ค้นหาข้อมูลเครื่องอ่านที่เลือก
     const targetReader = readers.find(r => r.readerName === readerName);
-    
-    // ถ้าเครื่องอ่านมีห้องที่ติดตั้งอยู่ (InstalledAtRoomId) ให้ Auto Select Location
+
     if (targetReader && targetReader.installedAtRoomId) {
       const roomIdStr = targetReader.installedAtRoomId.toString();
       setSelectedLocation(roomIdStr);
-      
-      // Optional: แจ้งเตือนเล็กน้อยให้ User รู้ว่าเปลี่ยน Location แล้ว
+
       const roomName = rooms.find(r => r.roomId === targetReader.installedAtRoomId)?.roomName;
       const Toast = Swal.mixin({ toast: true, position: 'top', showConfirmButton: false, timer: 1500 });
       Toast.fire({ icon: 'info', title: `ปรับสถานที่ตามเครื่องอ่าน: ${roomName}` });
@@ -237,7 +235,6 @@ const RegisterLinen: React.FC = () => {
     try {
       let finalProductId = selectedProduct?.productId;
 
-      // 1. Create Product if New
       if (isNewProduct) {
         const dup = products.find(p => p.productCode === newProductData.productCode);
         if (dup) {
@@ -259,7 +256,7 @@ const RegisterLinen: React.FC = () => {
             sizeSpec: newProductData.sizeSpec,
             unitName: newProductData.unitName,
             maxWashCount: Number(maxWash),
-            standardWeightKg: 0.5, 
+            standardWeightKg: 0.5,
             maxLifespanDays: 365,
             defaultRoomId: selectedLocation ? parseInt(selectedLocation) : 1
           });
@@ -267,9 +264,8 @@ const RegisterLinen: React.FC = () => {
         }
       }
 
-      // 2. Register Batch
       const locationObj = rooms.find(r => r.roomId === parseInt(selectedLocation));
-      
+
       await axiosClient.post('/Linen/RegisterBatch', {
         productId: finalProductId,
         hospitalId: parseInt(selectedHospital),
@@ -279,7 +275,6 @@ const RegisterLinen: React.FC = () => {
         rfidCodes: scannedRfids
       });
 
-      // 3. Success & Reset
       Swal.fire({
         icon: 'success',
         title: 'บันทึกสำเร็จ!',
@@ -292,7 +287,7 @@ const RegisterLinen: React.FC = () => {
       setIsNewProduct(false);
       setSelectedProduct(null);
       setNewProductData({ productName: '', productCode: '', categoryName: '', sizeSpec: '', unitName: 'ชิ้น' });
-      
+
       fetchMasterData();
 
     } catch (err: any) {
@@ -306,207 +301,192 @@ const RegisterLinen: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: '#F4F6F8', minHeight: '100vh' }}>
-      {/* --- Header --- */}
-      <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Box sx={{
-          p: 2, borderRadius: 3,
-          background: 'linear-gradient(135deg, #2196F3 0%, #21CBF3 100%)',
-          color: 'white',
-          boxShadow: '0 8px 16px rgba(33, 150, 243, 0.3)'
-        }}>
-          <AppRegistration fontSize="large" />
-        </Box>
-        <Box>
-          <Typography variant="h5" fontWeight="800" color="text.primary" sx={{ letterSpacing: '-0.5px' }}>
-            ลงทะเบียนผ้าใหม่ (New Linen Registration)
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            จัดการข้อมูลสินค้าและบันทึกรหัส RFID ลงในระบบ
-          </Typography>
-        </Box>
-      </Box>
+    <Box sx={{ pb: 5 }}>
+      <PageHeader
+        title="ลงทะเบียนผ้าใหม่ (New Linen Registration)"
+        subtitle="จัดการข้อมูลสินค้าและบันทึกรหัส RFID ลงในระบบ"
+        icon={<AppRegistration fontSize="large" />}
+        breadcrumbs={[
+          { label: 'หน้าหลัก', href: '/' },
+          { label: 'ลงทะเบียนผ้า' }
+        ]}
+      />
 
       <Grid container spacing={3}>
         {/* --- Left Column: Configuration Forms --- */}
-        <Grid item xs={12} lg={8}>
+        <Grid xs={12} lg={8}>
           <Stack spacing={3}>
             {/* 1. Context Info */}
-            <Card elevation={0} sx={{ borderRadius: 4, border: '1px solid #E0E0E0', overflow: 'visible' }}>
+            <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="subtitle1" fontWeight="700" color="primary.main" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Info /> ข้อมูลล็อตและสถานที่
+                  <Info /> ข้อมูลล็อตและสถานที่ (Lot & Location)
                 </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>โรงพยาบาลเจ้าของ *</InputLabel>
+                <Grid container spacing={3}>
+                  <Grid xs={12} md={6}>
+                    <FormLabel label="โรงพยาบาลเจ้าของ" required>
                       <Select
+                        fullWidth
                         value={selectedHospital}
-                        label="โรงพยาบาลเจ้าของ *"
+                        displayEmpty
                         onChange={e => setSelectedHospital(e.target.value)}
+                        sx={{ bgcolor: alpha(theme.palette.background.paper, 1) }}
                       >
+                        <MenuItem value="" disabled>เลือกโรงพยาบาล</MenuItem>
                         {hospitals.map(h => <MenuItem key={h.hospitalId} value={h.hospitalId}>{h.hospitalName}</MenuItem>)}
                       </Select>
-                    </FormControl>
+                    </FormLabel>
                   </Grid>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>สถานที่จัดเก็บเริ่มต้น *</InputLabel>
+                  <Grid xs={12} md={6}>
+                    <FormLabel label="สถานที่จัดเก็บเริ่มต้น" required>
                       <Select
+                        fullWidth
                         value={selectedLocation}
-                        label="สถานที่จัดเก็บเริ่มต้น *"
+                        displayEmpty
                         onChange={e => setSelectedLocation(e.target.value)}
+                        sx={{ bgcolor: alpha(theme.palette.background.paper, 1) }}
                       >
-                        {rooms.map(r => <MenuItem key={r.roomId} value={r.roomId}>
-                          {r.roomName} 
-                          {/* Optional: แสดงว่าห้องนี้ผูกกับ Reader ไหนถ้าต้องการ */}
-                        </MenuItem>)}
+                        <MenuItem value="" disabled>เลือกสถานที่</MenuItem>
+                        {rooms.map(r => <MenuItem key={r.roomId} value={r.roomId}>{r.roomName}</MenuItem>)}
                       </Select>
-                    </FormControl>
+                    </FormLabel>
                   </Grid>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>บริษัทผู้ผลิต/จำหน่าย (Vendor)</InputLabel>
+                  <Grid xs={12}>
+                    <FormLabel label="บริษัทผู้ผลิต/จำหน่าย (Vendor)">
                       <Select
+                        fullWidth
                         value={selectedVendor}
-                        label="บริษัทผู้ผลิต/จำหน่าย (Vendor)"
+                        displayEmpty
                         onChange={e => setSelectedVendor(e.target.value)}
+                        sx={{ bgcolor: alpha(theme.palette.background.paper, 1) }}
                       >
                         <MenuItem value=""><em>ไม่ระบุ</em></MenuItem>
                         {vendors.map(v => <MenuItem key={v.vendorId} value={v.vendorId}>{v.vendorName}</MenuItem>)}
                       </Select>
-                    </FormControl>
+                    </FormLabel>
                   </Grid>
                 </Grid>
               </CardContent>
             </Card>
 
             {/* 2. Product Info (Hybrid Selection) */}
-            <Card elevation={0} sx={{ borderRadius: 4, border: '1px solid #E0E0E0', overflow: 'visible' }}>
+            <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, overflow: 'visible' }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="subtitle1" fontWeight="700" color="primary.main" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Category /> ข้อมูลสินค้า (Product)
+                  <Category /> ข้อมูลสินค้า (Product Info)
                 </Typography>
 
                 <Grid container spacing={3}>
-                  <Grid item xs={12}>
-                    <Autocomplete
-                      fullWidth size="small"
-                      value={isNewProduct ? newProductData.productName : selectedProduct}
-                      onChange={handleProductChange}
-                      onInputChange={(_, newInputValue) => { if (isNewProduct) setNewProductData(prev => ({ ...prev, productName: newInputValue })); }}
-                      filterOptions={(options, params) => {
-                        const filtered = filter(options, params);
-                        const { inputValue } = params;
-                        const isExisting = options.some((option) => inputValue === option.productName);
-                        if (inputValue !== '' && !isExisting) {
-                          filtered.push({ inputValue, productName: `➕ เพิ่มสินค้าใหม่: "${inputValue}"` });
-                        }
-                        return filtered;
-                      }}
-                      selectOnFocus clearOnBlur handleHomeEndKeys
-                      options={products}
-                      getOptionLabel={(option) => {
-                        if (typeof option === 'string') return option;
-                        if (option.inputValue) return option.inputValue;
-                        return option.productName;
-                      }}
-                      renderOption={(props, option) => (
-                        <li {...props}>
-                          <Box>
-                            <Typography variant="body2" fontWeight="bold">{option.productName}</Typography>
-                            {option.productCode && <Typography variant="caption" color="text.secondary">Code: {option.productCode}</Typography>}
-                          </Box>
-                        </li>
-                      )}
-                      freeSolo
-                      renderInput={(params) => (
-                        <TextField {...params} label="ค้นหา หรือ พิมพ์ชื่อเพื่อเพิ่มสินค้าใหม่" placeholder="พิมพ์ชื่อสินค้า..." />
-                      )}
-                    />
+                  <Grid xs={12}>
+                    <FormLabel label="ค้นหาหรือสร้างสินค้าใหม่" required>
+                      <Autocomplete
+                        fullWidth size="small"
+                        value={isNewProduct ? newProductData.productName : selectedProduct}
+                        onChange={handleProductChange}
+                        onInputChange={(_, newInputValue) => { if (isNewProduct) setNewProductData(prev => ({ ...prev, productName: newInputValue })); }}
+                        filterOptions={(options, params) => {
+                          const filtered = filter(options, params);
+                          const { inputValue } = params;
+                          const isExisting = options.some((option) => inputValue === option.productName);
+                          if (inputValue !== '' && !isExisting) {
+                            filtered.push({ inputValue, productName: `➕ เพิ่มสินค้าใหม่: "${inputValue}"` });
+                          }
+                          return filtered;
+                        }}
+                        selectOnFocus clearOnBlur handleHomeEndKeys
+                        options={products}
+                        getOptionLabel={(option) => {
+                          if (typeof option === 'string') return option;
+                          if (option.inputValue) return option.inputValue;
+                          return option.productName;
+                        }}
+                        renderOption={(props, option) => (
+                          <li {...props}>
+                            <Box>
+                              <Typography variant="body2" fontWeight="bold">{option.productName}</Typography>
+                              {option.productCode && <Typography variant="caption" color="text.secondary">Code: {option.productCode}</Typography>}
+                            </Box>
+                          </li>
+                        )}
+                        freeSolo
+                        renderInput={(params) => (
+                          <TextField {...params} fullWidth placeholder="พิมพ์ชื่อสินค้า..." HelperText={null} />
+                        )}
+                      />
+                    </FormLabel>
                   </Grid>
                 </Grid>
 
-                {/* --- Existing Product Detail (กรอบเทา) --- */}
+                {/* --- Existing Product Detail --- */}
                 <Collapse in={!isNewProduct && selectedProduct !== null}>
-                    {selectedProduct && (
-                        <Paper elevation={0} sx={{ mt: 2, p: 2, bgcolor: '#F8FAFC', border: '1px solid #EEF2F6', borderRadius: 2 }}>
-                            <Grid container spacing={2}>
-                                <Grid item xs={6} md={3}>
-                                    <Typography variant="caption" color="textSecondary">รหัสสินค้า (Code)</Typography>
-                                    <Typography variant="body2" fontWeight="600">{selectedProduct.productCode}</Typography>
-                                </Grid>
-                                <Grid item xs={6} md={3}>
-                                    <Typography variant="caption" color="textSecondary">หมวดหมู่ (Category)</Typography>
-                                    {/* ดึงชื่อหมวดหมู่มาโชว์โดยเทียบ ID */}
-                                    <Typography variant="body2" fontWeight="600">
-                                        {categories.find(c => c.categoryId === selectedProduct.categoryId)?.categoryName || '-'}
-                                    </Typography>
-                                </Grid>
-                                <Grid item xs={6} md={2}>
-                                    <Typography variant="caption" color="textSecondary">หน่วยนับ</Typography>
-                                    <Typography variant="body2" fontWeight="600">{selectedProduct.unitName}</Typography>
-                                </Grid>
-                                <Grid item xs={6} md={2}>
-                                    <Typography variant="caption" color="textSecondary">ขนาด</Typography>
-                                    <Typography variant="body2" fontWeight="600">{selectedProduct.sizeSpec || '-'}</Typography>
-                                </Grid>
-                                <Grid item xs={6} md={2}>
-                                    <Typography variant="caption" color="textSecondary">อายุการใช้งาน</Typography>
-                                    <Typography variant="body2" fontWeight="600">{selectedProduct.maxWashCount || 100} รอบ</Typography>
-                                </Grid>
-                            </Grid>
-                        </Paper>
-                    )}
+                  {selectedProduct && (
+                    <Paper elevation={0} sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+                      <Grid container spacing={2}>
+                        <Grid xs={6} md={3}>
+                          <Typography variant="caption" color="textSecondary">รหัสสินค้า</Typography>
+                          <Typography variant="body2" fontWeight="600">{selectedProduct.productCode}</Typography>
+                        </Grid>
+                        <Grid xs={6} md={3}>
+                          <Typography variant="caption" color="textSecondary">หมวดหมู่</Typography>
+                          <Typography variant="body2" fontWeight="600">
+                            {categories.find(c => c.categoryId === selectedProduct.categoryId)?.categoryName || '-'}
+                          </Typography>
+                        </Grid>
+                        <Grid xs={6} md={2}>
+                          <Typography variant="caption" color="textSecondary">หน่วยนับ</Typography>
+                          <Typography variant="body2" fontWeight="600">{selectedProduct.unitName}</Typography>
+                        </Grid>
+                        <Grid xs={6} md={2}>
+                          <Typography variant="caption" color="textSecondary">ขนาด</Typography>
+                          <Typography variant="body2" fontWeight="600">{selectedProduct.sizeSpec || '-'}</Typography>
+                        </Grid>
+                        <Grid xs={6} md={2}>
+                          <Typography variant="caption" color="textSecondary">อายุการใช้งาน</Typography>
+                          <Typography variant="body2" fontWeight="600">{selectedProduct.maxWashCount || 100} รอบ</Typography>
+                        </Grid>
+                      </Grid>
+                    </Paper>
+                  )}
                 </Collapse>
 
                 {/* --- New Product Form --- */}
                 <Collapse in={isNewProduct}>
-                  <Box sx={{ mt: 3, p: 3, bgcolor: '#FFF0F5', borderRadius: 2, border: '1px dashed #EC407A' }}>
-                    <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2, color: '#C2185B' }}>
+                  <Box sx={{ mt: 3, p: 3, bgcolor: alpha(theme.palette.secondary.main, 0.05), borderRadius: 2, border: `1px dashed ${theme.palette.secondary.main}` }}>
+                    <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2, color: theme.palette.secondary.main }}>
                       <FiberNew /> <Typography variant="subtitle2" fontWeight="bold">สร้างสินค้าใหม่ (New Master Data)</Typography>
                     </Stack>
                     <Grid container spacing={2}>
-                      <Grid item xs={12}>
-                        <TextField size="small" fullWidth label="ชื่อสินค้า" value={newProductData.productName} onChange={e => setNewProductData(prev => ({ ...prev, productName: e.target.value }))} required />
+                      <Grid xs={12}>
+                        <FormLabel label="ชื่อสินค้า" required>
+                          <TextField fullWidth value={newProductData.productName} onChange={e => setNewProductData(prev => ({ ...prev, productName: e.target.value }))} />
+                        </FormLabel>
                       </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TextField size="small" fullWidth label="รหัสสินค้า (SKU)" value={newProductData.productCode} onChange={e => setNewProductData(prev => ({ ...prev, productCode: e.target.value }))} required />
+                      <Grid xs={12} md={6}>
+                        <FormLabel label="รหัสสินค้า (SKU)" required>
+                          <TextField fullWidth value={newProductData.productCode} onChange={e => setNewProductData(prev => ({ ...prev, productCode: e.target.value }))} />
+                        </FormLabel>
                       </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Autocomplete
-                            size="small"
-                            freeSolo // อนุญาตให้พิมพ์เองได้
-                            options={categories.map(c => c.categoryName)} // ตัวเลือกที่มีอยู่
+                      <Grid xs={12} md={6}>
+                        <FormLabel label="หมวดหมู่ (Category)" required>
+                          <Autocomplete
+                            freeSolo
+                            options={categories.map(c => c.categoryName)}
                             value={newProductData.categoryName}
-                            
-                            // 1. ทำงานเมื่อ "เลือก" จาก Dropdown
-                            onChange={(event, newValue: string | null) => {
-                                setNewProductData(prev => ({ ...prev, categoryName: newValue || '' }));
-                            }}
-                            
-                            // 2. 🔥 สำคัญมาก: ทำงานเมื่อ "พิมพ์" เอง (แก้บั๊กค่าว่าง)
-                            onInputChange={(event, newInputValue) => {
-                                setNewProductData(prev => ({ ...prev, categoryName: newInputValue }));
-                            }}
-                            
-                            renderInput={(params) => (
-                                <TextField 
-                                    {...params} 
-                                    label="หมวดหมู่ (Category)" 
-                                    placeholder="เลือก หรือ พิมพ์ใหม่..." 
-                                    required // เพิ่มดาวแดงบังคับ
-                                    error={!newProductData.categoryName && isNewProduct} // แดงถ้าเป็นสินค้าใหม่แล้วไม่กรอก
-                                />
-                            )}
-                        />
+                            onChange={(event, newValue) => setNewProductData(prev => ({ ...prev, categoryName: newValue || '' }))}
+                            onInputChange={(event, newInputValue) => setNewProductData(prev => ({ ...prev, categoryName: newInputValue }))}
+                            renderInput={(params) => <TextField {...params} placeholder="เลือก หรือ พิมพ์ใหม่..." error={!newProductData.categoryName} />}
+                          />
+                        </FormLabel>
                       </Grid>
-                      <Grid item xs={6}>
-                        <TextField size="small" fullWidth label="ขนาด (Size Spec)" value={newProductData.sizeSpec} onChange={e => setNewProductData(prev => ({ ...prev, sizeSpec: e.target.value }))} />
+                      <Grid xs={6}>
+                        <FormLabel label="ขนาด (Size Spec)">
+                          <TextField fullWidth value={newProductData.sizeSpec} onChange={e => setNewProductData(prev => ({ ...prev, sizeSpec: e.target.value }))} InputProps={{ startAdornment: <Straighten fontSize="small" color="action" sx={{ mr: 1 }} /> }} />
+                        </FormLabel>
                       </Grid>
-                      <Grid item xs={6}>
-                        <TextField size="small" fullWidth label="หน่วยนับ" value={newProductData.unitName} onChange={e => setNewProductData(prev => ({ ...prev, unitName: e.target.value }))} />
+                      <Grid xs={6}>
+                        <FormLabel label="หน่วยนับ">
+                          <TextField fullWidth value={newProductData.unitName} onChange={e => setNewProductData(prev => ({ ...prev, unitName: e.target.value }))} />
+                        </FormLabel>
                       </Grid>
                     </Grid>
                   </Box>
@@ -514,15 +494,16 @@ const RegisterLinen: React.FC = () => {
 
                 <Box sx={{ mt: 3 }}>
                   <Grid container spacing={3} alignItems="center">
-                    <Grid item xs={12} md={4}>
-                      <TextField
-                        fullWidth size="small"
-                        label="อายุการใช้งาน (รอบซัก)"
-                        type="number"
-                        value={maxWash}
-                        onChange={e => setMaxWash(Number(e.target.value))}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><LocalLaundryService fontSize="small" /></InputAdornment>, endAdornment: <Typography variant="caption">รอบ</Typography> }}
-                      />
+                    <Grid xs={12} md={4}>
+                      <FormLabel label="อายุการใช้งาน (รอบซัก)">
+                        <TextField
+                          fullWidth
+                          type="number"
+                          value={maxWash}
+                          onChange={e => setMaxWash(Number(e.target.value))}
+                          InputProps={{ startAdornment: <InputAdornment position="start"><LocalLaundryService fontSize="small" /></InputAdornment>, endAdornment: <Typography variant="caption">รอบ</Typography> }}
+                        />
+                      </FormLabel>
                     </Grid>
                   </Grid>
                 </Box>
@@ -532,128 +513,141 @@ const RegisterLinen: React.FC = () => {
         </Grid>
 
         {/* --- Right Column: Scanning Action --- */}
-        <Grid item xs={12} lg={4}>
-          <Card elevation={0} sx={{ height: '100%', borderRadius: 4, border: '1px solid #E0E0E0', display: 'flex', flexDirection: 'column' }}>
-            <CardContent sx={{ p: 3, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-
-              {/* Reader Select */}
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <SettingsRemote color={selectedReader ? 'primary' : 'disabled'} /> เครื่องอ่าน RFID
+        <Grid xs={12} lg={4}>
+          <Card elevation={0} sx={{ height: '100%', borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', flexDirection: 'column' }}>
+            <CardContent sx={{ p: 0, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+              <Box sx={{ p: 3, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <QrCodeScanner color="primary" /> จุดสแกน (Scanning Point)
                 </Typography>
-                <FormControl fullWidth size="small">
-                  <Select
-                    value={selectedReader}
-                    onChange={handleReaderChange} // ✅ ใช้ Handle ใหม่ที่เพิ่ม Logic Auto Location
-                    displayEmpty
-                    sx={{ bgcolor: selectedReader ? '#E3F2FD' : 'white' }}
-                  >
-                    <MenuItem value="" disabled>-- เลือกเครื่องอ่าน --</MenuItem>
-                    {readers.map((r) => (
-                      <MenuItem key={r.readerId} value={r.readerName}>
-                        <Stack direction="row" alignItems="center" justifyContent="space-between" width="100%">
-                          {r.readerName}
-                          {r.isActive ? <CheckCircle fontSize="small" color="success" /> : <ErrorOutline fontSize="small" color="error" />}
-                        </Stack>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                {/* แสดงชื่อห้องที่เครื่องอ่านนี้ติดตั้งอยู่ (ถ้ามี) */}
-                {selectedReader && (() => {
-                  const r = readers.find(x => x.readerName === selectedReader);
-                  if(r?.installedAtRoom?.roomName) {
-                    return <Typography variant="caption" color="text.secondary" sx={{ml:1, mt:0.5, display:'block'}}>📍 ติดตั้งที่: {r.installedAtRoom.roomName}</Typography>
-                  }
-                })()}
               </Box>
 
-              {/* Scan Input */}
-              <Box sx={{ p: 2, bgcolor: '#F8FAFC', borderRadius: 2, border: '1px dashed #CBD5E1', mb: 2 }}>
-                <form onSubmit={handleManualInput}>
-                  <TextField
-                    inputRef={inputRef}
-                    fullWidth
-                    variant="outlined"
-                    placeholder={!selectedReader ? "เลือกเครื่องอ่านก่อน..." : "พร้อมสแกน RFID..."}
-                    value={rfidInput}
-                    onChange={e => setRfidInput(e.target.value)}
-                    disabled={!selectedReader || !selectedHospital}
-                    InputProps={{
-                      startAdornment: <QrCodeScanner color="primary" sx={{ mr: 1, opacity: 0.7 }} />,
-                      sx: { bgcolor: 'white' }
-                    }}
-                  />
-                </form>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
-                  <Button size="small" color="error" startIcon={<RestartAlt />} onClick={() => setScannedRfids([])} disabled={scannedRfids.length === 0}>
-                    ล้างรายการ
-                  </Button>
+              <Box sx={{ p: 3, flexGrow: 1 }}>
+                {/* Reader Select */}
+                <Box sx={{ mb: 3 }}>
+                  <FormLabel label="เครื่องอ่าน RFID (Reader)" required>
+                    <Select
+                      fullWidth
+                      value={selectedReader}
+                      onChange={handleReaderChange}
+                      displayEmpty
+                      sx={{ bgcolor: selectedReader ? alpha(theme.palette.primary.main, 0.05) : 'inherit' }}
+                    >
+                      <MenuItem value="" disabled>-- เลือกเครื่องอ่าน --</MenuItem>
+                      {readers.map((r) => (
+                        <MenuItem key={r.readerId} value={r.readerName}>
+                          <Stack direction="row" alignItems="center" justifyContent="space-between" width="100%">
+                            {r.readerName}
+                            {r.isActive ? <CheckCircle fontSize="small" color="success" /> : <ErrorOutline fontSize="small" color="error" />}
+                          </Stack>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormLabel>
+                  {selectedReader && (() => {
+                    const r = readers.find(x => x.readerName === selectedReader);
+                    if (r?.installedAtRoom?.roomName) {
+                      return <Chip icon={<Room />} label={`ติดตั้งที่: ${r.installedAtRoom.roomName}`} size="small" sx={{ mt: 1 }} />;
+                    }
+                  })()}
+                </Box>
+
+                {/* Scan Input */}
+                <Box sx={{ p: 2, bgcolor: alpha(theme.palette.secondary.main, 0.05), borderRadius: 2, border: `1px dashed ${theme.palette.secondary.main}`, mb: 3 }}>
+                  <form onSubmit={handleManualInput}>
+                    <TextField
+                      inputRef={inputRef}
+                      fullWidth
+                      variant="standard"
+                      placeholder={!selectedReader ? "กรุณาเลือกเครื่องอ่าน..." : "พร้อมสแกน RFID..."}
+                      value={rfidInput}
+                      onChange={e => setRfidInput(e.target.value)}
+                      disabled={!selectedReader || !selectedHospital}
+                      InputProps={{
+                        disableUnderline: true,
+                        startAdornment: <QrCodeScanner color={selectedReader ? "primary" : "disabled"} sx={{ mr: 1 }} />,
+                        sx: { fontSize: '1.1rem', fontWeight: 500 }
+                      }}
+                    />
+                  </form>
+                </Box>
+
+                {/* Scanned List */}
+                <Box sx={{ mb: 2 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                    <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">รายการที่สแกนล่าสุด</Typography>
+                    <Chip label={`${scannedRfids.length}`} color={scannedRfids.length > 0 ? "primary" : "default"} size="small" />
+                  </Stack>
+
+                  <Paper elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2, maxHeight: 350, overflowY: 'auto', bgcolor: '#fafafa' }}>
+                    <Table stickyHeader size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ bgcolor: '#f1f5f9', fontWeight: 'bold' }}>#</TableCell>
+                          <TableCell sx={{ bgcolor: '#f1f5f9', fontWeight: 'bold' }}>RFID Tag</TableCell>
+                          <TableCell sx={{ bgcolor: '#f1f5f9' }} align="right"></TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {scannedRfids.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={3} align="center" sx={{ py: 6, color: 'text.disabled' }}>
+                              <PlaylistAddCheck sx={{ fontSize: 40, mb: 1, opacity: 0.5 }} />
+                              <Typography variant="body2">ยังไม่มีรายการ</Typography>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          scannedRfids.map((rfid, idx) => (
+                            <TableRow key={idx} hover sx={{ bgcolor: 'white' }}>
+                              <TableCell width="15%" sx={{ color: 'text.secondary' }}>{scannedRfids.length - idx}</TableCell>
+                              <TableCell width="70%">
+                                <Typography variant="body2" fontFamily="monospace" fontWeight="600" color="primary.main">{rfid}</Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <IconButton size="small" color="error" onClick={() => setScannedRfids(prev => prev.filter(r => r !== rfid))}>
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </Paper>
+
+                  {scannedRfids.length > 0 && (
+                    <Button
+                      size="small"
+                      color="error"
+                      startIcon={<RestartAlt />}
+                      onClick={() => setScannedRfids([])}
+                      sx={{ mt: 1, width: '100%' }}
+                    >
+                      ล้างรายการทั้งหมด
+                    </Button>
+                  )}
                 </Box>
               </Box>
 
-              {/* Scanned List */}
-              <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 300 }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                  <Typography variant="subtitle2" fontWeight="bold">รายการที่สแกน</Typography>
-                  <Chip label={`${scannedRfids.length} รายการ`} color="primary" size="small" />
-                </Stack>
-
-                <TableContainer component={Paper} elevation={0} sx={{ flexGrow: 1, border: '1px solid #E0E0E0', borderRadius: 2, maxHeight: '400px', bgcolor: 'white' }}>
-                  <Table stickyHeader size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ bgcolor: '#F1F5F9', fontWeight: 'bold' }}>#</TableCell>
-                        <TableCell sx={{ bgcolor: '#F1F5F9', fontWeight: 'bold' }}>RFID Tag</TableCell>
-                        <TableCell sx={{ bgcolor: '#F1F5F9', fontWeight: 'bold' }} align="right"></TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {scannedRfids.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={3} align="center" sx={{ py: 8 }}>
-                            <PlaylistAddCheck sx={{ fontSize: 48, color: '#E0E0E0', mb: 1 }} />
-                            <Typography variant="body2" color="text.secondary">รอการสแกน...</Typography>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        scannedRfids.map((rfid, idx) => (
-                          <TableRow key={idx} hover>
-                            <TableCell width="10%">{scannedRfids.length - idx}</TableCell>
-                            <TableCell width="70%">
-                              <Typography variant="body2" fontFamily="monospace" fontWeight="500" color="primary.main">{rfid}</Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <IconButton size="small" color="error" onClick={() => setScannedRfids(prev => prev.filter(r => r !== rfid))}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+              {/* Footer Actions */}
+              <Box sx={{ p: 3, borderTop: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.background.default, 0.5) }}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  onClick={handleSubmitBatch}
+                  disabled={scannedRfids.length === 0}
+                  startIcon={<Save />}
+                  sx={{
+                    py: 1.5, fontSize: '1rem',
+                    borderRadius: 2,
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+                    textTransform: 'none'
+                  }}
+                >
+                  บันทึกข้อมูลเข้าระบบ
+                </Button>
               </Box>
-
-              {/* Submit Button */}
-              <Button
-                fullWidth
-                variant="contained"
-                size="large"
-                onClick={handleSubmitBatch}
-                disabled={scannedRfids.length === 0}
-                startIcon={<Save />}
-                sx={{
-                  mt: 3, py: 1.5, fontSize: '1.1rem',
-                  borderRadius: 2,
-                  background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                  boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
-                  textTransform: 'none'
-                }}
-              >
-                บันทึกข้อมูล ({scannedRfids.length})
-              </Button>
 
             </CardContent>
           </Card>

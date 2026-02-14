@@ -2,16 +2,18 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Paper, Typography, Grid, TextField, Button,
     TableContainer, Table, TableHead, TableBody, TableRow, TableCell,
-    Chip, CircularProgress, Alert, MenuItem, FormControl, InputLabel, Select
+    Chip, CircularProgress, Alert, MenuItem, FormControl, InputLabel, Select,
+    useTheme, alpha
 } from '@mui/material';
 import {
-    PictureAsPdf, TableView, Search, FilterList
+    PictureAsPdf, TableView, Search, FilterList, Summarize
 } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import axios from 'axios';
-// import { sendNotification } from '../utils/notificationUtil'; // Uncomment if needed
+import PageHeader from '../components/ui/PageHeader';
+import FormLabel from '../components/ui/FormLabel';
 
 // ⚠️ URL Backend
 const BASE_URL = 'http://localhost:5134/api';
@@ -27,12 +29,13 @@ interface MovementItem {
 }
 
 const Reports: React.FC = () => {
+    const theme = useTheme();
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    
+
     const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
-    const [selectedType, setSelectedType] = useState('All'); 
+    const [selectedType, setSelectedType] = useState('All');
 
     const [reportData, setReportData] = useState<MovementItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -43,8 +46,8 @@ const Reports: React.FC = () => {
     const activityTypes = [
         { value: 'All', label: 'ทั้งหมด (All Activities)' },
         { value: 'Add', label: 'เพิ่มเข้าระบบ (Add New)' },
-        { value: 'SendToWash', label: 'ส่งซัก (Send to Wash)' },      // แก้ Wash -> SendToWash
-        { value: 'ReceiveWash', label: 'รับเข้าโรงซัก (Receive at Laundry)' }, // เพิ่มอันนี้
+        { value: 'SendToWash', label: 'ส่งซัก (Send to Wash)' },
+        { value: 'ReceiveWash', label: 'รับเข้าโรงซัก (Receive at Laundry)' },
         { value: 'Restock', label: 'รับผ้าสะอาด/เติมสต็อก (Restock)' },
         { value: 'Discard', label: 'ตัดจำหน่าย (Discard)' },
         { value: 'Move', label: 'ย้ายตำแหน่ง (Move)' }
@@ -108,7 +111,7 @@ const Reports: React.FC = () => {
             ];
 
             XLSX.utils.book_append_sheet(workbook, worksheet, "Report_Summary");
-            
+
             const fileName = `Report_${selectedType}_${startDate}_to_${endDate}.xlsx`;
             XLSX.writeFile(workbook, fileName);
 
@@ -148,7 +151,7 @@ const Reports: React.FC = () => {
 
         doc.setFontSize(18);
         doc.text("รายงานสรุปความเคลื่อนไหว (Stock Movement Report)", 14, 20);
-        
+
         doc.setFontSize(10);
         doc.text(`ช่วงเวลา: ${new Date(startDate).toLocaleDateString('th-TH')} ถึง ${new Date(endDate).toLocaleDateString('th-TH')}`, 14, 28);
         doc.text(`ประเภทรายการ: ${selectedType === 'All' ? 'ทั้งหมด' : selectedType}`, 14, 33);
@@ -174,56 +177,64 @@ const Reports: React.FC = () => {
 
     return (
         <Box sx={{ pb: 5 }}>
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Paper elevation={0} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#e0f2fe', color: '#0369a1' }}>
-                    <TableView fontSize="large" />
-                </Paper>
-                <Box>
-                    <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b' }}>
-                        รายงานความเคลื่อนไหว (Movement Logs)
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                        ตรวจสอบประวัติการรับ-ส่งผ้า และยอดคงเหลือตามช่วงเวลา
-                    </Typography>
-                </Box>
-            </Box>
+            <PageHeader
+                title="รายงานความเคลื่อนไหว (Movement Logs)"
+                subtitle="ตรวจสอบประวัติการรับ-ส่งผ้า และยอดคงเหลือตามช่วงเวลา"
+                icon={<Summarize fontSize="large" />}
+                breadcrumbs={[
+                    { label: 'หน้าหลัก', href: '/' },
+                    { label: 'รายงาน' }
+                ]}
+            />
 
             {/* ✅ Filter Section */}
-            <Paper elevation={2} sx={{ p: 2, mb: 3, borderRadius: 3 }}>
-                <Grid container spacing={2} alignItems="center">
+            <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
+                <Grid container spacing={3} alignItems="flex-end">
                     <Grid item xs={6} md={3}>
-                        <TextField type="date" label="เริ่มต้น" fullWidth size="small" InputLabelProps={{ shrink: true }} value={startDate} onChange={e => setStartDate(e.target.value)} />
+                        <FormLabel label="วันที่เริ่มต้น">
+                            <TextField type="date" fullWidth size="medium" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                        </FormLabel>
                     </Grid>
                     <Grid item xs={6} md={3}>
-                        <TextField type="date" label="สิ้นสุด" fullWidth size="small" InputLabelProps={{ shrink: true }} value={endDate} onChange={e => setEndDate(e.target.value)} />
+                        <FormLabel label="วันที่สิ้นสุด">
+                            <TextField type="date" fullWidth size="medium" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                        </FormLabel>
                     </Grid>
-                    
+
                     {/* ✅ Dropdown ประเภทกิจกรรม */}
                     <Grid item xs={12} md={3}>
-                        <FormControl fullWidth size="small">
-                            <InputLabel>ประเภทรายการ</InputLabel>
+                        <FormLabel label="ประเภทรายการ">
                             <Select
+                                fullWidth
                                 value={selectedType}
-                                label="ประเภทรายการ"
                                 onChange={(e) => setSelectedType(e.target.value)}
-                                startAdornment={<FilterList fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />}
+                                displayEmpty
                             >
                                 {activityTypes.map((type) => (
                                     <MenuItem key={type.value} value={type.value}>{type.label}</MenuItem>
                                 ))}
                             </Select>
-                        </FormControl>
+                        </FormLabel>
                     </Grid>
 
-                    <Grid item xs={12} md={3} sx={{ display: 'flex', gap: 1 }}>
-                        <Button variant="contained" fullWidth startIcon={<Search />} onClick={handleFetchReport}>ค้นหา</Button>
+                    <Grid item xs={12} md={3}>
+                        <Button
+                            variant="contained"
+                            fullWidth
+                            size="large"
+                            startIcon={<Search />}
+                            onClick={handleFetchReport}
+                            sx={{ height: 48 }} // Match TextField default height (approx)
+                        >
+                            ค้นหา
+                        </Button>
                     </Grid>
                 </Grid>
-                
+
                 {/* ปุ่ม Export */}
-                <Box sx={{ mt: 2, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                <Box sx={{ mt: 3, pt: 2, borderTop: `1px dashed ${theme.palette.divider}`, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                     <Button variant="outlined" color="success" startIcon={<TableView />} onClick={handleExportExcel}>
-                        Export Excel (สรุปยอด)
+                        Export Excel
                     </Button>
                     <Button variant="outlined" color="error" startIcon={<PictureAsPdf />} onClick={handleExportPDF}>
                         Export PDF
@@ -234,29 +245,29 @@ const Reports: React.FC = () => {
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
             {/* ✅ Table Display */}
-            <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 3, maxHeight: 600 }}>
+            <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 3, maxHeight: 600 }}>
                 <Table stickyHeader size="small">
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>วัน/เวลา</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>ประเภท</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>สินค้า</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>เส้นทาง (Flow)</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>จำนวน</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f8fafc' }}>โดย</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>วัน/เวลา</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>ประเภท</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>สินค้า</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>เส้นทาง (Flow)</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>จำนวน</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>โดย</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {loading ? (
                             <TableRow>
-                                <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                                <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
                                     <CircularProgress />
-                                    <Typography variant="body2" sx={{ mt: 1 }}>กำลังโหลดข้อมูล...</Typography>
+                                    <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>กำลังโหลดข้อมูล...</Typography>
                                 </TableCell>
                             </TableRow>
                         ) : reportData.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} align="center" sx={{ py: 5, color: '#999' }}>
+                                <TableCell colSpan={6} align="center" sx={{ py: 8, color: 'text.disabled' }}>
                                     ไม่พบประวัติการเคลื่อนไหวตามเงื่อนไขที่เลือก
                                 </TableCell>
                             </TableRow>
@@ -265,33 +276,33 @@ const Reports: React.FC = () => {
                                 <TableRow key={row.id} hover>
                                     <TableCell>{new Date(row.date).toLocaleString('th-TH')}</TableCell>
                                     <TableCell>
-                                        <Chip 
-                                            label={row.type} 
-                                            size="small" 
+                                        <Chip
+                                            label={row.type}
+                                            size="small"
                                             // ✅ FIX 2: ปรับ Logic สี Chip ให้รองรับ SendToWash และ ReceiveWash
                                             color={
-                                                row.type === 'Add' || row.type === 'Restock' ? 'success' : 
-                                                row.type === 'Discard' ? 'error' : 
-                                                (row.type === 'SendToWash' || row.type === 'ReceiveWash') ? 'info' : // สีฟ้าสำหรับกลุ่มซัก
-                                                'default'
-                                            } 
-                                            variant="outlined" 
+                                                row.type === 'Add' || row.type === 'Restock' ? 'success' :
+                                                    row.type === 'Discard' ? 'error' :
+                                                        (row.type === 'SendToWash' || row.type === 'ReceiveWash') ? 'info' : // สีฟ้าสำหรับกลุ่มซัก
+                                                            'default'
+                                            }
+                                            variant="filled"
                                         />
                                     </TableCell>
-                                    <TableCell sx={{ fontWeight: 500 }}>{row.productName}</TableCell>
-                                    
+                                    <TableCell sx={{ fontWeight: 600, color: 'text.primary' }}>{row.productName}</TableCell>
+
                                     <TableCell>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', fontSize: '0.85rem' }}>
                                             {row.flow}
                                         </Box>
                                     </TableCell>
 
-                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: row.qty > 0 ? 'green' : 'red' }}>
+                                    <TableCell align="right" sx={{ fontWeight: 'bold', color: row.qty > 0 ? 'success.main' : 'error.main' }}>
                                         {row.qty > 0 ? `+${row.qty}` : row.qty}
                                     </TableCell>
-                                    
+
                                     <TableCell align="center">
-                                        <Chip label={row.user} size="small" sx={{ bgcolor: '#f1f5f9', fontSize: '0.75rem' }} />
+                                        <Chip label={row.user} size="small" variant="outlined" sx={{ fontSize: '0.75rem' }} />
                                     </TableCell>
                                 </TableRow>
                             ))
