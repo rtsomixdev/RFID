@@ -11,7 +11,7 @@ import {
   LocalLaundryService, Info, Save,
   Category, FiberNew, SettingsRemote,
   CheckCircle, ErrorOutline, AddCircleOutline, Room,
-  FitnessCenter, Straighten
+  FitnessCenter, Straighten, Scale, CalendarToday // ✅ เพิ่ม icon
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
@@ -29,6 +29,8 @@ interface Product {
   sizeSpec?: string;
   unitName: string;
   maxWashCount?: number;
+  standardWeightKg?: number; // ✅ เพิ่มน้ำหนัก
+  maxLifespanDays?: number;  // ✅ เพิ่มอายุวัน
   [key: string]: any;
 }
 
@@ -62,12 +64,15 @@ const RegisterLinen: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isNewProduct, setIsNewProduct] = useState(false);
 
+  // ✅ เพิ่ม standardWeightKg และ maxLifespanDays ใน State
   const [newProductData, setNewProductData] = useState({
     productName: '',
     productCode: '',
     categoryName: '',
     sizeSpec: '',
-    unitName: 'ชิ้น'
+    unitName: 'ชิ้น',
+    standardWeightKg: '', 
+    maxLifespanDays: ''
   });
 
   const [rfidInput, setRfidInput] = useState('');
@@ -249,6 +254,7 @@ const RegisterLinen: React.FC = () => {
             catId = catRes.data.categoryId;
           }
 
+          // ✅ ส่งข้อมูลครบถ้วนรวมถึง Weight และ Lifespan
           const prodRes = await axiosClient.post('/Product', {
             productName: newProductData.productName,
             productCode: newProductData.productCode,
@@ -256,8 +262,8 @@ const RegisterLinen: React.FC = () => {
             sizeSpec: newProductData.sizeSpec,
             unitName: newProductData.unitName,
             maxWashCount: Number(maxWash),
-            standardWeightKg: 0.5,
-            maxLifespanDays: 365,
+            standardWeightKg: newProductData.standardWeightKg ? Number(newProductData.standardWeightKg) : 0, 
+            maxLifespanDays: newProductData.maxLifespanDays ? Number(newProductData.maxLifespanDays) : 365,
             defaultRoomId: selectedLocation ? parseInt(selectedLocation) : 1
           });
           finalProductId = prodRes.data.productId;
@@ -286,7 +292,11 @@ const RegisterLinen: React.FC = () => {
       setRfidInput('');
       setIsNewProduct(false);
       setSelectedProduct(null);
-      setNewProductData({ productName: '', productCode: '', categoryName: '', sizeSpec: '', unitName: 'ชิ้น' });
+      // ✅ Reset State ให้ครบทุก field
+      setNewProductData({ 
+        productName: '', productCode: '', categoryName: '', sizeSpec: '', unitName: 'ชิ้น',
+        standardWeightKg: '', maxLifespanDays: ''
+      });
 
       fetchMasterData();
 
@@ -314,7 +324,7 @@ const RegisterLinen: React.FC = () => {
 
       <Grid container spacing={3}>
         {/* --- Left Column: Configuration Forms --- */}
-        <Grid xs={12} lg={8}>
+        <Grid item xs={12} lg={8}>
           <Stack spacing={3}>
             {/* 1. Context Info */}
             <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
@@ -323,7 +333,7 @@ const RegisterLinen: React.FC = () => {
                   <Info /> ข้อมูลล็อตและสถานที่ (Lot & Location)
                 </Typography>
                 <Grid container spacing={3}>
-                  <Grid xs={12} md={6}>
+                  <Grid item xs={12} md={6}>
                     <FormLabel label="โรงพยาบาลเจ้าของ" required>
                       <Select
                         fullWidth
@@ -337,7 +347,7 @@ const RegisterLinen: React.FC = () => {
                       </Select>
                     </FormLabel>
                   </Grid>
-                  <Grid xs={12} md={6}>
+                  <Grid item xs={12} md={6}>
                     <FormLabel label="สถานที่จัดเก็บเริ่มต้น" required>
                       <Select
                         fullWidth
@@ -351,7 +361,7 @@ const RegisterLinen: React.FC = () => {
                       </Select>
                     </FormLabel>
                   </Grid>
-                  <Grid xs={12}>
+                  <Grid item xs={12}>
                     <FormLabel label="บริษัทผู้ผลิต/จำหน่าย (Vendor)">
                       <Select
                         fullWidth
@@ -377,7 +387,7 @@ const RegisterLinen: React.FC = () => {
                 </Typography>
 
                 <Grid container spacing={3}>
-                  <Grid xs={12}>
+                  <Grid item xs={12}>
                     <FormLabel label="ค้นหาหรือสร้างสินค้าใหม่" required>
                       <Autocomplete
                         fullWidth size="small"
@@ -417,31 +427,43 @@ const RegisterLinen: React.FC = () => {
                   </Grid>
                 </Grid>
 
-                {/* --- Existing Product Detail --- */}
+                {/* --- ✅ Existing Product Detail (แสดงข้อมูลครบถ้วน) --- */}
                 <Collapse in={!isNewProduct && selectedProduct !== null}>
                   {selectedProduct && (
                     <Paper elevation={0} sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+                      <Typography variant="subtitle2" fontWeight="bold" color="primary" sx={{ mb: 2 }}>{selectedProduct.productName}</Typography>
                       <Grid container spacing={2}>
-                        <Grid xs={6} md={3}>
+                        <Grid item xs={6} md={3}>
                           <Typography variant="caption" color="textSecondary">รหัสสินค้า</Typography>
                           <Typography variant="body2" fontWeight="600">{selectedProduct.productCode}</Typography>
                         </Grid>
-                        <Grid xs={6} md={3}>
+                        <Grid item xs={6} md={3}>
                           <Typography variant="caption" color="textSecondary">หมวดหมู่</Typography>
                           <Typography variant="body2" fontWeight="600">
                             {categories.find(c => c.categoryId === selectedProduct.categoryId)?.categoryName || '-'}
                           </Typography>
                         </Grid>
-                        <Grid xs={6} md={2}>
-                          <Typography variant="caption" color="textSecondary">หน่วยนับ</Typography>
-                          <Typography variant="body2" fontWeight="600">{selectedProduct.unitName}</Typography>
-                        </Grid>
-                        <Grid xs={6} md={2}>
+                        <Grid item xs={6} md={2}>
                           <Typography variant="caption" color="textSecondary">ขนาด</Typography>
                           <Typography variant="body2" fontWeight="600">{selectedProduct.sizeSpec || '-'}</Typography>
                         </Grid>
-                        <Grid xs={6} md={2}>
-                          <Typography variant="caption" color="textSecondary">อายุการใช้งาน</Typography>
+                        <Grid item xs={6} md={2}>
+                          <Typography variant="caption" color="textSecondary">หน่วยนับ</Typography>
+                          <Typography variant="body2" fontWeight="600">{selectedProduct.unitName}</Typography>
+                        </Grid>
+                        <Grid item xs={12}>
+                           <Divider sx={{ my: 1, borderStyle: 'dashed' }} />
+                        </Grid>
+                        <Grid item xs={6} md={3}>
+                          <Typography variant="caption" color="textSecondary">น้ำหนัก</Typography>
+                          <Typography variant="body2" fontWeight="600">{selectedProduct.standardWeightKg ? `${selectedProduct.standardWeightKg} กก.` : '-'}</Typography>
+                        </Grid>
+                        <Grid item xs={6} md={3}>
+                          <Typography variant="caption" color="textSecondary">อายุ (วัน)</Typography>
+                          <Typography variant="body2" fontWeight="600">{selectedProduct.maxLifespanDays ? `${selectedProduct.maxLifespanDays} วัน` : '-'}</Typography>
+                        </Grid>
+                        <Grid item xs={6} md={3}>
+                          <Typography variant="caption" color="textSecondary">อายุ (รอบซัก)</Typography>
                           <Typography variant="body2" fontWeight="600">{selectedProduct.maxWashCount || 100} รอบ</Typography>
                         </Grid>
                       </Grid>
@@ -449,24 +471,24 @@ const RegisterLinen: React.FC = () => {
                   )}
                 </Collapse>
 
-                {/* --- New Product Form --- */}
+                {/* --- ✅ New Product Form (เพิ่มช่องกรอกข้อมูล) --- */}
                 <Collapse in={isNewProduct}>
                   <Box sx={{ mt: 3, p: 3, bgcolor: alpha(theme.palette.secondary.main, 0.05), borderRadius: 2, border: `1px dashed ${theme.palette.secondary.main}` }}>
                     <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2, color: theme.palette.secondary.main }}>
                       <FiberNew /> <Typography variant="subtitle2" fontWeight="bold">สร้างสินค้าใหม่ (New Master Data)</Typography>
                     </Stack>
                     <Grid container spacing={2}>
-                      <Grid xs={12}>
+                      <Grid item xs={12}>
                         <FormLabel label="ชื่อสินค้า" required>
                           <TextField fullWidth value={newProductData.productName} onChange={e => setNewProductData(prev => ({ ...prev, productName: e.target.value }))} />
                         </FormLabel>
                       </Grid>
-                      <Grid xs={12} md={6}>
+                      <Grid item xs={12} md={6}>
                         <FormLabel label="รหัสสินค้า (SKU)" required>
                           <TextField fullWidth value={newProductData.productCode} onChange={e => setNewProductData(prev => ({ ...prev, productCode: e.target.value }))} />
                         </FormLabel>
                       </Grid>
-                      <Grid xs={12} md={6}>
+                      <Grid item xs={12} md={6}>
                         <FormLabel label="หมวดหมู่ (Category)" required>
                           <Autocomplete
                             freeSolo
@@ -478,42 +500,91 @@ const RegisterLinen: React.FC = () => {
                           />
                         </FormLabel>
                       </Grid>
-                      <Grid xs={6}>
+                      
+                      {/* Physical Specs */}
+                      <Grid item xs={6} md={4}>
                         <FormLabel label="ขนาด (Size Spec)">
                           <TextField fullWidth value={newProductData.sizeSpec} onChange={e => setNewProductData(prev => ({ ...prev, sizeSpec: e.target.value }))} InputProps={{ startAdornment: <Straighten fontSize="small" color="action" sx={{ mr: 1 }} /> }} />
                         </FormLabel>
                       </Grid>
-                      <Grid xs={6}>
+                      <Grid item xs={6} md={4}>
+                        <FormLabel label="น้ำหนัก (กก.)">
+                          <TextField 
+                            fullWidth 
+                            type="number"
+                            value={newProductData.standardWeightKg} 
+                            onChange={e => setNewProductData(prev => ({ ...prev, standardWeightKg: e.target.value }))} 
+                            InputProps={{ 
+                              startAdornment: <Scale fontSize="small" color="action" sx={{ mr: 1 }} />,
+                              endAdornment: <Typography variant="caption">kg</Typography>
+                            }} 
+                          />
+                        </FormLabel>
+                      </Grid>
+                      <Grid item xs={6} md={4}>
                         <FormLabel label="หน่วยนับ">
                           <TextField fullWidth value={newProductData.unitName} onChange={e => setNewProductData(prev => ({ ...prev, unitName: e.target.value }))} />
+                        </FormLabel>
+                      </Grid>
+
+                      {/* Lifespan Specs */}
+                      <Grid item xs={6} md={6}>
+                        <FormLabel label="อายุการใช้งาน (วัน)">
+                          <TextField 
+                            fullWidth 
+                            type="number"
+                            placeholder="เช่น 365"
+                            value={newProductData.maxLifespanDays} 
+                            onChange={e => setNewProductData(prev => ({ ...prev, maxLifespanDays: e.target.value }))} 
+                            InputProps={{ 
+                              startAdornment: <CalendarToday fontSize="small" color="action" sx={{ mr: 1 }} />,
+                              endAdornment: <Typography variant="caption">วัน</Typography>
+                            }} 
+                          />
+                        </FormLabel>
+                      </Grid>
+                      <Grid item xs={6} md={6}>
+                        <FormLabel label="อายุการใช้งาน (รอบซัก)">
+                          <TextField 
+                            fullWidth 
+                            type="number"
+                            value={maxWash} 
+                            onChange={e => setMaxWash(Number(e.target.value))} 
+                            InputProps={{ 
+                              startAdornment: <LocalLaundryService fontSize="small" color="action" sx={{ mr: 1 }} />,
+                              endAdornment: <Typography variant="caption">รอบ</Typography> 
+                            }} 
+                          />
                         </FormLabel>
                       </Grid>
                     </Grid>
                   </Box>
                 </Collapse>
 
-                <Box sx={{ mt: 3 }}>
-                  <Grid container spacing={3} alignItems="center">
-                    <Grid xs={12} md={4}>
-                      <FormLabel label="อายุการใช้งาน (รอบซัก)">
-                        <TextField
-                          fullWidth
-                          type="number"
-                          value={maxWash}
-                          onChange={e => setMaxWash(Number(e.target.value))}
-                          InputProps={{ startAdornment: <InputAdornment position="start"><LocalLaundryService fontSize="small" /></InputAdornment>, endAdornment: <Typography variant="caption">รอบ</Typography> }}
-                        />
-                      </FormLabel>
+                {!isNewProduct && (
+                  <Box sx={{ mt: 3 }}>
+                    <Grid container spacing={3} alignItems="center">
+                      <Grid item xs={12} md={4}>
+                        <FormLabel label="ตั้งค่ารอบซักสูงสุดของ Lot นี้">
+                          <TextField
+                            fullWidth
+                            type="number"
+                            value={maxWash}
+                            onChange={e => setMaxWash(Number(e.target.value))}
+                            InputProps={{ startAdornment: <InputAdornment position="start"><LocalLaundryService fontSize="small" /></InputAdornment>, endAdornment: <Typography variant="caption">รอบ</Typography> }}
+                          />
+                        </FormLabel>
+                      </Grid>
                     </Grid>
-                  </Grid>
-                </Box>
+                  </Box>
+                )}
               </CardContent>
             </Card>
           </Stack>
         </Grid>
 
         {/* --- Right Column: Scanning Action --- */}
-        <Grid xs={12} lg={4}>
+        <Grid item xs={12} lg={4}>
           <Card elevation={0} sx={{ height: '100%', borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', flexDirection: 'column' }}>
             <CardContent sx={{ p: 0, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
               <Box sx={{ p: 3, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.primary.main, 0.02) }}>

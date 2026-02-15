@@ -4,12 +4,12 @@ import {
     MenuItem, Select, FormControl, InputLabel,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Chip, Alert, Stack, Card, CardContent, Tabs, Tab, Divider, Autocomplete,
-    Tooltip, useTheme, alpha
+    Tooltip, useTheme, alpha, IconButton, Avatar, LinearProgress, Menu
 } from '@mui/material';
 import {
     LocalShipping, QrCodeScanner, CheckCircle, ErrorOutline,
     Delete, Send, Cancel, CallMade, CallReceived, AccessTime,
-    Description, SettingsRemote, RestartAlt
+    Description, SettingsRemote, RestartAlt, MoreVert, Place
 } from '@mui/icons-material';
 import axiosClient from '../api/axiosClient';
 import Swal from 'sweetalert2';
@@ -17,6 +17,7 @@ import { sendNotification } from '../utils/notificationUtil';
 import PageHeader from '../components/ui/PageHeader';
 import FormLabel from '../components/ui/FormLabel';
 
+// --- Interfaces ---
 interface Reader {
     readerId: number;
     readerName: string;
@@ -32,21 +33,16 @@ interface ScannedItem {
     message?: string;
 }
 
-interface RequestItem {
+// Interface สำหรับข้อมูลขนส่งจริง (อิงจาก Request)
+interface TransportItem {
     requestId: number;
     requestCode: string;
     targetWard: { wardId: number; wardName: string };
     requestType: number;
     currentStatusId: number;
-    requestItems: {
-        id: number;
-        quantity: number;
-        product: {
-            productId: number;
-            productName: string;
-            sizeSpec: string;
-        };
-    }[];
+    currentStatus?: string; // ชื่อสถานะ (ถ้ามี)
+    updatedAt: string;
+    requestItems: any[];
 }
 
 const Transport: React.FC = () => {
@@ -54,26 +50,32 @@ const Transport: React.FC = () => {
     // --- States ---
     const [readers, setReaders] = useState<Reader[]>([]);
     const [selectedReader, setSelectedReader] = useState<string>('');
-    const [products, setProducts] = useState<any[]>([]); // เอาไว้เทียบ RFID กับ Product
+    
+    // Request States (สำหรับ Dropdown เลือกใบงาน)
+    const [pendingRequests, setPendingRequests] = useState<TransportItem[]>([]);
+    const [selectedRequest, setSelectedRequest] = useState<TransportItem | null>(null);
 
-    // Request States
-    const [pendingRequests, setPendingRequests] = useState<RequestItem[]>([]);
-    const [selectedRequest, setSelectedRequest] = useState<RequestItem | null>(null);
+    // Transport List States (สำหรับตารางด้านล่าง)
+    const [transportList, setTransportList] = useState<TransportItem[]>([]);
 
     const [inputRfid, setInputRfid] = useState('');
     const [scannedList, setScannedList] = useState<ScannedItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [tabValue, setTabValue] = useState(0);
 
+    // UI States
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const [selectedTransportId, setSelectedTransportId] = useState<number | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         fetchInitialData();
+        fetchTransportList(); // ดึงข้อมูลเข้าตารางล่าง
     }, []);
 
     useEffect(() => {
         if (tabValue === 0) {
-            fetchPendingRequests();
+            fetchPendingRequests(); // ดึงเฉพาะใบที่รอส่ง
         } else {
             setSelectedRequest(null);
         }
@@ -90,21 +92,18 @@ const Transport: React.FC = () => {
 
             console.log(`📡 Transport Auto Scan: ${rfid} from ${readerName}`);
 
-            // Validation
             if (!selectedReader) {
                 Swal.fire({ icon: 'warning', title: 'กรุณาเลือก Reader', timer: 1500, showConfirmButton: false });
                 return;
             }
-            // ถ้าเป็นโหมดส่งของ ต้องเลือกใบคำร้องก่อน
             if (tabValue === 0 && !selectedRequest) {
                 Swal.fire({ icon: 'warning', title: 'กรุณาเลือกใบคำร้อง', timer: 1500, showConfirmButton: false });
                 return;
             }
 
-            // Check Reader Match
             const currentReaderObj = readers.find(r => r.readerId === parseInt(selectedReader));
             if (currentReaderObj && readerName && currentReaderObj.readerName !== readerName) {
-                console.warn(`⚠️ Ignore scan from ${readerName} (Current: ${currentReaderObj.readerName})`);
+                console.warn(`⚠️ Ignore scan from ${readerName}`);
                 return;
             }
 
@@ -117,14 +116,8 @@ const Transport: React.FC = () => {
 
     const fetchInitialData = async () => {
         try {
-            const [readerRes, prodRes] = await Promise.all([
-                axiosClient.get('/Reader'),
-                axiosClient.get('/Product')
-            ]);
+            const readerRes = await axiosClient.get('/Reader');
             setReaders(readerRes.data);
-            setProducts(prodRes.data);
-
-            // Auto Select Online Reader
             if (readerRes.data.length > 0) {
                 const online = readerRes.data.find((r: any) => r.isActive);
                 setSelectedReader(online ? online.readerId.toString() : readerRes.data[0].readerId.toString());
@@ -132,48 +125,44 @@ const Transport: React.FC = () => {
         } catch (err) { console.error(err); }
     };
 
+    // ดึงใบคำร้องที่ "รอส่ง" (Status = Approved/Pending Dispatch)
     const fetchPendingRequests = async () => {
         try {
             const res = await axiosClient.get('/Request');
-            const approved = res.data.filter((r: any) => r.currentStatusId === 2); // Approved Only
+            // สมมติ Status 2 = Approved พร้อมส่ง
+            const approved = res.data.filter((r: any) => r.currentStatusId === 2); 
             setPendingRequests(approved);
         } catch (err) { console.error(err); }
     };
 
-    // 🧠 Smart Logic: พยายามเดาชื่อสินค้าจากรายการในใบคำร้อง (ถ้ามี)
-    const guessProductFromRequest = (rfid: string): string => {
-        if (!selectedRequest) return '-';
-        // Logic นี้เป็นแค่การ Mock เบื้องต้น เพราะ RFID Code ไม่ได้บอก Product ID โดยตรง
-        // ในระบบจริงอาจจะต้องมี API: GET /Linen/Check/{rfid} เพื่อดึงชื่อสินค้าจริงมาโชว์
-        return '-';
+    // ดึงรายการขนส่งทั้งหมด (เพื่อแสดงในตารางด้านล่าง)
+    const fetchTransportList = async () => {
+        try {
+            const res = await axiosClient.get('/Request');
+            // เอาทุกสถานะมาโชว์ในตาราง (ยกเว้น Draft)
+            const allTransports = res.data.filter((r: any) => r.currentStatusId >= 2);
+            // เรียงลำดับล่าสุดก่อน
+            allTransports.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+            setTransportList(allTransports);
+        } catch (err) { console.error(err); }
     };
 
     const handleAddRfidLogic = (code: string) => {
         const cleanCode = code.trim();
         if (!cleanCode) return;
-
-        // Check Duplicate
-        if (scannedList.some(item => item.rfid === cleanCode)) {
-            const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1000 });
-            Toast.fire({ icon: 'warning', title: 'ซ้ำ!' });
-            return;
-        }
-
-        const guessedName = guessProductFromRequest(cleanCode);
+        if (scannedList.some(item => item.rfid === cleanCode)) return;
 
         setScannedList(prev => [{
             rfid: cleanCode,
-            productName: guessedName,
+            productName: '-',
             status: 'pending'
         }, ...prev]);
     };
 
-    // Manual Input Handler
     const handleManualSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedReader) return Swal.fire('เตือน', 'เลือก Reader ก่อน', 'warning');
         if (tabValue === 0 && !selectedRequest) return Swal.fire('เตือน', 'เลือกใบคำร้องก่อน', 'warning');
-
         handleAddRfidLogic(inputRfid);
         setInputRfid('');
         setTimeout(() => inputRef.current?.focus(), 100);
@@ -191,7 +180,7 @@ const Transport: React.FC = () => {
 
     const handleSubmit = async () => {
         if (scannedList.length === 0) return;
-        if (!selectedReader) return Swal.fire('เตือน', 'กรุณาเลือกจุดสแกน (Reader)', 'warning');
+        if (!selectedReader) return Swal.fire('เตือน', 'กรุณาเลือกจุดสแกน', 'warning');
         if (tabValue === 0 && !selectedRequest) return Swal.fire('เตือน', 'กรุณาเลือกใบคำร้อง', 'warning');
 
         setLoading(true);
@@ -211,13 +200,12 @@ const Transport: React.FC = () => {
 
             if (!res.data || !res.data.registered) throw new Error("Invalid response");
 
-            const { registered, unknown, disposed, invalid } = res.data;
+            const { registered, unknown, invalid } = res.data;
             const registeredSet = new Set(registered.map((r: any) => r.rfidCode));
             const unknownSet = new Set(unknown);
             const invalidMap = new Map(invalid?.map((i: any) => [i.rfidCode, i.message]) || []);
 
             const updatedList = scannedList.map(item => {
-                // Update real name from server response
                 const regItem = registered.find((r: any) => r.rfidCode === item.rfid);
                 const realProductName = regItem?.productName || item.productName;
 
@@ -232,16 +220,13 @@ const Transport: React.FC = () => {
             const successCount = registered.length;
 
             if (successCount > 0) {
-                const currentReader = readers.find(r => r.readerId === parseInt(selectedReader));
-                const locationName = currentReader ? `${currentReader.readerName}` : 'Unknown';
-
                 if (tabValue === 0) {
                     await sendNotification("กำลังส่งผ้า (In Transit)", `ส่งผ้า ${successCount} ชิ้น ตามคำร้อง ${selectedRequest?.requestCode}`, "WARNING", "/transport", undefined, 1);
-                    fetchPendingRequests();
-                    // setSelectedRequest(null); // Optional: Keep selected for convenience
+                    fetchPendingRequests(); // Refresh Dropdown
                 } else {
-                    await sendNotification("รับผ้าเข้าคลังปลายทาง", `รับผ้า ${successCount} ชิ้น เข้าสู่ ${locationName} เรียบร้อย`, "SUCCESS", "/transport", undefined, 1);
+                    await sendNotification("รับผ้าเข้าคลัง", `รับผ้า ${successCount} ชิ้น เรียบร้อย`, "SUCCESS", "/transport", undefined, 1);
                 }
+                fetchTransportList(); // Refresh Table ด้านล่าง
             }
 
             Swal.fire({
@@ -258,16 +243,36 @@ const Transport: React.FC = () => {
         }
     };
 
+    // --- Transport Table Functions ---
+    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, id: number) => {
+        setAnchorEl(event.currentTarget);
+        setSelectedTransportId(id);
+    };
+
+    const handleMenuClose = () => {
+        setAnchorEl(null);
+        setSelectedTransportId(null);
+    };
+
+    // Helper แปลง Status ID เป็น Text/Color (ปรับตาม DB จริงของคุณ)
+    const getStatusInfo = (statusId: number) => {
+        switch (statusId) {
+            case 1: return { label: 'Draft', color: 'default' };
+            case 2: return { label: 'Approved (รอส่ง)', color: 'warning' };
+            case 3: return { label: 'In Transit (กำลังส่ง)', color: 'info' };
+            case 4: return { label: 'Completed (สำเร็จ)', color: 'success' };
+            case 5: return { label: 'Cancelled', color: 'error' };
+            default: return { label: `Status ${statusId}`, color: 'default' };
+        }
+    };
+
     return (
         <Box sx={{ pb: 5 }}>
             <PageHeader
                 title="ระบบขนส่ง (Transport Logistics)"
                 subtitle="จัดการการรับ-ส่งผ้า ตามใบคำร้อง (Request Based)"
                 icon={<LocalShipping fontSize="large" />}
-                breadcrumbs={[
-                    { label: 'หน้าหลัก', href: '/' },
-                    { label: 'ขนส่ง' }
-                ]}
+                breadcrumbs={[{ label: 'หน้าหลัก', href: '/' }, { label: 'ขนส่ง' }]}
             />
 
             {/* Tab Selection */}
@@ -295,7 +300,6 @@ const Transport: React.FC = () => {
                             </Typography>
                             <Divider sx={{ mb: 3 }} />
 
-                            {/* ✅ Reader Selection */}
                             <FormLabel label="จุดสแกน (Reader)" required>
                                 <Select
                                     value={selectedReader}
@@ -314,7 +318,7 @@ const Transport: React.FC = () => {
                                 </Select>
                             </FormLabel>
 
-                            {/* ✅ Request Selection (Only for Dispatch) */}
+                            {/* Request Selection */}
                             {tabValue === 0 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2, border: `1px dashed ${theme.palette.primary.light}`, mb: 2 }}>
@@ -339,41 +343,10 @@ const Transport: React.FC = () => {
                                             </Alert>
                                         )}
                                     </Box>
-
-                                    {/* Request Items Table */}
-                                    {selectedRequest && (
-                                        <Box sx={{ mb: 2, maxHeight: 200, overflowY: 'auto', border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-                                            <Table size="small" stickyHeader>
-                                                <TableHead>
-                                                    <TableRow>
-                                                        <TableCell sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05), fontWeight: 'bold' }}>สินค้า</TableCell>
-                                                        <TableCell align="center" sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05), fontWeight: 'bold', width: 80 }}>จำนวน</TableCell>
-                                                    </TableRow>
-                                                </TableHead>
-                                                <TableBody>
-                                                    {selectedRequest.requestItems.map((item) => (
-                                                        <TableRow key={item.id}>
-                                                            <TableCell sx={{ fontSize: '0.85rem', maxWidth: 150 }}>
-                                                                <Tooltip title={item.product.productName}>
-                                                                    <Typography variant="body2" fontSize="0.85rem" noWrap>
-                                                                        {item.product.productName}
-                                                                    </Typography>
-                                                                </Tooltip>
-                                                                <Typography variant="caption" display="block" color="textSecondary">{item.product.sizeSpec}</Typography>
-                                                            </TableCell>
-                                                            <TableCell align="center" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-                                                                {item.quantity}
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        </Box>
-                                    )}
                                 </Box>
                             )}
 
-                            {/* ✅ Manual Input */}
+                            {/* Manual Input */}
                             <form onSubmit={handleManualSubmit}>
                                 <FormLabel label="SCAN AREA">
                                     <TextField
@@ -411,7 +384,7 @@ const Transport: React.FC = () => {
                     </Card>
                 </Grid>
 
-                {/* Right Panel: List */}
+                {/* Right Panel: Scan List */}
                 <Grid item xs={12} md={8}>
                     <Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden', border: `1px solid ${theme.palette.divider}`, height: '100%' }}>
                         <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -424,13 +397,13 @@ const Transport: React.FC = () => {
                             }
                         </Box>
 
-                        <TableContainer sx={{ maxHeight: 600 }}>
+                        <TableContainer sx={{ maxHeight: 400 }}>
                             <Table stickyHeader>
                                 <TableHead>
                                     <TableRow>
                                         <TableCell sx={{ fontWeight: 'bold' }}>#</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold' }}>RFID Code</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold' }}>สินค้า (ถ้ามี)</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>สินค้า</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold' }}>สถานะ</TableCell>
                                         <TableCell align="center" sx={{ fontWeight: 'bold' }}>ลบ</TableCell>
                                     </TableRow>
@@ -440,9 +413,7 @@ const Transport: React.FC = () => {
                                         <TableRow>
                                             <TableCell colSpan={5} align="center" sx={{ py: 8, color: 'text.secondary' }}>
                                                 <AccessTime sx={{ fontSize: 40, mb: 1, opacity: 0.5 }} />
-                                                <Typography>
-                                                    {tabValue === 0 && !selectedRequest ? "กรุณาเลือกใบคำร้องฝั่งซ้ายก่อน..." : "รอสแกน..."}
-                                                </Typography>
+                                                <Typography>รอสแกน...</Typography>
                                             </TableCell>
                                         </TableRow>
                                     ) : (
@@ -483,6 +454,71 @@ const Transport: React.FC = () => {
                     </Paper>
                 </Grid>
             </Grid>
+
+            {/* ✅ 2. Transport Status Table (ดึง API จริงจาก /Request) */}
+            <Box sx={{ mt: 5 }}>
+                <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
+                    <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <LocalShipping /> รายการขนส่งล่าสุด (Transport Status)
+                    </Typography>
+                    
+                    <TableContainer>
+                        <Table>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>รหัสใบงาน</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>วันที่อัปเดต</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>ปลายทาง</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>จำนวนรายการ</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>สถานะ</TableCell>
+                                    <TableCell align="right"></TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {transportList.length === 0 ? (
+                                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3, color: 'text.disabled' }}>ไม่พบรายการขนส่ง</TableCell></TableRow>
+                                ) : (
+                                    transportList.map((row) => {
+                                        const status = getStatusInfo(row.currentStatusId);
+                                        return (
+                                            <TableRow key={row.requestId} hover>
+                                                <TableCell>
+                                                    <Typography variant="subtitle2" fontWeight="bold" color="primary">{row.requestCode}</Typography>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Typography variant="body2">{new Date(row.updatedAt).toLocaleString('th-TH')}</Typography>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <Place color="action" fontSize="small" />
+                                                        <Typography variant="body2">{row.targetWard?.wardName || '-'}</Typography>
+                                                    </Box>
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    <Typography variant="h6" fontWeight="bold">{row.requestItems?.length || 0}</Typography>
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    <Chip label={status.label} color={status.color as any} size="small" sx={{ minWidth: 100, fontWeight: 'bold' }} />
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                    <IconButton size="small" onClick={(e) => handleMenuOpen(e, row.requestId)}><MoreVert /></IconButton>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </Paper>
+            </Box>
+
+            {/* Menu Actions for Table */}
+            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
+                <MenuItem onClick={handleMenuClose}>ดูรายละเอียด (View)</MenuItem>
+                <MenuItem onClick={handleMenuClose}>พิมพ์ใบส่งของ (Print)</MenuItem>
+            </Menu>
+
         </Box>
     );
 };

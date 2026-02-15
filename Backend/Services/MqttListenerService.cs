@@ -13,7 +13,6 @@ using System.Collections.Concurrent;
 
 namespace Backend.Services
 {
-    // ตัด CurrentMode ออกจาก RAM เพื่อบังคับให้อ่าน DB เสมอ
     public class ReaderRuntimeState
     {
         public DateTime? ScanningUntil { get; set; } 
@@ -86,7 +85,6 @@ namespace Backend.Services
             var payloadStr = Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment);
             var parts = topic.Split('/');
             
-            // Trim ชื่อ Reader เพื่อป้องกันปัญหาเว้นวรรค
             string readerName = (parts.Length >= 2) ? parts[1].Trim() : "Unknown";
 
             // -----------------------------------------------------------
@@ -133,7 +131,6 @@ namespace Backend.Services
                     }
                     if (string.IsNullOrEmpty(rfid)) return;
 
-                    // 🔥 FIX: ใช้ AsNoTracking เพื่ออ่านค่าล่าสุดจริง ๆ
                     var readerDB = await context.Readers.AsNoTracking().FirstOrDefaultAsync(r => r.ReaderName == readerName);
                     
                     string currentMode = "Normal";
@@ -143,7 +140,6 @@ namespace Backend.Services
                         currentMode = readerDB.CurrentMode ?? "Normal";
                     }
 
-                    // จัดการ State ใน RAM (เฉพาะเรื่อง Timeout)
                     if (!_readerStates.ContainsKey(readerName)) {
                         _readerStates[readerName] = new ReaderRuntimeState();
                     }
@@ -190,53 +186,34 @@ namespace Backend.Services
                     {
                         bool isDuplicate = false;
                         bool shouldSave = false;
-                        string prevLoc = linen.CurrentLocation ?? "Unknown";
-                        string finalStatus = linen.Status; 
+                        string prevLoc = linen.CurrentLocation ?? "ไม่ระบุ";
+                        // แปลงสถานะเป็นภาษาไทย
+                        string finalStatus = TranslateStatus(linen.Status); 
 
                         Console.WriteLine($"🔍 Processing {rfid} | Reader: '{readerName}' | ModeDB: {currentMode} | Status: {linen.Status}");
 
                         switch (currentMode)
                         {
                             case "MODE_WASH":
-                                if (linen.Status == "SendingToLaundry" || linen.Status == "Washing") isDuplicate = true;
+                                if (linen.Status == "ส่งซัก" || linen.Status == "SendingToLaundry") isDuplicate = true;
                                 else {
-                                    linen.Status = "SendingToLaundry";
-                                    finalStatus = "SendingToLaundry";
-                                    linen.CurrentLocation = "Transit"; 
-                                    LogMovement(context, linen.LinenId, "SendToWash", "ส่งผ้าออกจากวอร์ด (รอรับ)", prevLoc, "Transit");
+                                    linen.Status = "ส่งซัก";
+                                    finalStatus = "ส่งซัก";
+                                    linen.CurrentLocation = "ขนส่ง (Transit)"; 
+                                    LogMovement(context, linen.LinenId, "SendToWash", "ส่งผ้าออกจากวอร์ด (รอรับ)", prevLoc, "ขนส่ง (Transit)");
                                     shouldSave = true;
                                 }
                                 break;
 
                             case "MODE_RECEIVE_LAUNDRY": 
-                                if (linen.Status == "SendingToLaundry") 
-                                {
-                                    linen.Status = "Washing";      
-                                    finalStatus = "Washing";       
-                                    linen.CurrentLocation = "Laundry"; 
-                                    
-                                    // ✅ แก้ไขตรงนี้: WashCount เป็น int ไม่ต้องเช็ค ?? 0
+                                if (linen.Status == "กำลังซัก" || linen.Status == "Washing") isDuplicate = true;
+                                else {
+                                    linen.Status = "กำลังซัก";
+                                    finalStatus = "กำลังซัก";
+                                    linen.CurrentLocation = "โรงซัก (Laundry)";
                                     linen.WashCount++; 
                                     linen.LastWashDate = ThaiTime();
-
-                                    LogMovement(context, linen.LinenId, "ReceiveWash", "รับผ้าเข้าเครื่องซัก", prevLoc, "Laundry");
-                                    shouldSave = true;
-                                }
-                                else if (linen.Status == "Washing") 
-                                {
-                                    isDuplicate = true;
-                                }
-                                else 
-                                {
-                                    linen.Status = "Washing";
-                                    finalStatus = "Washing";
-                                    linen.CurrentLocation = "Laundry";
-                                    
-                                    // ✅ แก้ไขตรงนี้เช่นกัน
-                                    linen.WashCount++; 
-                                    linen.LastWashDate = ThaiTime();
-                                    
-                                    LogMovement(context, linen.LinenId, "ForceWash", "รับซัก (ไม่ได้ผ่านการส่ง)", prevLoc, "Laundry");
+                                    LogMovement(context, linen.LinenId, "ReceiveWash", "รับผ้าเข้าเครื่องซัก", prevLoc, "โรงซัก (Laundry)");
                                     shouldSave = true;
                                 }
                                 break;
@@ -244,33 +221,83 @@ namespace Backend.Services
                             case "MODE_DISCARD":
                                 if (linen.IsActive == false) isDuplicate = true;
                                 else {
-                                    linen.Status = "Discarded";
-                                    finalStatus = "Discarded";
+                                    linen.Status = "จำหน่ายออก";
+                                    finalStatus = "จำหน่ายออก";
                                     linen.IsActive = false;
-                                    linen.CurrentLocation = "Disposal";
-                                    LogMovement(context, linen.LinenId, "Discard", "จำหน่ายออก (Auto)", prevLoc, "Disposal");
+                                    linen.CurrentLocation = "จุดจำหน่าย (Disposal)";
+                                    LogMovement(context, linen.LinenId, "Discard", "จำหน่ายออก (Auto)", prevLoc, "จุดจำหน่าย (Disposal)");
                                     shouldSave = true;
                                 }
                                 break;
 
                             case "MODE_RESTOCK":
-                                if (linen.Status == "Available" && linen.CurrentLocation == "Stock") isDuplicate = true;
+                                if ((linen.Status == "พร้อมใช้" || linen.Status == "Available") && linen.CurrentLocation == "คลังผ้า (Stock)") isDuplicate = true;
                                 else {
-                                    linen.Status = "Available";
-                                    finalStatus = "Available";
-                                    linen.CurrentLocation = "Stock";
-                                    LogMovement(context, linen.LinenId, "Restock", "รับเข้าคลัง (Auto)", prevLoc, "Stock");
+                                    linen.Status = "พร้อมใช้";
+                                    finalStatus = "พร้อมใช้";
+                                    linen.CurrentLocation = "คลังผ้า (Stock)";
+                                    LogMovement(context, linen.LinenId, "Restock", "รับเข้าคลัง (Auto)", prevLoc, "คลังผ้า (Stock)");
                                     shouldSave = true;
                                 }
+                                break;
+
+                            // ✅ เพิ่มโหมดใหม่
+                            case "MODE_REPAIR":
+                                if (linen.Status == "ส่งซ่อม") isDuplicate = true;
+                                else {
+                                    linen.Status = "ส่งซ่อม";
+                                    finalStatus = "ส่งซ่อม";
+                                    linen.CurrentLocation = "แผนกซ่อมบำรุง";
+                                    LogMovement(context, linen.LinenId, "Repair", "ส่งซ่อมผ้าชำรุด", prevLoc, "แผนกซ่อมบำรุง");
+                                    shouldSave = true;
+                                }
+                                break;
+
+                            case "MODE_QC":
+                                // ไม่เปลี่ยน Status แต่บันทึก Log ว่ามีการตรวจเช็ค
+                                finalStatus = "ตรวจสอบคุณภาพ (QC)";
+                                LogMovement(context, linen.LinenId, "QC", "ตรวจสอบคุณภาพผ้า", prevLoc, readerName);
+                                shouldSave = true; // บันทึก timestamp การตรวจเช็ค
+                                break;
+
+                            case "MODE_DISPATCH_WARD":
+                                if (linen.Status == "ถูกใช้งาน" && linen.CurrentLocation == "หอผู้ป่วย") isDuplicate = true;
+                                else {
+                                    linen.Status = "ถูกใช้งาน";
+                                    finalStatus = "ถูกใช้งาน (Ward)";
+                                    linen.CurrentLocation = "หอผู้ป่วย (Ward)";
+                                    LogMovement(context, linen.LinenId, "Dispatch", "ส่งผ้าไปหอผู้ป่วย", prevLoc, "หอผู้ป่วย (Ward)");
+                                    shouldSave = true;
+                                }
+                                break;
+
+                            case "MODE_DISPATCH_OR":
+                                if (linen.Status == "ถูกใช้งาน" && linen.CurrentLocation == "ห้องผ่าตัด") isDuplicate = true;
+                                else {
+                                    linen.Status = "ถูกใช้งาน";
+                                    finalStatus = "ถูกใช้งาน (OR)";
+                                    linen.CurrentLocation = "ห้องผ่าตัด (OR)";
+                                    LogMovement(context, linen.LinenId, "Dispatch", "ส่งผ้าไปห้องผ่าตัด", prevLoc, "ห้องผ่าตัด (OR)");
+                                    shouldSave = true;
+                                }
+                                break;
+
+                            case "MODE_TRANSFER":
+                                // แค่ย้าย Location แต่ Status เดิม
+                                linen.CurrentLocation = readerName + " (Transfer)";
+                                finalStatus = "โอนย้าย";
+                                LogMovement(context, linen.LinenId, "Transfer", "โอนย้ายระหว่างคลัง", prevLoc, linen.CurrentLocation);
+                                shouldSave = true;
                                 break;
                                 
                             default: // Normal Mode
                                 if (linen.CurrentLocation == readerName) isDuplicate = true;
                                 else {
                                     linen.CurrentLocation = readerName;
-                                    if(linen.Status == "Available") {
-                                        linen.Status = "In Use";
-                                        finalStatus = "In Use";
+                                    // ถ้าผ้าพร้อมใช้ ถูกสแกนที่จุดอื่น ให้ถือว่าถูกใช้งาน
+                                    if(linen.Status == "พร้อมใช้" || linen.Status == "Available") {
+                                        linen.Status = "ถูกใช้งาน";
+                                        finalStatus = "ถูกใช้งาน";
                                     }
                                     LogMovement(context, linen.LinenId, "Move", "ย้ายตำแหน่ง", prevLoc, readerName);
                                     shouldSave = true;
@@ -322,11 +349,26 @@ namespace Backend.Services
                             rfid = rfid, 
                             reader = readerName, 
                             mode = currentMode, 
-                            status = "Unknown",
+                            status = "ไม่พบในระบบ",
                             isDuplicate = false
                         });
                     }
                 }
+            }
+        }
+
+        private string TranslateStatus(string status)
+        {
+            if (string.IsNullOrEmpty(status)) return "ไม่ระบุ";
+            switch (status)
+            {
+                case "Available": return "พร้อมใช้";
+                case "In Use": return "ถูกใช้งาน";
+                case "SendingToLaundry": return "ส่งซัก";
+                case "Washing": return "กำลังซัก";
+                case "Discarded": return "จำหน่ายออก";
+                case "Repair": return "ส่งซ่อม";
+                default: return status;
             }
         }
 

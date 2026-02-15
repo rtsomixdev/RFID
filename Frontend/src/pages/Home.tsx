@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import {
     WifiTethering, LocationOn, CheckCircle, Login, Dashboard as DashboardIcon,
-    Warning, HelpOutline, History, DeleteOutline, Build, Room, Refresh
+    Warning, HelpOutline, History, DeleteOutline, Build, Room, Refresh, SignalWifiOff
 } from '@mui/icons-material';
 import axiosClient from '../api/axiosClient';
 
@@ -47,6 +47,10 @@ const Home: React.FC = () => {
     const [recentLogs, setRecentLogs] = useState<SystemLogItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [allItemsCount, setAllItemsCount] = useState(0);
+    
+    // 🔥 Reader Status
+    const [isReaderOnline, setIsReaderOnline] = useState(false);
+    const [activeReaderCount, setActiveReaderCount] = useState(0);
 
     const userStr = localStorage.getItem('currentUser');
     const user = userStr ? JSON.parse(userStr) : null;
@@ -59,11 +63,23 @@ const Home: React.FC = () => {
 
     const fetchData = async () => {
         try {
-            // 1. Fetch Monitor Data
+            // 1. Fetch Monitor Data (รวมทั้ง Registered & Unknown)
             const resMonitor = await axiosClient.get('/Linen/Monitor/Latest');
             const rawData = resMonitor.data || [];
 
-            // 2. Data Mapping
+            // 2. Fetch Reader Status (เช็คสถานะเครื่องอ่าน)
+            try {
+                const resReaders = await axiosClient.get('/Reader');
+                const readers = resReaders.data || [];
+                const onlineCount = readers.filter((r: any) => r.isActive).length;
+                setActiveReaderCount(onlineCount);
+                setIsReaderOnline(onlineCount > 0);
+            } catch (readerErr) {
+                console.error("Reader Fetch Error", readerErr);
+                setIsReaderOnline(false);
+            }
+
+            // 3. Data Mapping
             const mappedData: MonitorItem[] = rawData.map((item: any) => {
                 const loc = item.CurrentLocation || item.currentLocation || item.current_location || item.location || item.readerLocation;
                 const time = item.UpdatedAt || item.updatedAt || item.updated_at ||
@@ -78,11 +94,11 @@ const Home: React.FC = () => {
                 };
             });
 
-            // 3. Filter Data
+            // 4. ✅ Filter Data: แยกของในระบบ กับ ของแปลกปลอม
             const unk = mappedData.filter(d =>
                 d.productName === 'Unknown' ||
-                d.productName === 'ไม่พบในระบบ' ||
-                d.status === 'Alien' ||
+                d.productName === 'ไม่พบในระบบ' || // ตรงกับ Backend ที่ส่งมา
+                d.status === 'Alien' ||            // ตรงกับ Backend ที่ส่งมา
                 d.status === 'Disposed'
             );
 
@@ -94,12 +110,10 @@ const Home: React.FC = () => {
             );
 
             setRegisteredItems(reg);
-            setUnknownItems(unk);
-
-            // ✅ แก้ไขตรงนี้: ใช้นับเฉพาะ reg (รายการที่ลงทะเบียนแล้ว) แทน mappedData ทั้งหมด
+            setUnknownItems(unk); // ใส่เข้า State เพื่อโชว์ในกล่องแดง
             setAllItemsCount(reg.length);
 
-            // 4. Fetch Logs
+            // 5. Fetch Logs
             const resLogs = await axiosClient.get('/Linen/DeleteHistory');
             setRecentLogs(resLogs.data || []);
 
@@ -107,10 +121,11 @@ const Home: React.FC = () => {
         } catch (err) {
             console.error("Fetch Error:", err);
             setLoading(false);
+            setIsReaderOnline(false);
         }
     };
 
-    // Determine Latest Location for the Dashboard Card
+    // Determine Latest Location
     const latestItem = registeredItems.length > 0 ? registeredItems[0] : (unknownItems.length > 0 ? unknownItems[0] : null);
     const latestLocation = latestItem && latestItem.location !== '-' ? latestItem.location : "Waiting...";
 
@@ -120,7 +135,7 @@ const Home: React.FC = () => {
         if (s.includes('damage') || s === 'disposed' || s === 'lost' || s === 'alien') return 'error';
         if (s === 'in use' || s === 'borrowed') return 'primary';
         if (s === 'washing' || s === 'laundry') return 'info';
-        return 'warning'; // default
+        return 'warning';
     };
 
     return (
@@ -132,7 +147,7 @@ const Home: React.FC = () => {
             overflow: 'hidden'
         }}>
 
-            {/* --- Header & Stats (Fixed Top) --- */}
+            {/* --- Header & Stats --- */}
             <Box sx={{ p: 3, pb: 1, flexShrink: 0, bgcolor: 'white', borderBottom: `1px solid ${theme.palette.divider}` }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                     <Box>
@@ -153,21 +168,31 @@ const Home: React.FC = () => {
                     </Box>
                 </Box>
 
-                {/* Stat Cards Row */}
+                {/* Stat Cards */}
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
+                    
+                    {/* Card 1: Reader Status */}
                     <Card elevation={0} sx={{ flex: 1, bgcolor: '#1e293b', color: '#fff', border: 'none', borderRadius: 3 }}>
                         <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 3 }}>
                             <Box>
                                 <Typography variant="overline" sx={{ opacity: 0.7, letterSpacing: 1 }}>READER STATUS</Typography>
-                                <Typography variant="h5" fontWeight="bold" sx={{ color: '#4ade80', display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                                    <WifiTethering /> ONLINE
+                                <Typography variant="h5" fontWeight="bold" sx={{ color: isReaderOnline ? '#4ade80' : '#f87171', display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                                    {isReaderOnline ? <WifiTethering /> : <SignalWifiOff />} 
+                                    {isReaderOnline ? "ONLINE" : "OFFLINE"}
                                 </Typography>
+                                {isReaderOnline && (
+                                    <Typography variant="caption" sx={{ color: '#4ade80', opacity: 0.8 }}>
+                                        {activeReaderCount} device(s) active
+                                    </Typography>
+                                )}
                             </Box>
-                            <Box sx={{ p: 1.5, borderRadius: '50%', bgcolor: 'rgba(74, 222, 128, 0.2)' }}>
-                                <CheckCircle sx={{ fontSize: 32, color: '#4ade80' }} />
+                            <Box sx={{ p: 1.5, borderRadius: '50%', bgcolor: isReaderOnline ? 'rgba(74, 222, 128, 0.2)' : 'rgba(248, 113, 113, 0.2)' }}>
+                                {isReaderOnline ? <CheckCircle sx={{ fontSize: 32, color: '#4ade80' }} /> : <Warning sx={{ fontSize: 32, color: '#f87171' }} />}
                             </Box>
                         </CardContent>
                     </Card>
+
+                    {/* Card 2: Latest Location */}
                     <Card elevation={0} sx={{ flex: 1, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
                         <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 3 }}>
                             <Box>
@@ -179,6 +204,8 @@ const Home: React.FC = () => {
                             </Box>
                         </CardContent>
                     </Card>
+
+                    {/* Card 3: Total Scan */}
                     <Card elevation={0} sx={{ flex: 1, bgcolor: alpha(theme.palette.info.main, 0.05), border: `1px solid ${theme.palette.info.light}`, borderRadius: 3 }}>
                         <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 3 }}>
                             <Box>
@@ -193,7 +220,7 @@ const Home: React.FC = () => {
                 </Box>
             </Box>
 
-            {/* --- Main Content Split (Flex Row) --- */}
+            {/* --- Main Content --- */}
             <Box sx={{
                 flexGrow: 1,
                 p: 3,
@@ -205,7 +232,7 @@ const Home: React.FC = () => {
                 minHeight: 0
             }}>
 
-                {/* 🟢 Left: Registered Items Table */}
+                {/* 🟢 Left: Registered Items */}
                 <Paper elevation={0} sx={{
                     flex: { xs: 'none', md: 2 },
                     height: '100%',
@@ -247,9 +274,7 @@ const Home: React.FC = () => {
                                             <TableCell sx={{ color: 'text.secondary' }}>
                                                 {row.location !== '-' && row.location ? (
                                                     <Chip icon={<Room style={{ fontSize: 14 }} />} label={row.location} size="small" variant="outlined" sx={{ height: 24, fontSize: '0.75rem', borderColor: '#e2e8f0' }} />
-                                                ) : (
-                                                    <Typography variant="caption" color="text.secondary">-</Typography>
-                                                )}
+                                                ) : <Typography variant="caption" color="text.secondary">-</Typography>}
                                             </TableCell>
                                             <TableCell align="center">
                                                 <Chip label={row.status} size="small" color={getStatusColor(row.status) as any} sx={{ fontWeight: 600, minWidth: 80 }} variant="filled" />
@@ -272,7 +297,7 @@ const Home: React.FC = () => {
                     overflow: 'hidden'
                 }}>
 
-                    {/* Unknown Objects Card - Fixed Minimum Height & Scrollable */}
+                    {/* Unknown Objects Card (รองรับของแปลกปลอมแล้ว) */}
                     <Paper elevation={0} sx={{
                         flexShrink: 0,
                         minHeight: '300px',
@@ -313,7 +338,7 @@ const Home: React.FC = () => {
                         </Box>
                     </Paper>
 
-                    {/* System Activity Card - Takes Remaining Space */}
+                    {/* System Activity */}
                     <Paper elevation={0} sx={{
                         flexGrow: 1,
                         minHeight: '200px',
@@ -327,7 +352,6 @@ const Home: React.FC = () => {
                             <History color="primary" />
                             <Typography variant="h6" fontWeight="bold" color="text.primary">System Activity</Typography>
                         </Box>
-
                         <List sx={{ flexGrow: 1, overflowY: 'auto', py: 0 }}>
                             {recentLogs.length === 0 ? (
                                 <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
@@ -363,7 +387,6 @@ const Home: React.FC = () => {
           70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
           100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
         }
-        /* Custom scrollbar for better look */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         ::-webkit-scrollbar-track { background: transparent; }
