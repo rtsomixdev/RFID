@@ -58,26 +58,14 @@ const RfidConnect: React.FC = () => {
   const [tagForm, setTagForm] = useState({ rfid: '', action: 'MODE_WASH', desc: '' });
   const rfidInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Action Options (รวมโหมดขนส่งไปยังแผนกต่างๆ)
+  // ✅ Action Options (เหลือแค่ 6 โหมดหลักตามที่ตกลง)
   const actionOptions = [
     { value: 'Normal', label: '🟢 โหมดปกติ (Tracking Only)', color: '#10b981' }, 
     { value: 'MODE_WASH', label: '🔵 โหมดส่งซัก (Send to Laundry)', color: '#3b82f6' }, 
     { value: 'MODE_RECEIVE_LAUNDRY', label: '🧺 โหมดรับผ้าเข้าโรงซัก (Receive at Laundry)', color: '#9333ea' }, 
     { value: 'MODE_RESTOCK', label: '🟡 โหมดรับคืน/เติมสต็อก (Restock)', color: '#f59e0b' }, 
     { value: 'MODE_DISCARD', label: '🔴 โหมดจำหน่าย/ทิ้ง (Discard)', color: '#ef4444' }, 
-    
-    // --- โหมดซ่อมบำรุง & ตรวจสอบ ---
-    { value: 'MODE_REPAIR', label: '🪡 โหมดส่งซ่อม (Send to Repair)', color: '#f97316' }, 
-    { value: 'MODE_QC', label: '🔍 โหมดตรวจสอบคุณภาพ (Quality Check)', color: '#06b6d4' }, 
-    { value: 'MODE_AUDIT', label: '📋 โหมดตรวจนับสต็อก (Audit Mode)', color: '#64748b' }, 
-
-    // --- โหมดขนส่งไปยังแผนกต่างๆ (Dispatch) ---
-    { value: 'MODE_DISPATCH_WARD', label: '🏥 ส่งผ้าไปหอผู้ป่วย (Dispatch to Ward)', color: '#0ea5e9' }, 
-    { value: 'MODE_DISPATCH_OR', label: '😷 ส่งผ้าไปห้องผ่าตัด (Dispatch to OR)', color: '#0891b2' }, 
-    { value: 'MODE_TRANSFER', label: '🚚 โอนย้ายระหว่างคลัง (Internal Transfer)', color: '#8b5cf6' }, 
-
-    // --- คำสั่งระบบ ---
-    { value: 'CMD_REBOOT', label: '🔄 สั่งรีสตาร์ทเครื่อง (Reboot Device)', color: '#000000' }, 
+    { value: 'MODE_DISPATCH', label: '🚚 โหมดกำลังส่ง (In Transit)', color: '#0ea5e9' }, // เพิ่มใหม่
   ];
 
   // ✅ Initial Load & Real-time (SignalR)

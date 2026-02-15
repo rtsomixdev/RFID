@@ -45,6 +45,9 @@ namespace Backend.Controllers
         public List<string> RfidCodes { get; set; } = new List<string>();
         public int? ReaderId { get; set; } 
         public string ActionType { get; set; } = "CHECK"; 
+        
+        // ✅ เพิ่มตัวนี้: เพื่อรับ ID ใบคำร้องจากหน้า Transport
+        public int? RequestId { get; set; } 
     }
 
     [Route("api/[controller]")]
@@ -78,7 +81,7 @@ namespace Backend.Controllers
         }
 
         // ==========================================
-        // 🔥 0. POST: Scan Logic (ภาษาไทย + Robust)
+        // 🔥 0. POST: Scan Logic (เพิ่ม Logic อัปเดต Request Status)
         // ==========================================
         [HttpPost("Scan")]
         public async Task<IActionResult> ScanProcess([FromBody] ScanRequestDto request)
@@ -105,11 +108,9 @@ namespace Backend.Controllers
             var unknown = new List<string>();    
             var invalid = new List<object>();    
 
-            // ✅ ป้องกัน Error กรณีไม่มี User ID 1
             int? systemUserId = 1;
-            bool userExists = await _context.Users.AnyAsync(u => u.UserId == 1);
-            if (!userExists) systemUserId = null;
 
+            // 1. วนลูปจัดการ Linen รายตัว
             foreach (var rfid in request.RfidCodes)
             {
                 var linen = foundLinens.FirstOrDefault(l => l.RfidCode == rfid);
@@ -120,7 +121,6 @@ namespace Backend.Controllers
                     _context.SystemLogs.Add(new SystemLog
                     {
                         ActionType = "SCAN_UNKNOWN",
-                        // ⚠️ Format นี้ต้องคงไว้เพื่อให้ Frontend ตัดคำได้ถูกต้อง (AlienTag:...)
                         Description = $"AlienTag:{rfid} Point:{readerName}", 
                         UserId = systemUserId, 
                         CreatedAt = now
@@ -144,35 +144,45 @@ namespace Backend.Controllers
                     string newLocation = readerName;
                     string activity = "ตรวจสอบ";
 
-                    // ✅ 2. คำนวณ Location ใหม่ (ภาษาไทย)
+                    // ✅ 2. Logic ตาม ActionType (Transport & Laundry)
                     if (request.ActionType == "DISPATCH") 
                     {
-                        if (linen.Status == "ส่งซัก/ขนส่ง") 
+                        // หน้าขนส่ง (ขาออก)
+                        if (linen.Status == "กำลังส่ง") 
                         {
                             invalid.Add(new { linen.RfidCode, Message = "สินค้านี้อยู่ระหว่างขนส่งแล้ว" });
                             continue;
                         }
-                        linen.Status = "ส่งซัก/ขนส่ง"; 
-                        activity = "ส่งซัก";
-                        newLocation = "โรงซัก"; // Laundry
+                        linen.Status = "กำลังส่ง"; 
+                        activity = "ส่งผ้า";
+                        newLocation = "ระหว่างขนส่ง";
                     }
                     else if (request.ActionType == "RECEIVE")
                     {
-                        if (linen.Status != "ส่งซัก/ขนส่ง") 
-                        {
-                            invalid.Add(new { linen.RfidCode, Message = "ต้องส่งมาก่อนถึงจะรับได้" });
-                            continue;
-                        }
+                        // หน้าขนส่ง (ขาเข้าปลายทาง)
+                        // ถ้ารับเข้า -> ถือว่าพร้อมใช้ หรือรอซัก แล้วแต่ปลายทาง (ในที่นี้ให้เป็นพร้อมใช้ก่อน)
                         linen.Status = "พร้อมใช้";
-                        activity = "รับผ้าสะอาด";
-                        newLocation = "คลังผ้า"; // Stock
+                        activity = "รับผ้า";
+                        newLocation = readerName; // Location ตามเครื่องอ่านปลายทาง
+                    }
+                    else if (request.ActionType == "WASH")
+                    {
+                        // หน้าซักรีด
+                        linen.Status = "กำลังซัก";
+                        activity = "ซักผ้า";
+                        newLocation = "โรงซัก";
+                        
+                        // เพิ่มรอบการซัก
+                        linen.WashCount++;
+                        linen.LastWashDate = now;
                     }
                     else 
                     {
-                        linen.CurrentLocation = readerName; // แค่ Check
+                        // Scan ปกติ
+                        linen.CurrentLocation = readerName; 
                     }
 
-                    // ✅ 3. อัปเดตค่าจริง
+                    // ✅ 3. อัปเดตค่าจริงลง DB
                     linen.CurrentLocation = newLocation;
                     linen.UpdatedAt = now;
 
@@ -191,6 +201,27 @@ namespace Backend.Controllers
                         IsExpired = isExpired,
                         linen.CurrentLocation
                     });
+                }
+            }
+
+            // 2. ✅ Logic อัปเดตสถานะใบคำร้อง (Requests)
+            if (request.RequestId.HasValue)
+            {
+                var req = await _context.Requests.FindAsync(request.RequestId.Value);
+                if (req != null)
+                {
+                    // ถ้าเป็นการ "ส่งออก" -> เปลี่ยนสถานะเป็น 3 (In Transit)
+                    if (request.ActionType == "DISPATCH" && req.CurrentStatusId == 2) // 2 = Approved
+                    {
+                        req.CurrentStatusId = 3; // 3 = In Transit
+                        req.UpdatedAt = now;
+                    }
+                    // ถ้าเป็นการ "รับของ" -> เปลี่ยนสถานะเป็น 4 (Completed)
+                    else if (request.ActionType == "RECEIVE" && req.CurrentStatusId == 3) // 3 = In Transit
+                    {
+                        req.CurrentStatusId = 4; // 4 = Completed
+                        req.UpdatedAt = now;
+                    }
                 }
             }
 
@@ -326,8 +357,7 @@ namespace Backend.Controllers
                     string rfid = "Unknown";
                     string loc = "จุดไม่ระบุ";
                     string status = log.ActionType == "SCAN_DISPOSED" ? "จำหน่ายแล้ว" : "Alien"; 
-                    // ใช้ Alien เพื่อให้ Frontend รู้ว่าเป็นกล่องแดง
-
+                    
                     try 
                     {
                         if (!string.IsNullOrEmpty(log.Description))

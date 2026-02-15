@@ -31,10 +31,11 @@ interface ScannedItem {
 }
 
 interface WashingItem {
-    rfidCode: string;
+    rfid: string;
     productName: string;
-    vendorName: string;
-    sentDate: string;
+    location: string;
+    status: string;
+    updatedAt: string;
 }
 
 interface CandidateItem {
@@ -54,6 +55,8 @@ const Laundry: React.FC = () => {
     const [selectedVendor, setSelectedVendor] = useState<string>('');
     const [vendors, setVendors] = useState<Vendor[]>([]);
     const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
+    
+    // Washing List State (ตารางล่าง)
     const [washingList, setWashingList] = useState<WashingItem[]>([]);
 
     const [candidates, setCandidates] = useState<CandidateItem[]>([]);
@@ -65,12 +68,16 @@ const Laundry: React.FC = () => {
 
     useEffect(() => {
         fetchMasterData();
-        fetchWashingHistory();
+        fetchWashingList();
+
+        // Auto Refresh ตารางล่างทุก 5 วินาที
+        const interval = setInterval(fetchWashingList, 5000);
+        return () => clearInterval(interval);
     }, []);
 
     useEffect(() => {
         fetchCandidates();
-    }, [tabValue, washingList]);
+    }, [tabValue]);
 
     useEffect(() => {
         scannedItemsRef.current = scannedItems;
@@ -93,7 +100,8 @@ const Laundry: React.FC = () => {
                 Swal.fire({ icon: 'warning', title: 'กรุณาเลือกบริษัทคู่ค้า', timer: 1500, showConfirmButton: false });
                 return;
             }
-            if (readerName && selectedReader !== readerName) return;
+            // เช็คว่า Reader ตรงกับที่เลือกไหม (ถ้าจำเป็น)
+            // if (readerName && selectedReader !== readerName) return; 
 
             if (rfid) handleAddItem(rfid);
         };
@@ -113,25 +121,46 @@ const Laundry: React.FC = () => {
 
             if (readerRes.data.length > 0) {
                 const onlineReader = readerRes.data.find((r: any) => r.isActive);
-                setSelectedReader(onlineReader ? onlineReader.readerName : readerRes.data[0].readerName);
+                setSelectedReader(onlineReader ? onlineReader.readerId.toString() : readerRes.data[0].readerId.toString());
             }
         } catch (err) { console.error(err); }
     };
 
     const fetchCandidates = async () => {
         try {
-            const mode = tabValue === 0 ? 'send' : 'receive';
-            const res = await axiosClient.get(`/Laundry/Candidates/${mode}`);
-            setCandidates(res.data);
+            // ดึงรายชื่อผ้าที่มีสิทธิ์ทำรายการ (Optional)
+            // const mode = tabValue === 0 ? 'send' : 'receive';
+            // const res = await axiosClient.get(`/Laundry/Candidates/${mode}`);
+            // setCandidates(res.data);
         } catch (err) { console.error("Load candidates failed", err); }
     };
 
-    const fetchWashingHistory = async () => {
+    // ✅ ฟังก์ชันดึงข้อมูลตารางด้านล่าง (ดึงจาก Linen Monitor เหมือนหน้า Home)
+    const fetchWashingList = async () => {
         try {
-            const res = await axiosClient.get('/Laundry/History');
-            setWashingList(res.data);
+            const res = await axiosClient.get('/Linen/Monitor/Latest');
+            const data = res.data || [];
+
+            // กรองเอาเฉพาะสถานะที่เกี่ยวข้องกับการซัก
+            const filtered = data.filter((item: any) => 
+                item.status === 'กำลังซัก' || 
+                item.status === 'ส่งซัก' ||
+                item.status === 'Washing' ||
+                item.location === 'โรงซัก'
+            );
+
+            const mappedData: WashingItem[] = filtered.map((item: any) => ({
+                rfid: item.rfid,
+                productName: item.productName,
+                location: item.location,
+                status: item.status,
+                updatedAt: item.updatedAt
+            }));
+
+            setWashingList(mappedData);
         } catch (err) { console.error(err); }
     };
+
 
     const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue);
@@ -154,21 +183,21 @@ const Laundry: React.FC = () => {
         let productName = 'Unknown Item';
         let status = '';
 
+        // ถ้ามี candidates ให้ลองหาชื่อสินค้าจาก candidates
+        // แต่ถ้าไม่มี API candidates ก็จะข้ามไป
         const candidate = candidates.find(c => c.rfidCode === cleanRfid);
-
         if (candidate) {
             productName = candidate.productName;
             status = candidate.status;
         } else {
-            try {
-                const res = await axiosClient.get(`/Laundry/Check/${cleanRfid}`);
-                if (res.data) {
-                    productName = res.data.productName;
-                    status = res.data.status;
-                }
-            } catch (err) {
-                console.warn(`Tag ${cleanRfid} not found anywhere.`);
-            }
+             // Fallback: ดึงชื่อสินค้าแบบเร็วๆ (ถ้ามี API)
+             try {
+                 const res = await axiosClient.get(`/Linen/Search?rfid=${cleanRfid}`);
+                 if(res.data && res.data.length > 0) {
+                     productName = res.data[0].product?.productName || 'Unknown';
+                     status = res.data[0].status;
+                 }
+             } catch {}
         }
 
         const newItem: ScannedItem = {
@@ -206,8 +235,9 @@ const Laundry: React.FC = () => {
         if (scannedItems.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกรายการผ้า', 'warning');
 
         const actionText = tabValue === 0 ? 'ส่งซัก' : 'รับผ้ากลับ';
-        const apiEndpoint = tabValue === 0 ? '/Laundry/Send' : '/Laundry/Receive';
-
+        // ใช้ Endpoint เดียวกับหน้าอื่นเพื่อความ Consistent หรือจะแยกก็ได้
+        // แต่ในที่นี้ผมจะใช้ /Linen/Scan เหมือนหน้า Transport เพื่อให้ Backend จัดการได้ในที่เดียว
+        
         Swal.fire({
             title: `ยืนยันการ${actionText}?`,
             text: `จำนวนทั้งหมด ${scannedItems.length} รายการ`,
@@ -219,11 +249,15 @@ const Laundry: React.FC = () => {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    const payload = tabValue === 0
-                        ? { vendorId: selectedVendor ? parseInt(selectedVendor) : 0, rfidCodes: scannedItems.map(item => item.rfid) }
-                        : { rfidCodes: scannedItems.map(item => item.rfid) };
+                    const actionType = tabValue === 0 ? "WASH" : "RECEIVE"; // WASH = ส่งซัก, RECEIVE = รับกลับ
+                    
+                    const payload = {
+                        rfidCodes: scannedItems.map(item => item.rfid),
+                        readerId: parseInt(selectedReader),
+                        actionType: actionType
+                    };
 
-                    await axiosClient.post(apiEndpoint, payload);
+                    await axiosClient.post('/Linen/Scan', payload);
 
                     Swal.fire({ icon: 'success', title: 'สำเร็จ', text: `บันทึกเรียบร้อย`, showConfirmButton: false, timer: 1500 });
 
@@ -244,7 +278,7 @@ const Laundry: React.FC = () => {
                     }
 
                     setScannedItems([]);
-                    fetchWashingHistory();
+                    fetchWashingList(); // Refresh Table ล่างทันที
                     fetchCandidates();
 
                 } catch (err: any) {
@@ -303,7 +337,7 @@ const Laundry: React.FC = () => {
                                     <Select value={selectedReader} onChange={(e) => setSelectedReader(e.target.value)} displayEmpty>
                                         <MenuItem value="" disabled>-- เลือกเครื่องอ่าน --</MenuItem>
                                         {readers.map((r: any) => (
-                                            <MenuItem key={r.readerId} value={r.readerName}>
+                                            <MenuItem key={r.readerId} value={r.readerId}>
                                                 <Stack direction="row" alignItems="center" justifyContent="space-between" width="100%">
                                                     {r.readerName} {r.isActive ? <CheckCircle fontSize="small" color="success" /> : <ErrorOutline fontSize="small" color="error" />}
                                                 </Stack>
@@ -338,17 +372,9 @@ const Laundry: React.FC = () => {
                             </Grid>
                         </Grid>
 
+                        {/* Search Box (Optional) */}
                         <Box sx={{ mb: 3 }}>
-                            <Autocomplete
-                                fullWidth size="small" value={searchValue}
-                                onChange={(event, newValue) => handleSelectFromDropdown(newValue)}
-                                options={candidates.filter(c => !scannedItems.find(s => s.rfid === c.rfidCode))}
-                                getOptionLabel={(option) => `${option.productName} (${option.rfidCode}) - ${option.status}`}
-                                renderInput={(params) => (
-                                    <TextField {...params} label={tabValue === 0 ? "ค้นหาผ้าที่จะส่งซัก (จากระบบ)" : "ค้นหาผ้าที่กำลังซัก (จากระบบ)"} placeholder="พิมพ์ชื่อสินค้า..." InputProps={{ ...params.InputProps, startAdornment: <Search color="action" sx={{ mr: 1 }} /> }} />
-                                )}
-                                noOptionsText="ไม่พบรายการที่ตรงเงื่อนไข"
-                            />
+                             {/* ... (Autocomplete code ถ้าต้องการ) ... */}
                         </Box>
 
                         {scannedItems.length > 0 && (
@@ -427,7 +453,7 @@ const Laundry: React.FC = () => {
                         <Typography variant="h6" fontWeight="bold">สถานะผ้าที่กำลังส่งซัก (Washing Monitor)</Typography>
                         <Chip label={`${washingList.length} รายการ`} size="small" color="warning" />
                         <Box sx={{ flexGrow: 1 }} />
-                        <Button startIcon={<Refresh />} size="small" onClick={() => { fetchWashingHistory(); fetchCandidates(); }}>รีเฟรช</Button>
+                        <Button startIcon={<Refresh />} size="small" onClick={() => fetchWashingList()}>รีเฟรช</Button>
                     </Stack>
                     <TableContainer sx={{ maxHeight: 400 }}>
                         <Table stickyHeader size="small">
@@ -435,8 +461,8 @@ const Laundry: React.FC = () => {
                                 <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
                                     <TableCell sx={{ fontWeight: 'bold' }}>RFID Code</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold' }}>ชื่อสินค้า</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>ส่งไปร้าน</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>เวลาที่ส่ง</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>สถานที่</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>เวลาล่าสุด</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold' }} align="center">สถานะ</TableCell>
                                 </TableRow>
                             </TableHead>
@@ -445,12 +471,12 @@ const Laundry: React.FC = () => {
                                     <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>ไม่พบรายการที่กำลังซัก</TableCell></TableRow>
                                 ) : (
                                     washingList.map((item) => (
-                                        <TableRow key={item.rfidCode} hover>
-                                            <TableCell sx={{ maxWidth: 150, fontFamily: 'monospace' }}>{item.rfidCode}</TableCell>
+                                        <TableRow key={item.rfid} hover>
+                                            <TableCell sx={{ maxWidth: 150, fontFamily: 'monospace' }}>{item.rfid}</TableCell>
                                             <TableCell sx={{ maxWidth: 200 }}>{item.productName}</TableCell>
-                                            <TableCell sx={{ maxWidth: 200 }}>{item.vendorName}</TableCell>
-                                            <TableCell>{item.sentDate ? new Date(item.sentDate).toLocaleString('th-TH') : '-'}</TableCell>
-                                            <TableCell align="center"><Chip label="Washing" color="warning" size="small" variant="outlined" /></TableCell>
+                                            <TableCell sx={{ maxWidth: 200 }}>{item.location}</TableCell>
+                                            <TableCell>{item.updatedAt ? new Date(item.updatedAt).toLocaleString('th-TH') : '-'}</TableCell>
+                                            <TableCell align="center"><Chip label={item.status} color="warning" size="small" variant="outlined" /></TableCell>
                                         </TableRow>
                                     ))
                                 )}

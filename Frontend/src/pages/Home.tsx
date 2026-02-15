@@ -58,7 +58,52 @@ const Home: React.FC = () => {
     useEffect(() => {
         fetchData();
         const interval = setInterval(fetchData, 2000); // Poll every 2 seconds
-        return () => clearInterval(interval);
+
+        // ✅ Listen to Real-time SignalR Event
+        const handleRealtimeScan = (e: any) => {
+            const data = e.detail;
+            console.log("⚡ Home Real-time Scan:", data);
+            
+            // สร้าง Item ใหม่จากข้อมูล Real-time
+            const newItem: MonitorItem = {
+                rfid: data.rfid || 'Unknown',
+                productName: data.productName || (data.status === 'ไม่พบในระบบ' ? 'ไม่พบในระบบ' : 'Unknown Item'),
+                location: data.reader || data.location || '-',
+                status: data.status || 'Unknown',
+                timestamp: new Date().toISOString()
+            };
+
+            // ✅ เช็คเงื่อนไข Unknown ให้ครอบคลุมทุก case (ทั้งไทยและอังกฤษ)
+            const isUnknown = 
+                newItem.status.includes('ไม่พบ') || 
+                newItem.status.includes('Unknown') || 
+                newItem.status === 'Alien' || 
+                newItem.status === 'จำหน่ายแล้ว' || 
+                newItem.productName.includes('ไม่พบ') ||
+                newItem.productName.includes('Unknown') ||
+                newItem.productName.includes('Disposed');
+
+            if (isUnknown) {
+                setUnknownItems(prev => {
+                    // ป้องกันข้อมูลซ้ำในกล่องแดง (เช็ค rfid เดิม)
+                    const filtered = prev.filter(item => item.rfid !== newItem.rfid);
+                    return [newItem, ...filtered].slice(0, 20);
+                }); 
+            } else {
+                setRegisteredItems(prev => {
+                    const filtered = prev.filter(item => item.rfid !== newItem.rfid);
+                    return [newItem, ...filtered].slice(0, 50);
+                });
+            }
+            setAllItemsCount(prev => prev + 1);
+        };
+
+        window.addEventListener("RFID_SCANNED", handleRealtimeScan);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener("RFID_SCANNED", handleRealtimeScan);
+        };
     }, []);
 
     const fetchData = async () => {
@@ -94,24 +139,32 @@ const Home: React.FC = () => {
                 };
             });
 
-            // 4. ✅ Filter Data: แยกของในระบบ กับ ของแปลกปลอม
-            const unk = mappedData.filter(d =>
-                d.productName === 'Unknown' ||
-                d.productName === 'ไม่พบในระบบ' || // ตรงกับ Backend ที่ส่งมา
-                d.status === 'Alien' ||            // ตรงกับ Backend ที่ส่งมา
-                d.status === 'Disposed'
+            // 4. ✅ Filter Data: แยกของในระบบ กับ ของแปลกปลอม (Alien / Disposed)
+            // แก้เงื่อนไขให้กว้างขึ้นเพื่อดักจับทุกกรณี ทั้งไทยและอังกฤษ
+            const unk = mappedData.filter(d => 
+                d.status.includes('ไม่พบ') ||
+                d.status.includes('Unknown') ||
+                d.status === 'Alien' || 
+                d.status === 'จำหน่ายแล้ว' || 
+                d.productName.includes('ไม่พบ') || 
+                d.productName.includes('Unknown') || 
+                d.productName.includes('Disposed')
             );
 
-            const reg = mappedData.filter(d =>
-                d.productName !== 'Unknown' &&
-                d.productName !== 'ไม่พบในระบบ' &&
-                d.status !== 'Alien' &&
-                d.status !== 'Disposed'
+            // ข้อมูลปกติคือข้อมูลที่ไม่เข้าข่าย Unknown ข้างบน
+            const reg = mappedData.filter(d => 
+                !d.status.includes('ไม่พบ') &&
+                !d.status.includes('Unknown') &&
+                d.status !== 'Alien' && 
+                d.status !== 'จำหน่ายแล้ว' &&
+                !d.productName.includes('ไม่พบ') &&
+                !d.productName.includes('Unknown') && 
+                !d.productName.includes('Disposed')
             );
 
             setRegisteredItems(reg);
             setUnknownItems(unk); // ใส่เข้า State เพื่อโชว์ในกล่องแดง
-            setAllItemsCount(reg.length);
+            setAllItemsCount(rawData.length); // นับรวมทั้งหมด
 
             // 5. Fetch Logs
             const resLogs = await axiosClient.get('/Linen/DeleteHistory');
@@ -131,11 +184,12 @@ const Home: React.FC = () => {
 
     const getStatusColor = (status: string) => {
         const s = status ? status.toLowerCase() : '';
-        if (s === 'available' || s === 'normal') return 'success';
-        if (s.includes('damage') || s === 'disposed' || s === 'lost' || s === 'alien') return 'error';
-        if (s === 'in use' || s === 'borrowed') return 'primary';
-        if (s === 'washing' || s === 'laundry') return 'info';
-        return 'warning';
+        if (s === 'available' || s === 'normal' || s === 'พร้อมใช้') return 'success';
+        if (s.includes('damage') || s === 'disposed' || s === 'lost' || s === 'alien' || s === 'จำหน่ายแล้ว' || s === 'จำหน่ายออก' || s === 'ชำรุด') return 'error';
+        if (s === 'in use' || s === 'borrowed' || s === 'ถูกใช้งาน') return 'primary';
+        if (s === 'washing' || s === 'laundry' || s === 'กำลังซัก' || s === 'ส่งซัก') return 'info';
+        if (s === 'dispatch' || s === 'กำลังส่ง' || s === 'ระหว่างขนส่ง') return 'warning';
+        return 'default';
     };
 
     return (
@@ -330,6 +384,7 @@ const Home: React.FC = () => {
                                         <Box>
                                             <Typography variant="subtitle2" fontWeight="bold" color="error.main" sx={{ fontFamily: 'monospace', fontSize: '1rem' }}>{item.rfid}</Typography>
                                             <Typography variant="caption" color="text.secondary" display="block">{formatDate(item.timestamp)}</Typography>
+                                            <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 'bold' }}>{item.status}</Typography>
                                         </Box>
                                         <HelpOutline color="error" />
                                     </Paper>
@@ -362,8 +417,8 @@ const Home: React.FC = () => {
                                     <React.Fragment key={log.id}>
                                         <ListItem alignItems="flex-start" sx={{ px: 3, py: 1.5 }}>
                                             <ListItemAvatar sx={{ minWidth: 48 }}>
-                                                <Avatar sx={{ width: 36, height: 36, bgcolor: log.item.includes('ลบ') ? '#fee2e2' : '#e0f2fe' }}>
-                                                    {log.item.includes('ลบ') ? <DeleteOutline sx={{ fontSize: 20, color: '#ef4444' }} /> : <Build sx={{ fontSize: 20, color: '#0ea5e9' }} />}
+                                                <Avatar sx={{ width: 36, height: 36, bgcolor: log.item.includes('ลบ') || log.item.includes('Alien') ? '#fee2e2' : '#e0f2fe' }}>
+                                                    {log.item.includes('ลบ') || log.item.includes('Alien') ? <DeleteOutline sx={{ fontSize: 20, color: '#ef4444' }} /> : <Build sx={{ fontSize: 20, color: '#0ea5e9' }} />}
                                                 </Avatar>
                                             </ListItemAvatar>
                                             <ListItemText

@@ -4,12 +4,12 @@ import {
     MenuItem, Select, FormControl, InputLabel,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Chip, Alert, Stack, Card, CardContent, Tabs, Tab, Divider, Autocomplete,
-    Tooltip, useTheme, alpha, IconButton, Avatar, LinearProgress, Menu
+    Tooltip, useTheme, alpha, IconButton, Menu, CircularProgress
 } from '@mui/material';
 import {
     LocalShipping, QrCodeScanner, CheckCircle, ErrorOutline,
     Delete, Send, Cancel, CallMade, CallReceived, AccessTime,
-    Description, SettingsRemote, RestartAlt, MoreVert, Place
+    Description, RestartAlt, MoreVert, Place
 } from '@mui/icons-material';
 import axiosClient from '../api/axiosClient';
 import Swal from 'sweetalert2';
@@ -33,16 +33,21 @@ interface ScannedItem {
     message?: string;
 }
 
-// Interface สำหรับข้อมูลขนส่งจริง (อิงจาก Request)
-interface TransportItem {
+// Interface สำหรับข้อมูลขนส่งรายชิ้น (เหมือนหน้า Home)
+interface TransportMonitorItem {
+    rfid: string;
+    productName: string;
+    location: string;
+    status: string;
+    updatedAt: string;
+}
+
+// Interface สำหรับใบงาน (ใช้ใน Dropdown)
+interface TransportRequestItem {
     requestId: number;
     requestCode: string;
     targetWard: { wardId: number; wardName: string };
-    requestType: number;
     currentStatusId: number;
-    currentStatus?: string; // ชื่อสถานะ (ถ้ามี)
-    updatedAt: string;
-    requestItems: any[];
 }
 
 const Transport: React.FC = () => {
@@ -52,25 +57,27 @@ const Transport: React.FC = () => {
     const [selectedReader, setSelectedReader] = useState<string>('');
     
     // Request States (สำหรับ Dropdown เลือกใบงาน)
-    const [pendingRequests, setPendingRequests] = useState<TransportItem[]>([]);
-    const [selectedRequest, setSelectedRequest] = useState<TransportItem | null>(null);
+    const [pendingRequests, setPendingRequests] = useState<TransportRequestItem[]>([]);
+    const [selectedRequest, setSelectedRequest] = useState<TransportRequestItem | null>(null);
 
-    // Transport List States (สำหรับตารางด้านล่าง)
-    const [transportList, setTransportList] = useState<TransportItem[]>([]);
+    // Transport List States (สำหรับตารางด้านล่าง - โชว์รายชิ้นที่กำลังส่ง)
+    const [transportList, setTransportList] = useState<TransportMonitorItem[]>([]);
+    const [loadingTable, setLoadingTable] = useState(false);
 
     const [inputRfid, setInputRfid] = useState('');
     const [scannedList, setScannedList] = useState<ScannedItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [tabValue, setTabValue] = useState(0);
 
-    // UI States
-    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-    const [selectedTransportId, setSelectedTransportId] = useState<number | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         fetchInitialData();
-        fetchTransportList(); // ดึงข้อมูลเข้าตารางล่าง
+        fetchTransportList(); // ดึงข้อมูลเข้าตารางล่างตอนโหลดหน้า
+        
+        // Auto Refresh Table ทุก 5 วินาที (เพื่อให้ Realtime เหมือนหน้า Home)
+        const interval = setInterval(fetchTransportList, 5000);
+        return () => clearInterval(interval);
     }, []);
 
     useEffect(() => {
@@ -125,26 +132,45 @@ const Transport: React.FC = () => {
         } catch (err) { console.error(err); }
     };
 
-    // ดึงใบคำร้องที่ "รอส่ง" (Status = Approved/Pending Dispatch)
     const fetchPendingRequests = async () => {
         try {
             const res = await axiosClient.get('/Request');
             // สมมติ Status 2 = Approved พร้อมส่ง
-            const approved = res.data.filter((r: any) => r.currentStatusId === 2); 
+            const approved = res.data.filter((r: any) => r.currentStatusId === 2 || r.currentStatusId === 3); 
             setPendingRequests(approved);
         } catch (err) { console.error(err); }
     };
 
-    // ดึงรายการขนส่งทั้งหมด (เพื่อแสดงในตารางด้านล่าง)
+    // ✅ ฟังก์ชันดึงข้อมูลตารางด้านล่าง (ดึงจาก Linen Monitor เหมือนหน้า Home)
     const fetchTransportList = async () => {
+        setLoadingTable(true);
         try {
-            const res = await axiosClient.get('/Request');
-            // เอาทุกสถานะมาโชว์ในตาราง (ยกเว้น Draft)
-            const allTransports = res.data.filter((r: any) => r.currentStatusId >= 2);
-            // เรียงลำดับล่าสุดก่อน
-            allTransports.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-            setTransportList(allTransports);
-        } catch (err) { console.error(err); }
+            // ใช้ API เดียวกับหน้า Home
+            const res = await axiosClient.get('/Linen/Monitor/Latest');
+            const data = res.data || [];
+
+            // กรองเอาเฉพาะสถานะ "กำลังส่ง" หรือ "ระหว่างขนส่ง"
+            const filtered = data.filter((item: any) => 
+                item.status === 'กำลังส่ง' || 
+                item.status === 'ระหว่างขนส่ง' ||
+                item.location === 'ระหว่างขนส่ง'
+            );
+            
+            // Map ให้ตรง Interface
+            const mappedData: TransportMonitorItem[] = filtered.map((item: any) => ({
+                rfid: item.rfid,
+                productName: item.productName,
+                location: item.location,
+                status: item.status,
+                updatedAt: item.updatedAt
+            }));
+            
+            setTransportList(mappedData);
+        } catch (err) { 
+            console.error("Error fetching transport list:", err); 
+        } finally {
+            setLoadingTable(false);
+        }
     };
 
     const handleAddRfidLogic = (code: string) => {
@@ -222,11 +248,12 @@ const Transport: React.FC = () => {
             if (successCount > 0) {
                 if (tabValue === 0) {
                     await sendNotification("กำลังส่งผ้า (In Transit)", `ส่งผ้า ${successCount} ชิ้น ตามคำร้อง ${selectedRequest?.requestCode}`, "WARNING", "/transport", undefined, 1);
-                    fetchPendingRequests(); // Refresh Dropdown
+                    await fetchTransportList(); // รีเฟรชตาราง
+                    await fetchPendingRequests();
                 } else {
                     await sendNotification("รับผ้าเข้าคลัง", `รับผ้า ${successCount} ชิ้น เรียบร้อย`, "SUCCESS", "/transport", undefined, 1);
+                    await fetchTransportList(); 
                 }
-                fetchTransportList(); // Refresh Table ด้านล่าง
             }
 
             Swal.fire({
@@ -240,29 +267,6 @@ const Transport: React.FC = () => {
             Swal.fire('Error', err.response?.data?.message || 'เกิดข้อผิดพลาด', 'error');
         } finally {
             setLoading(false);
-        }
-    };
-
-    // --- Transport Table Functions ---
-    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, id: number) => {
-        setAnchorEl(event.currentTarget);
-        setSelectedTransportId(id);
-    };
-
-    const handleMenuClose = () => {
-        setAnchorEl(null);
-        setSelectedTransportId(null);
-    };
-
-    // Helper แปลง Status ID เป็น Text/Color (ปรับตาม DB จริงของคุณ)
-    const getStatusInfo = (statusId: number) => {
-        switch (statusId) {
-            case 1: return { label: 'Draft', color: 'default' };
-            case 2: return { label: 'Approved (รอส่ง)', color: 'warning' };
-            case 3: return { label: 'In Transit (กำลังส่ง)', color: 'info' };
-            case 4: return { label: 'Completed (สำเร็จ)', color: 'success' };
-            case 5: return { label: 'Cancelled', color: 'error' };
-            default: return { label: `Status ${statusId}`, color: 'default' };
         }
     };
 
@@ -455,69 +459,56 @@ const Transport: React.FC = () => {
                 </Grid>
             </Grid>
 
-            {/* ✅ 2. Transport Status Table (ดึง API จริงจาก /Request) */}
+            {/* ✅ 2. Transport Status Table (ดึงรายการผ้าที่กำลังส่ง มาโชว์เหมือนหน้า Home) */}
             <Box sx={{ mt: 5 }}>
                 <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
                     <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <LocalShipping /> รายการขนส่งล่าสุด (Transport Status)
+                        <LocalShipping /> รายการผ้าที่อยู่ระหว่างขนส่ง (In Transit Items)
                     </Typography>
                     
                     <TableContainer>
                         <Table>
                             <TableHead>
                                 <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>รหัสใบงาน</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>วันที่อัปเดต</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>ปลายทาง</TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>จำนวนรายการ</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>เวลา</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>RFID Code</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>ชื่อสินค้า</TableCell>
+                                    <TableCell sx={{ fontWeight: 'bold' }}>ตำแหน่งปัจจุบัน</TableCell>
                                     <TableCell align="center" sx={{ fontWeight: 'bold' }}>สถานะ</TableCell>
-                                    <TableCell align="right"></TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {transportList.length === 0 ? (
-                                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3, color: 'text.disabled' }}>ไม่พบรายการขนส่ง</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.disabled' }}>ไม่พบรายการที่กำลังขนส่ง</TableCell></TableRow>
                                 ) : (
-                                    transportList.map((row) => {
-                                        const status = getStatusInfo(row.currentStatusId);
-                                        return (
-                                            <TableRow key={row.requestId} hover>
-                                                <TableCell>
-                                                    <Typography variant="subtitle2" fontWeight="bold" color="primary">{row.requestCode}</Typography>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Typography variant="body2">{new Date(row.updatedAt).toLocaleString('th-TH')}</Typography>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                        <Place color="action" fontSize="small" />
-                                                        <Typography variant="body2">{row.targetWard?.wardName || '-'}</Typography>
-                                                    </Box>
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <Typography variant="h6" fontWeight="bold">{row.requestItems?.length || 0}</Typography>
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <Chip label={status.label} color={status.color as any} size="small" sx={{ minWidth: 100, fontWeight: 'bold' }} />
-                                                </TableCell>
-                                                <TableCell align="right">
-                                                    <IconButton size="small" onClick={(e) => handleMenuOpen(e, row.requestId)}><MoreVert /></IconButton>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })
+                                    transportList.map((row, idx) => (
+                                        <TableRow key={idx} hover>
+                                            <TableCell>
+                                                <Typography variant="body2">{new Date(row.updatedAt).toLocaleString('th-TH')}</Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="subtitle2" fontFamily="monospace" fontWeight="bold" color="primary">{row.rfid}</Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="body2">{row.productName}</Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Place color="action" fontSize="small" />
+                                                    <Typography variant="body2">{row.location}</Typography>
+                                                </Box>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Chip label={row.status} color="warning" size="small" sx={{ minWidth: 100, fontWeight: 'bold' }} />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
                                 )}
                             </TableBody>
                         </Table>
                     </TableContainer>
                 </Paper>
             </Box>
-
-            {/* Menu Actions for Table */}
-            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
-                <MenuItem onClick={handleMenuClose}>ดูรายละเอียด (View)</MenuItem>
-                <MenuItem onClick={handleMenuClose}>พิมพ์ใบส่งของ (Print)</MenuItem>
-            </Menu>
 
         </Box>
     );
