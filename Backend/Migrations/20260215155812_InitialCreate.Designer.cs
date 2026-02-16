@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Backend.Migrations
 {
     [DbContext(typeof(LinenDbContext))]
-    [Migration("20260210103756_AddReaderUpdatedAt")]
-    partial class AddReaderUpdatedAt
+    [Migration("20260215155812_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -163,7 +163,7 @@ namespace Backend.Migrations
 
                     b.HasIndex("VendorId");
 
-                    b.ToTable("linens");
+                    b.ToTable("linens", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Models.LinenLog", b =>
@@ -223,7 +223,7 @@ namespace Backend.Migrations
 
                     b.HasIndex("RoomId");
 
-                    b.ToTable("linen_logs");
+                    b.ToTable("linen_logs", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Models.Notification", b =>
@@ -273,6 +273,29 @@ namespace Backend.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("notifications", (string)null);
+                });
+
+            modelBuilder.Entity("Backend.Models.Permission", b =>
+                {
+                    b.Property<int>("PermissionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("permission_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("PermissionId"));
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("PermissionCode")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("permission_code");
+
+                    b.HasKey("PermissionId");
+
+                    b.ToTable("permissions", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Models.Product", b =>
@@ -386,6 +409,10 @@ namespace Backend.Migrations
                         .HasColumnType("text")
                         .HasColumnName("reader_type");
 
+                    b.Property<int?>("RoomId")
+                        .HasColumnType("integer")
+                        .HasColumnName("room_id");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp without time zone")
                         .HasColumnName("updated_at");
@@ -458,7 +485,7 @@ namespace Backend.Migrations
 
                     b.HasIndex("TargetWardId");
 
-                    b.ToTable("requests");
+                    b.ToTable("requests", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Models.RequestItem", b =>
@@ -472,19 +499,18 @@ namespace Backend.Migrations
 
                     b.Property<int?>("DamageReasonId")
                         .HasColumnType("integer")
-                        .HasColumnName("damage_reason_id");
-
-                    b.Property<int?>("LinenId")
-                        .HasColumnType("integer")
-                        .HasColumnName("linen_id");
+                        .HasColumnName("damage_reason_id")
+                        .HasAnnotation("Relational:JsonPropertyName", "damage_reason_id");
 
                     b.Property<int>("ProductId")
                         .HasColumnType("integer")
-                        .HasColumnName("product_id");
+                        .HasColumnName("product_id")
+                        .HasAnnotation("Relational:JsonPropertyName", "product_id");
 
-                    b.Property<int>("Quantity")
+                    b.Property<int>("QuantityRequested")
                         .HasColumnType("integer")
-                        .HasColumnName("quantity_requested");
+                        .HasColumnName("quantity_requested")
+                        .HasAnnotation("Relational:JsonPropertyName", "quantity");
 
                     b.Property<int>("RequestId")
                         .HasColumnType("integer")
@@ -494,13 +520,11 @@ namespace Backend.Migrations
 
                     b.HasIndex("DamageReasonId");
 
-                    b.HasIndex("LinenId");
-
                     b.HasIndex("ProductId");
 
                     b.HasIndex("RequestId");
 
-                    b.ToTable("request_items");
+                    b.ToTable("request_items", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Models.RequestStatus", b =>
@@ -541,6 +565,23 @@ namespace Backend.Migrations
                     b.ToTable("roles", (string)null);
                 });
 
+            modelBuilder.Entity("Backend.Models.RolePermission", b =>
+                {
+                    b.Property<int>("RoleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("role_id");
+
+                    b.Property<int>("PermissionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("permission_id");
+
+                    b.HasKey("RoleId", "PermissionId");
+
+                    b.HasIndex("PermissionId");
+
+                    b.ToTable("role_permissions", (string)null);
+                });
+
             modelBuilder.Entity("Backend.Models.Room", b =>
                 {
                     b.Property<int>("RoomId")
@@ -550,12 +591,16 @@ namespace Backend.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("RoomId"));
 
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
                     b.Property<string>("RoomName")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("room_name");
 
-                    b.Property<int>("WardId")
+                    b.Property<int?>("WardId")
                         .HasColumnType("integer")
                         .HasColumnName("ward_id");
 
@@ -653,7 +698,7 @@ namespace Backend.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("system_logs");
+                    b.ToTable("system_logs", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Models.Title", b =>
@@ -810,7 +855,7 @@ namespace Backend.Migrations
 
                     b.HasIndex("HospitalId");
 
-                    b.ToTable("wards");
+                    b.ToTable("wards", (string)null);
                 });
 
             modelBuilder.Entity("Backend.Models.Linen", b =>
@@ -920,10 +965,6 @@ namespace Backend.Migrations
                         .WithMany("RequestItems")
                         .HasForeignKey("DamageReasonId");
 
-                    b.HasOne("Backend.Models.Linen", "Linen")
-                        .WithMany()
-                        .HasForeignKey("LinenId");
-
                     b.HasOne("Backend.Models.Product", "Product")
                         .WithMany("RequestItems")
                         .HasForeignKey("ProductId")
@@ -938,20 +979,35 @@ namespace Backend.Migrations
 
                     b.Navigation("DamageReason");
 
-                    b.Navigation("Linen");
-
                     b.Navigation("Product");
 
                     b.Navigation("Request");
+                });
+
+            modelBuilder.Entity("Backend.Models.RolePermission", b =>
+                {
+                    b.HasOne("Backend.Models.Permission", "Permission")
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Backend.Models.Role", "Role")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("Role");
                 });
 
             modelBuilder.Entity("Backend.Models.Room", b =>
                 {
                     b.HasOne("Backend.Models.Ward", "Ward")
                         .WithMany()
-                        .HasForeignKey("WardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("WardId");
 
                     b.Navigation("Ward");
                 });
@@ -971,13 +1027,15 @@ namespace Backend.Migrations
                         .WithMany("Users")
                         .HasForeignKey("HospitalId");
 
-                    b.HasOne("Backend.Models.Role", null)
+                    b.HasOne("Backend.Models.Role", "Role")
                         .WithMany("Users")
                         .HasForeignKey("RoleId");
 
                     b.HasOne("Backend.Models.Title", null)
                         .WithMany("Users")
                         .HasForeignKey("TitleId");
+
+                    b.Navigation("Role");
                 });
 
             modelBuilder.Entity("Backend.Models.Ward", b =>
@@ -1034,6 +1092,8 @@ namespace Backend.Migrations
 
             modelBuilder.Entity("Backend.Models.Role", b =>
                 {
+                    b.Navigation("RolePermissions");
+
                     b.Navigation("Users");
                 });
 

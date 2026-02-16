@@ -55,6 +55,40 @@ namespace Backend.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "notifications",
+                columns: table => new
+                {
+                    notification_id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    user_id = table.Column<int>(type: "integer", nullable: true),
+                    role_id = table.Column<int>(type: "integer", nullable: true),
+                    title = table.Column<string>(type: "text", nullable: false),
+                    message = table.Column<string>(type: "text", nullable: false),
+                    type = table.Column<string>(type: "text", nullable: false),
+                    is_read = table.Column<bool>(type: "boolean", nullable: false),
+                    link_url = table.Column<string>(type: "text", nullable: true),
+                    created_at = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_notifications", x => x.notification_id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "permissions",
+                columns: table => new
+                {
+                    permission_id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    permission_code = table.Column<string>(type: "text", nullable: false),
+                    description = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_permissions", x => x.permission_id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "request_statuses",
                 columns: table => new
                 {
@@ -78,6 +112,36 @@ namespace Backend.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_roles", x => x.role_id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "settings",
+                columns: table => new
+                {
+                    setting_id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    setting_key = table.Column<string>(type: "text", nullable: false),
+                    setting_value = table.Column<string>(type: "text", nullable: false),
+                    description = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_settings", x => x.setting_id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "special_tags",
+                columns: table => new
+                {
+                    tag_id = table.Column<string>(type: "text", nullable: false),
+                    command_type = table.Column<string>(type: "text", nullable: false),
+                    target_status = table.Column<string>(type: "text", nullable: true),
+                    description = table.Column<string>(type: "text", nullable: true),
+                    is_active = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_special_tags", x => x.tag_id);
                 });
 
             migrationBuilder.CreateTable(
@@ -130,6 +194,30 @@ namespace Backend.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "role_permissions",
+                columns: table => new
+                {
+                    role_id = table.Column<int>(type: "integer", nullable: false),
+                    permission_id = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_role_permissions", x => new { x.role_id, x.permission_id });
+                    table.ForeignKey(
+                        name: "FK_role_permissions_permissions_permission_id",
+                        column: x => x.permission_id,
+                        principalTable: "permissions",
+                        principalColumn: "permission_id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_role_permissions_roles_role_id",
+                        column: x => x.role_id,
+                        principalTable: "roles",
+                        principalColumn: "role_id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "users",
                 columns: table => new
                 {
@@ -178,7 +266,8 @@ namespace Backend.Migrations
                     room_id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     room_name = table.Column<string>(type: "text", nullable: false),
-                    ward_id = table.Column<int>(type: "integer", nullable: false)
+                    description = table.Column<string>(type: "text", nullable: true),
+                    ward_id = table.Column<int>(type: "integer", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -187,8 +276,7 @@ namespace Backend.Migrations
                         name: "FK_rooms_wards_ward_id",
                         column: x => x.ward_id,
                         principalTable: "wards",
-                        principalColumn: "ward_id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "ward_id");
                 });
 
             migrationBuilder.CreateTable(
@@ -202,8 +290,12 @@ namespace Backend.Migrations
                     requested_by_user_id = table.Column<int>(type: "integer", nullable: false),
                     target_ward_id = table.Column<int>(type: "integer", nullable: false),
                     current_status_id = table.Column<int>(type: "integer", nullable: false),
+                    status = table.Column<string>(type: "text", nullable: true),
                     created_at = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
-                    updated_at = table.Column<DateTime>(type: "timestamp without time zone", nullable: true)
+                    updated_at = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    dispatch_date = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    arrival_date = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    note = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -261,6 +353,8 @@ namespace Backend.Migrations
                     size_spec = table.Column<string>(type: "text", nullable: true),
                     unit_name = table.Column<string>(type: "text", nullable: true),
                     standard_weight_kg = table.Column<decimal>(type: "numeric", nullable: true),
+                    MaxWashCount = table.Column<int>(type: "integer", nullable: false),
+                    MaxLifespanDays = table.Column<int>(type: "integer", nullable: false),
                     default_room_id = table.Column<int>(type: "integer", nullable: true)
                 },
                 constraints: table =>
@@ -288,11 +382,16 @@ namespace Backend.Migrations
                     reader_name = table.Column<string>(type: "text", nullable: false),
                     ip_address = table.Column<string>(type: "text", nullable: false),
                     reader_type = table.Column<string>(type: "text", nullable: true),
+                    reader_function = table.Column<string>(type: "text", nullable: false),
+                    current_mode = table.Column<string>(type: "text", nullable: false),
+                    location = table.Column<string>(type: "text", nullable: true),
                     installed_at_room_id = table.Column<int>(type: "integer", nullable: true),
+                    room_id = table.Column<int>(type: "integer", nullable: true),
                     operating_days = table.Column<string>(type: "text", nullable: true),
                     operating_start_time = table.Column<TimeOnly>(type: "time without time zone", nullable: true),
                     operating_end_time = table.Column<TimeOnly>(type: "time without time zone", nullable: true),
-                    is_active = table.Column<bool>(type: "boolean", nullable: true)
+                    is_active = table.Column<bool>(type: "boolean", nullable: true),
+                    updated_at = table.Column<DateTime>(type: "timestamp without time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -318,6 +417,8 @@ namespace Backend.Migrations
                     status = table.Column<string>(type: "text", nullable: false),
                     wash_count = table.Column<int>(type: "integer", nullable: false),
                     last_wash_date = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    max_wash_count = table.Column<int>(type: "integer", nullable: false),
+                    current_location = table.Column<string>(type: "text", nullable: false),
                     updated_at = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
                     is_active = table.Column<bool>(type: "boolean", nullable: false)
                 },
@@ -386,6 +487,11 @@ namespace Backend.Migrations
                     reader_id = table.Column<int>(type: "integer", nullable: true),
                     room_id = table.Column<int>(type: "integer", nullable: true),
                     activity_type = table.Column<string>(type: "text", nullable: true),
+                    status_after = table.Column<string>(type: "text", nullable: true),
+                    description = table.Column<string>(type: "text", nullable: true),
+                    from_location = table.Column<string>(type: "text", nullable: true),
+                    to_location = table.Column<string>(type: "text", nullable: true),
+                    created_at = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     timestamp = table.Column<DateTime>(type: "timestamp without time zone", nullable: true)
                 },
                 constraints: table =>
@@ -485,6 +591,11 @@ namespace Backend.Migrations
                 column: "target_ward_id");
 
             migrationBuilder.CreateIndex(
+                name: "IX_role_permissions_permission_id",
+                table: "role_permissions",
+                column: "permission_id");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_rooms_ward_id",
                 table: "rooms",
                 column: "ward_id");
@@ -522,7 +633,19 @@ namespace Backend.Migrations
                 name: "linen_logs");
 
             migrationBuilder.DropTable(
+                name: "notifications");
+
+            migrationBuilder.DropTable(
                 name: "request_items");
+
+            migrationBuilder.DropTable(
+                name: "role_permissions");
+
+            migrationBuilder.DropTable(
+                name: "settings");
+
+            migrationBuilder.DropTable(
+                name: "special_tags");
 
             migrationBuilder.DropTable(
                 name: "system_logs");
@@ -538,6 +661,9 @@ namespace Backend.Migrations
 
             migrationBuilder.DropTable(
                 name: "requests");
+
+            migrationBuilder.DropTable(
+                name: "permissions");
 
             migrationBuilder.DropTable(
                 name: "products");

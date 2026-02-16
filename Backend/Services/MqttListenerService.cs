@@ -150,7 +150,13 @@ namespace Backend.Services
                     if (specialTag != null)
                     {
                         currentMode = specialTag.CommandType;
-                        state.ScanningUntil = ThaiTime().AddSeconds(30); 
+                        
+                        // ถ้าเป็น Normal Mode ไม่ต้องนับเวลาถอยหลัง (เพราะเป็น Default)
+                        if (currentMode == "Normal") {
+                            state.ScanningUntil = null;
+                        } else {
+                            state.ScanningUntil = ThaiTime().AddSeconds(30); 
+                        }
                         
                         var readerToUpdate = await context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
                         if(readerToUpdate != null) {
@@ -159,16 +165,19 @@ namespace Backend.Services
                         }
 
                         Console.WriteLine($"🎛 [Mode Change] {readerName} -> {currentMode}");
-                        await _mqttPublisher.PublishCommandAsync(readerName, "LED", "YELLOW", true);
+                        
+                        string ledColor = currentMode == "Normal" ? "GREEN" : "YELLOW";
+                        await _mqttPublisher.PublishCommandAsync(readerName, "LED", ledColor, true);
+                        
                         await _hubContext.Clients.All.SendAsync("OnModeChanged", new { reader = readerName, mode = currentMode });
                         return;
                     }
 
                     // 2. เช็ค Timeout (กลับสู่โหมดปกติถ้าหมดเวลา)
-                    if (currentMode != "Normal" && !state.IsScanningActive)
+                    if (currentMode != "Normal" && state.ScanningUntil.HasValue && !state.IsScanningActive)
                     {
                         Console.WriteLine($"⛔ [Timeout] {readerName} reset to Normal.");
-                        await _mqttPublisher.PublishCommandAsync(readerName, "LED", "RED", true);
+                        await _mqttPublisher.PublishCommandAsync(readerName, "LED", "GREEN", true); // กลับมาเขียว
                         currentMode = "Normal";
                         
                         var readerToUpdate = await context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
@@ -176,7 +185,7 @@ namespace Backend.Services
                             readerToUpdate.CurrentMode = "Normal";
                             await context.SaveChangesAsync();
                         }
-                        return; 
+                        // ไม่ Return เพราะอาจจะสแกนผ้าต่อเลยในโหมดปกติ
                     }
 
                     // 3. ประมวลผลผ้า (ตาม 6 โหมดหลัก)
@@ -188,14 +197,12 @@ namespace Backend.Services
                         bool shouldSave = false;
                         string prevLoc = linen.CurrentLocation ?? "ไม่ระบุ";
                         
-                        // แปลงสถานะเป็นภาษาไทยเสมอ
                         string finalStatus = TranslateStatus(linen.Status); 
 
                         Console.WriteLine($"🔍 Processing {rfid} | Reader: '{readerName}' | ModeDB: {currentMode} | Status: {linen.Status}");
 
                         switch (currentMode)
                         {
-                            // 1. โหมดส่งซัก (จากวอร์ด -> ขนส่ง)
                             case "MODE_WASH":
                                 if (linen.Status == "ส่งซัก" || linen.Status == "SendingToLaundry") isDuplicate = true;
                                 else {
@@ -207,24 +214,19 @@ namespace Backend.Services
                                 }
                                 break;
 
-                            // 2. โหมดรับผ้าเข้าโรงซัก (ขนส่ง -> โรงซัก)
                             case "MODE_RECEIVE_LAUNDRY": 
                                 if (linen.Status == "กำลังซัก" || linen.Status == "Washing") isDuplicate = true;
                                 else {
                                     linen.Status = "กำลังซัก";
                                     finalStatus = "กำลังซัก";
                                     linen.CurrentLocation = "โรงซัก (Laundry)";
-                                    
-                                    // เพิ่มรอบซัก
                                     linen.WashCount++; 
                                     linen.LastWashDate = ThaiTime();
-
                                     LogMovement(context, linen.LinenId, "ReceiveWash", "รับผ้าเข้าเครื่องซัก", prevLoc, "โรงซัก (Laundry)");
                                     shouldSave = true;
                                 }
                                 break;
 
-                            // 3. โหมดรับคืน/เติมสต็อก (โรงซัก -> คลังผ้า)
                             case "MODE_RESTOCK":
                                 if ((linen.Status == "พร้อมใช้" || linen.Status == "Available") && linen.CurrentLocation == "คลังผ้า (Stock)") isDuplicate = true;
                                 else {
@@ -236,20 +238,18 @@ namespace Backend.Services
                                 }
                                 break;
 
-                            // 4. โหมดจำหน่าย/ทิ้ง (เสียหาย/หมดอายุ)
                             case "MODE_DISCARD":
                                 if (linen.IsActive == false) isDuplicate = true;
                                 else {
                                     linen.Status = "จำหน่ายออก";
                                     finalStatus = "จำหน่ายออก";
-                                    linen.IsActive = false; // ตัดออกจากระบบ Active
+                                    linen.IsActive = false; 
                                     linen.CurrentLocation = "จุดจำหน่าย (Disposal)";
                                     LogMovement(context, linen.LinenId, "Discard", "จำหน่ายออก (Auto)", prevLoc, "จุดจำหน่าย (Disposal)");
                                     shouldSave = true;
                                 }
                                 break;
 
-                            // 5. โหมดส่งผ้า (Dispatch) -> ใช้กับหน้างาน Transport
                             case "MODE_DISPATCH":
                                 if (linen.Status == "กำลังส่ง" && linen.CurrentLocation == "ระหว่างขนส่ง") isDuplicate = true;
                                 else {
@@ -261,18 +261,37 @@ namespace Backend.Services
                                 }
                                 break;
                                 
-                            // 6. โหมดปกติ (Tracking) -> แค่บอกว่าผ้าอยู่ที่ไหน
+                            // 🟢 CASE NORMAL (Tracking & Receiving)
                             default: // "Normal"
-                                if (linen.CurrentLocation == readerName) isDuplicate = true;
-                                else {
+                                // ถ้าตำแหน่งเปลี่ยน ให้ถือว่ามีการย้าย
+                                if (linen.CurrentLocation != readerName)
+                                {
                                     linen.CurrentLocation = readerName;
-                                    // ถ้าผ้าสถานะ "พร้อมใช้" ถูกสแกนที่อื่นที่ไม่ใช่คลัง ให้ถือว่า "ถูกใช้งาน"
-                                    if(linen.Status == "พร้อมใช้" || linen.Status == "Available") {
+                                    shouldSave = true;
+
+                                    // 🔥 Logic สำคัญ: ถ้าผ้า "กำลังส่ง" มาโผล่ที่นี่ ให้เปลี่ยนเป็น "ถูกใช้งาน"
+                                    if(linen.Status == "กำลังส่ง" || linen.Status == "Dispatch" || linen.Status == "ระหว่างขนส่ง") 
+                                    {
+                                        linen.Status = "ถูกใช้งาน"; // รับของเข้าวอร์ด
+                                        finalStatus = "ถูกใช้งาน (รับเข้า)";
+                                        LogMovement(context, linen.LinenId, "Receive", "รับผ้าจากการขนส่ง (Auto)", prevLoc, readerName);
+                                    }
+                                    // ถ้าผ้า "พร้อมใช้" ออกจากคลังมาโผล่ที่อื่น ก็ถือว่า "ถูกใช้งาน" เหมือนกัน
+                                    else if(linen.Status == "พร้อมใช้" || linen.Status == "Available") 
+                                    {
                                         linen.Status = "ถูกใช้งาน";
                                         finalStatus = "ถูกใช้งาน";
+                                        LogMovement(context, linen.LinenId, "Move", "นำผ้าไปใช้งาน", prevLoc, readerName);
                                     }
-                                    LogMovement(context, linen.LinenId, "Move", "ย้ายตำแหน่ง", prevLoc, readerName);
-                                    shouldSave = true;
+                                    else 
+                                    {
+                                        // กรณีอื่นๆ (ย้ายห้องไปมา)
+                                        LogMovement(context, linen.LinenId, "Move", "ย้ายตำแหน่ง", prevLoc, readerName);
+                                    }
+                                }
+                                else
+                                {
+                                    isDuplicate = true;
                                 }
                                 break;
                         }
@@ -286,7 +305,7 @@ namespace Backend.Services
                                 rfid = rfid, 
                                 reader = readerName, 
                                 mode = currentMode,
-                                status = finalStatus, // ✅ ส่งไทย
+                                status = finalStatus, 
                                 productName = linen.Product?.ProductName,
                                 timestamp = ThaiTime(),
                                 isDuplicate = true 
@@ -304,7 +323,7 @@ namespace Backend.Services
                                 rfid = rfid, 
                                 reader = readerName, 
                                 mode = currentMode,
-                                status = finalStatus, // ✅ ส่งไทย
+                                status = finalStatus,
                                 location = linen.CurrentLocation,
                                 productName = linen.Product?.ProductName,
                                 timestamp = ThaiTime(),
@@ -321,7 +340,9 @@ namespace Backend.Services
                             rfid = rfid, 
                             reader = readerName, 
                             mode = currentMode, 
-                            status = "ไม่พบในระบบ", // ✅ ส่งไทย
+                            status = "ไม่พบในระบบ", 
+                            productName = "ไม่พบในระบบ",
+                            timestamp = ThaiTime(),
                             isDuplicate = false
                         });
                     }
