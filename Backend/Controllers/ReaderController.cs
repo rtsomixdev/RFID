@@ -25,7 +25,6 @@ namespace Backend.Controllers
         private DateTime ThaiTime() => DateTime.UtcNow.AddHours(7);
 
         // GET: api/Reader
-        // ดึงข้อมูลเครื่องทั้งหมด (ส่งกลับไปครบทุก Field เพื่อให้หน้า Web เอาไปใช้ต่อได้)
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Reader>>> GetReaders()
         {
@@ -35,35 +34,31 @@ namespace Backend.Controllers
         }
 
         // POST: api/Reader
-        // เพิ่มเครื่องใหม่
         [HttpPost]
         public async Task<IActionResult> AddReader([FromBody] Reader reader)
         {
-            // 1. เช็คชื่อซ้ำ
             if (await _context.Readers.AnyAsync(r => r.ReaderName == reader.ReaderName))
             {
                 return BadRequest(new { message = $"ชื่อเครื่อง '{reader.ReaderName}' มีอยู่ในระบบแล้ว" });
             }
 
-            // 2. ตั้งค่า Default
             reader.IsActive = true;
             if (string.IsNullOrEmpty(reader.CurrentMode)) reader.CurrentMode = "Normal";
             if (string.IsNullOrEmpty(reader.ReaderFunction)) reader.ReaderFunction = "CHECK";
-            reader.UpdatedAt = ThaiTime(); // บันทึกเวลาล่าสุด
+            reader.UpdatedAt = ThaiTime();
 
             _context.Readers.Add(reader);
             
-            // 🔔 แจ้งเตือนเข้า Notification (Admin)
             _context.Notifications.Add(new Notification 
             {
                 UserId = null,  
-                RoleId = 1,     // Admin
+                RoleId = 1,     
                 Title = "เพิ่มอุปกรณ์ใหม่",
                 Message = $"เพิ่มอุปกรณ์: {reader.ReaderName} เข้าสู่ระบบ",
                 Type = "INFO",  
                 IsRead = false,
                 CreatedAt = ThaiTime(),
-                LinkUrl = "/readers" // ลิงก์ไปหน้าจัดการอุปกรณ์
+                LinkUrl = "/readers" 
             });
 
             await _context.SaveChangesAsync();
@@ -71,13 +66,12 @@ namespace Backend.Controllers
         }
 
         // PUT: api/Reader/5
-        // แก้ไขข้อมูลเครื่อง
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateReader(int id, [FromBody] Reader reader)
         {
             if (id != reader.ReaderId) return BadRequest(new { message = "ID ไม่ตรงกัน" });
 
-            reader.UpdatedAt = ThaiTime(); // อัปเดตเวลาล่าสุด
+            reader.UpdatedAt = ThaiTime();
             _context.Entry(reader).State = EntityState.Modified;
 
             try
@@ -94,14 +88,12 @@ namespace Backend.Controllers
         }
 
         // DELETE: api/Reader/5
-        // ลบเครื่อง
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteReader(int id)
         {
             var reader = await _context.Readers.FindAsync(id);
             if (reader == null) return NotFound();
 
-            // 🔔 แจ้งเตือนลบ
             _context.Notifications.Add(new Notification 
             {
                 UserId = null, RoleId = 1,
@@ -119,7 +111,6 @@ namespace Backend.Controllers
         }
 
         // POST: api/Reader/Config
-        // สั่งงานอุปกรณ์ (เช่น Restart, Shutdown)
         [HttpPost("Config")]
         public async Task<IActionResult> SendConfig([FromBody] ReaderConfigDto request)
         {
@@ -128,7 +119,6 @@ namespace Backend.Controllers
 
             try
             {
-                // ส่งคำสั่งผ่าน MQTT (เช่น topic: cmd/Reader1, payload: SHUTDOWN)
                 await _mqttPublisher.PublishAsync($"cmd/{request.ReaderId}", request.Command.ToUpper());
 
                 string title = "สั่งงานอุปกรณ์";
@@ -137,7 +127,7 @@ namespace Backend.Controllers
 
                 if (request.Command == "SHUTDOWN")
                 {
-                    reader.IsActive = false; // ปรับสถานะใน DB เป็น Offline
+                    reader.IsActive = false;
                     reader.UpdatedAt = ThaiTime();
                     
                     title = "อุปกรณ์ออฟไลน์ (Shutdown)";
@@ -145,7 +135,6 @@ namespace Backend.Controllers
                     type = "DANGER"; 
                 }
 
-                // 🔔 แจ้งเตือนสั่งงาน
                 _context.Notifications.Add(new Notification 
                 {
                     UserId = null, RoleId = 1,
@@ -165,9 +154,38 @@ namespace Backend.Controllers
                 return StatusCode(500, new { message = "MQTT Error: " + ex.Message });
             }
         }
+
+        // ✅ POST: api/Reader/Wake/{readerName}
+        // สั่งปลุกเครื่อง (Wake Up) และรีเซ็ตเวลา
+        [HttpPost("Wake/{readerName}")]
+        public async Task<IActionResult> WakeReader(string readerName)
+        {
+            Console.WriteLine($"🔔 Waking up reader: {readerName}");
+            
+            try 
+            {
+                // 1. ส่งคำสั่ง WAKE ไปทาง MQTT
+                // Hardware จะรับคำสั่งนี้ -> เปิดเสา RFID -> เปิดไฟเขียว
+                await _mqttPublisher.PublishCommandAsync(readerName, "WAKE", "1", true);
+
+                // 2. อัปเดตเวลาล่าสุดใน DB เพื่อรีเซ็ตตัวนับถอยหลัง (30 วิ)
+                var reader = await _context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
+                if (reader != null)
+                {
+                    reader.IsActive = true; // กลับมา Online
+                    reader.UpdatedAt = ThaiTime();
+                    await _context.SaveChangesAsync();
+                }
+
+                return Ok(new { message = $"Sent WAKE command to {readerName} and reset timer." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error waking reader: " + ex.Message });
+            }
+        }
     }
 
-    // ✅ Class DTO ฝากไว้ในไฟล์นี้เลย ง่ายต่อการเรียกใช้
     public class ReaderConfigDto 
     { 
         public string ReaderId { get; set; } = string.Empty;

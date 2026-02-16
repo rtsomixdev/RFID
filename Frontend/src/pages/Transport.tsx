@@ -16,6 +16,7 @@ import Swal from 'sweetalert2';
 import { sendNotification } from '../utils/notificationUtil';
 import PageHeader from '../components/ui/PageHeader';
 import FormLabel from '../components/ui/FormLabel';
+import ReaderWakeButton from '../components/ReaderWakeButton'; // ✅ Import ปุ่ม Wake
 
 // --- Interfaces ---
 interface Reader {
@@ -55,6 +56,8 @@ const Transport: React.FC = () => {
     // --- States ---
     const [readers, setReaders] = useState<Reader[]>([]);
     const [selectedReader, setSelectedReader] = useState<string>('');
+    // ✅ เพิ่ม State เช็คสถานะ Reader ว่า Online ไหม
+    const [isReaderOnline, setIsReaderOnline] = useState(false);
     
     // Request States (สำหรับ Dropdown เลือกใบงาน)
     const [pendingRequests, setPendingRequests] = useState<TransportRequestItem[]>([]);
@@ -76,7 +79,10 @@ const Transport: React.FC = () => {
         fetchTransportList(); // ดึงข้อมูลเข้าตารางล่างตอนโหลดหน้า
         
         // Auto Refresh Table ทุก 5 วินาที (เพื่อให้ Realtime เหมือนหน้า Home)
-        const interval = setInterval(fetchTransportList, 5000);
+        const interval = setInterval(() => {
+            fetchTransportList();
+            fetchInitialData(); // Refresh Reader Status ด้วย
+        }, 5000);
         return () => clearInterval(interval);
     }, []);
 
@@ -89,6 +95,14 @@ const Transport: React.FC = () => {
         setScannedList([]);
         setInputRfid('');
     }, [tabValue]);
+
+    // ✅ อัปเดตสถานะ Online เมื่อเปลี่ยน Reader หรือ Fetch ใหม่
+    useEffect(() => {
+        if (selectedReader && readers.length > 0) {
+            const reader = readers.find(r => r.readerId.toString() === selectedReader);
+            setIsReaderOnline(reader ? !!reader.isActive : false);
+        }
+    }, [selectedReader, readers]);
 
     // ✅ Real-time Auto Scan Listener
     useEffect(() => {
@@ -109,10 +123,10 @@ const Transport: React.FC = () => {
             }
 
             const currentReaderObj = readers.find(r => r.readerId === parseInt(selectedReader));
-            if (currentReaderObj && readerName && currentReaderObj.readerName !== readerName) {
-                console.warn(`⚠️ Ignore scan from ${readerName}`);
-                return;
-            }
+            // if (currentReaderObj && readerName && currentReaderObj.readerName !== readerName) {
+            //     console.warn(`⚠️ Ignore scan from ${readerName}`);
+            //     return;
+            // }
 
             if (rfid) handleAddRfidLogic(rfid);
         };
@@ -125,9 +139,12 @@ const Transport: React.FC = () => {
         try {
             const readerRes = await axiosClient.get('/Reader');
             setReaders(readerRes.data);
-            if (readerRes.data.length > 0) {
+            
+            // ถ้ายังไม่ได้เลือก Reader ให้เลือกตัวแรกที่ Online
+            if (!selectedReader && readerRes.data.length > 0) {
                 const online = readerRes.data.find((r: any) => r.isActive);
-                setSelectedReader(online ? online.readerId.toString() : readerRes.data[0].readerId.toString());
+                const defaultId = online ? online.readerId.toString() : readerRes.data[0].readerId.toString();
+                setSelectedReader(defaultId);
             }
         } catch (err) { console.error(err); }
     };
@@ -304,23 +321,35 @@ const Transport: React.FC = () => {
                             </Typography>
                             <Divider sx={{ mb: 3 }} />
 
-                            <FormLabel label="จุดสแกน (Reader)" required>
-                                <Select
-                                    value={selectedReader}
-                                    displayEmpty
-                                    onChange={(e) => setSelectedReader(e.target.value)}
-                                >
-                                    <MenuItem value="" disabled>เลือกจุดสแกน</MenuItem>
-                                    {readers.map((r) => (
-                                        <MenuItem key={r.readerId} value={r.readerId}>
-                                            <Stack direction="row" justifyContent="space-between" width="100%">
-                                                {r.readerName}
-                                                {r.isActive ? <CheckCircle fontSize="small" color="success" /> : <ErrorOutline fontSize="small" style={{ color: '#ccc' }} />}
-                                            </Stack>
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormLabel>
+                            {/* ✅ ส่วนเลือก Reader และปุ่ม Wake Up */}
+                            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                                <FormLabel label="จุดสแกน (Reader)" required />
+                                {/* ปุ่ม Wake Up */}
+                                {selectedReader && (
+                                    <ReaderWakeButton 
+                                        readerName={readers.find(r => r.readerId.toString() === selectedReader)?.readerName || 'Reader1'}
+                                        isOnline={isReaderOnline}
+                                    />
+                                )}
+                            </Stack>
+                            
+                            <Select
+                                value={selectedReader}
+                                displayEmpty
+                                onChange={(e) => setSelectedReader(e.target.value)}
+                                fullWidth
+                                sx={{ mb: 2 }}
+                            >
+                                <MenuItem value="" disabled>เลือกจุดสแกน</MenuItem>
+                                {readers.map((r) => (
+                                    <MenuItem key={r.readerId} value={r.readerId}>
+                                        <Stack direction="row" justifyContent="space-between" width="100%">
+                                            {r.readerName}
+                                            {r.isActive ? <CheckCircle fontSize="small" color="success" /> : <ErrorOutline fontSize="small" style={{ color: '#ccc' }} />}
+                                        </Stack>
+                                    </MenuItem>
+                                ))}
+                            </Select>
 
                             {/* Request Selection */}
                             {tabValue === 0 && (

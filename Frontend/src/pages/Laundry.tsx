@@ -16,6 +16,7 @@ import axiosClient from '../api/axiosClient';
 import { sendNotification } from '../utils/notificationUtil';
 import PageHeader from '../components/ui/PageHeader';
 import FormLabel from '../components/ui/FormLabel';
+import ReaderWakeButton from '../components/ReaderWakeButton'; // ✅ Import ปุ่ม Wake
 
 // Interface
 interface Vendor {
@@ -51,6 +52,8 @@ const Laundry: React.FC = () => {
     // Reader State
     const [readers, setReaders] = useState<any[]>([]);
     const [selectedReader, setSelectedReader] = useState<string>('');
+    // ✅ เพิ่ม State เช็คสถานะ Reader ว่า Online ไหม (เพื่อส่งให้ปุ่ม Wake)
+    const [isReaderOnline, setIsReaderOnline] = useState(false);
 
     const [selectedVendor, setSelectedVendor] = useState<string>('');
     const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -71,7 +74,10 @@ const Laundry: React.FC = () => {
         fetchWashingList();
 
         // Auto Refresh ตารางล่างทุก 5 วินาที
-        const interval = setInterval(fetchWashingList, 5000);
+        const interval = setInterval(() => {
+            fetchWashingList();
+            fetchMasterData(); // Refresh Reader Status ด้วย
+        }, 5000);
         return () => clearInterval(interval);
     }, []);
 
@@ -82,6 +88,14 @@ const Laundry: React.FC = () => {
     useEffect(() => {
         scannedItemsRef.current = scannedItems;
     }, [scannedItems]);
+
+    // ✅ อัปเดตสถานะ Online เมื่อเปลี่ยน Reader หรือ Fetch ใหม่
+    useEffect(() => {
+        if (selectedReader && readers.length > 0) {
+            const reader = readers.find(r => r.readerId.toString() === selectedReader);
+            setIsReaderOnline(reader ? reader.isActive : false);
+        }
+    }, [selectedReader, readers]);
 
     // Real-time Auto Scan Listener
     useEffect(() => {
@@ -119,9 +133,11 @@ const Laundry: React.FC = () => {
             setVendors(vendRes.data);
             setReaders(readerRes.data);
 
-            if (readerRes.data.length > 0) {
+            // ถ้ายังไม่ได้เลือก Reader ให้เลือกตัวที่ Online ตัวแรก
+            if (!selectedReader && readerRes.data.length > 0) {
                 const onlineReader = readerRes.data.find((r: any) => r.isActive);
-                setSelectedReader(onlineReader ? onlineReader.readerId.toString() : readerRes.data[0].readerId.toString());
+                const defaultId = onlineReader ? onlineReader.readerId.toString() : readerRes.data[0].readerId.toString();
+                setSelectedReader(defaultId);
             }
         } catch (err) { console.error(err); }
     };
@@ -332,25 +348,40 @@ const Laundry: React.FC = () => {
                 <Card sx={{ mt: -0.2, borderRadius: '0 12px 12px 12px', border: `1px solid ${theme.palette.divider}` }}>
                     <CardContent sx={{ p: 3 }}>
                         <Grid container spacing={3} alignItems="flex-end" sx={{ mb: 3 }}>
+                            
+                            {/* ✅ ส่วนเลือก Reader และปุ่ม Wake Up */}
                             <Grid item xs={12} md={4}>
-                                <FormLabel label="เลือกเครื่องอ่าน (Reader)" required>
-                                    <Select value={selectedReader} onChange={(e) => setSelectedReader(e.target.value)} displayEmpty>
-                                        <MenuItem value="" disabled>-- เลือกเครื่องอ่าน --</MenuItem>
-                                        {readers.map((r: any) => (
-                                            <MenuItem key={r.readerId} value={r.readerId}>
-                                                <Stack direction="row" alignItems="center" justifyContent="space-between" width="100%">
-                                                    {r.readerName} {r.isActive ? <CheckCircle fontSize="small" color="success" /> : <ErrorOutline fontSize="small" color="error" />}
-                                                </Stack>
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormLabel>
+                                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                                    <FormLabel label="เลือกเครื่องอ่าน (Reader)" required />
+                                    {/* ✅ ปุ่ม Wake Up (ส่งชื่อ Reader ที่เลือกไป) */}
+                                    {selectedReader && (
+                                        <ReaderWakeButton 
+                                            readerName={readers.find(r => r.readerId.toString() === selectedReader)?.readerName || 'Reader1'}
+                                            isOnline={isReaderOnline}
+                                        />
+                                    )}
+                                </Stack>
+                                <Select 
+                                    value={selectedReader} 
+                                    onChange={(e) => setSelectedReader(e.target.value)} 
+                                    displayEmpty 
+                                    fullWidth
+                                >
+                                    <MenuItem value="" disabled>-- เลือกเครื่องอ่าน --</MenuItem>
+                                    {readers.map((r: any) => (
+                                        <MenuItem key={r.readerId} value={r.readerId}>
+                                            <Stack direction="row" alignItems="center" justifyContent="space-between" width="100%">
+                                                {r.readerName} {r.isActive ? <CheckCircle fontSize="small" color="success" /> : <ErrorOutline fontSize="small" color="error" />}
+                                            </Stack>
+                                        </MenuItem>
+                                    ))}
+                                </Select>
                             </Grid>
 
                             {tabValue === 0 && (
                                 <Grid item xs={12} md={4}>
                                     <FormLabel label="เลือกบริษัทคู่ค้า" required>
-                                        <Select value={selectedVendor} onChange={(e) => setSelectedVendor(e.target.value)} displayEmpty>
+                                        <Select value={selectedVendor} onChange={(e) => setSelectedVendor(e.target.value)} displayEmpty fullWidth>
                                             <MenuItem value="" disabled>เลือกบริษัท</MenuItem>
                                             {vendors.map(v => <MenuItem key={v.vendorId} value={v.vendorId}>{v.vendorName}</MenuItem>)}
                                         </Select>

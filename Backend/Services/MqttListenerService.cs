@@ -33,6 +33,11 @@ namespace Backend.Services
             PropertyNameCaseInsensitive = true
         };
 
+        // ✅ กำหนดขา GPIO
+        private const string GPIO_GREEN = "12";
+        private const string GPIO_YELLOW = "13";
+        private const string GPIO_RED = "27";
+
         public MqttListenerService(IServiceScopeFactory scopeFactory, IHubContext<NotificationHub> hubContext, MqttPublisherService mqttPublisher)
         {
             _scopeFactory = scopeFactory;
@@ -41,6 +46,21 @@ namespace Backend.Services
         }
 
         private DateTime ThaiTime() => DateTime.UtcNow.AddHours(7);
+
+        // Helper สั่งเปิดไฟ LED ตาม GPIO
+        private async Task TriggerLed(string readerName, string color)
+        {
+            string gpio = color switch
+            {
+                "GREEN" => GPIO_GREEN,
+                "YELLOW" => GPIO_YELLOW,
+                "RED" => GPIO_RED,
+                _ => GPIO_GREEN
+            };
+
+            // ส่ง Command ไปที่ Topic: reader/{readerName}/command
+            await _mqttPublisher.PublishCommandAsync(readerName, "LED", gpio, true);
+        }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -101,10 +121,19 @@ namespace Backend.Services
                         var reader = await context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
                         if (reader != null)
                         {
+                            // ✅ แก้ไขจุดที่ Error CS0266 ตรงนี้ครับ
+                            // ใช้ ?? false เพื่อแปลง null เป็น false ก่อนใส่เครื่องหมาย !
+                            bool wasOffline = !(reader.IsActive ?? false);
+                            
                             reader.IsActive = true; 
                             reader.UpdatedAt = ThaiTime(); 
                             if (statusData?.ip != null) reader.IpAddress = statusData.ip;
                             await context.SaveChangesAsync();
+
+                            // ถ้าเพิ่ง Online กลับมา -> สั่งไฟเขียว (GPIO 12)
+                            if (wasOffline) {
+                                await TriggerLed(readerName, "GREEN");
+                            }
                         }
                     }
                 }
@@ -151,11 +180,14 @@ namespace Backend.Services
                     {
                         currentMode = specialTag.CommandType;
                         
-                        // ถ้าเป็น Normal Mode ไม่ต้องนับเวลาถอยหลัง (เพราะเป็น Default)
                         if (currentMode == "Normal") {
                             state.ScanningUntil = null;
+                            // กลับสู่โหมดปกติ -> 🟢 ไฟเขียว (GPIO 12)
+                            await TriggerLed(readerName, "GREEN");
                         } else {
                             state.ScanningUntil = ThaiTime().AddSeconds(30); 
+                            // เข้าโหมดทำงาน -> 🟡 ไฟเหลือง (GPIO 13)
+                            await TriggerLed(readerName, "YELLOW");
                         }
                         
                         var readerToUpdate = await context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
@@ -165,19 +197,16 @@ namespace Backend.Services
                         }
 
                         Console.WriteLine($"🎛 [Mode Change] {readerName} -> {currentMode}");
-                        
-                        string ledColor = currentMode == "Normal" ? "GREEN" : "YELLOW";
-                        await _mqttPublisher.PublishCommandAsync(readerName, "LED", ledColor, true);
-                        
                         await _hubContext.Clients.All.SendAsync("OnModeChanged", new { reader = readerName, mode = currentMode });
                         return;
                     }
 
-                    // 2. เช็ค Timeout (กลับสู่โหมดปกติถ้าหมดเวลา)
+                    // 2. เช็ค Timeout
                     if (currentMode != "Normal" && state.ScanningUntil.HasValue && !state.IsScanningActive)
                     {
                         Console.WriteLine($"⛔ [Timeout] {readerName} reset to Normal.");
-                        await _mqttPublisher.PublishCommandAsync(readerName, "LED", "GREEN", true); // กลับมาเขียว
+                        // หมดเวลา -> 🟢 ไฟเขียว (GPIO 12)
+                        await TriggerLed(readerName, "GREEN");
                         currentMode = "Normal";
                         
                         var readerToUpdate = await context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
@@ -185,10 +214,9 @@ namespace Backend.Services
                             readerToUpdate.CurrentMode = "Normal";
                             await context.SaveChangesAsync();
                         }
-                        // ไม่ Return เพราะอาจจะสแกนผ้าต่อเลยในโหมดปกติ
                     }
 
-                    // 3. ประมวลผลผ้า (ตาม 6 โหมดหลัก)
+                    // 3. ประมวลผลผ้า
                     var linen = await context.Linens.Include(l => l.Product).FirstOrDefaultAsync(l => l.RfidCode == rfid);
                     
                     if (linen != null)
@@ -263,20 +291,17 @@ namespace Backend.Services
                                 
                             // 🟢 CASE NORMAL (Tracking & Receiving)
                             default: // "Normal"
-                                // ถ้าตำแหน่งเปลี่ยน ให้ถือว่ามีการย้าย
                                 if (linen.CurrentLocation != readerName)
                                 {
                                     linen.CurrentLocation = readerName;
                                     shouldSave = true;
 
-                                    // 🔥 Logic สำคัญ: ถ้าผ้า "กำลังส่ง" มาโผล่ที่นี่ ให้เปลี่ยนเป็น "ถูกใช้งาน"
                                     if(linen.Status == "กำลังส่ง" || linen.Status == "Dispatch" || linen.Status == "ระหว่างขนส่ง") 
                                     {
-                                        linen.Status = "ถูกใช้งาน"; // รับของเข้าวอร์ด
+                                        linen.Status = "ถูกใช้งาน"; 
                                         finalStatus = "ถูกใช้งาน (รับเข้า)";
                                         LogMovement(context, linen.LinenId, "Receive", "รับผ้าจากการขนส่ง (Auto)", prevLoc, readerName);
                                     }
-                                    // ถ้าผ้า "พร้อมใช้" ออกจากคลังมาโผล่ที่อื่น ก็ถือว่า "ถูกใช้งาน" เหมือนกัน
                                     else if(linen.Status == "พร้อมใช้" || linen.Status == "Available") 
                                     {
                                         linen.Status = "ถูกใช้งาน";
@@ -285,7 +310,6 @@ namespace Backend.Services
                                     }
                                     else 
                                     {
-                                        // กรณีอื่นๆ (ย้ายห้องไปมา)
                                         LogMovement(context, linen.LinenId, "Move", "ย้ายตำแหน่ง", prevLoc, readerName);
                                     }
                                 }
@@ -299,7 +323,8 @@ namespace Backend.Services
                         if (isDuplicate)
                         {
                             Console.WriteLine($"🔁 [Duplicate] {rfid} ({linen.Status})");
-                            await _mqttPublisher.PublishCommandAsync(readerName, "LED", "YELLOW", false);
+                            // 🟡 สแกนซ้ำ -> ไฟเหลือง (GPIO 13)
+                            await TriggerLed(readerName, "YELLOW");
                             
                             await _hubContext.Clients.All.SendAsync("OnScan", new { 
                                 rfid = rfid, 
@@ -317,13 +342,14 @@ namespace Backend.Services
                             await context.SaveChangesAsync();
                             
                             Console.WriteLine($"✅ [Success] {rfid} status -> {finalStatus}");
-                            await _mqttPublisher.PublishCommandAsync(readerName, "LED", "GREEN", true);
+                            // 🟢 สำเร็จ -> ไฟเขียว (GPIO 12)
+                            await TriggerLed(readerName, "GREEN");
 
                             await _hubContext.Clients.All.SendAsync("OnScan", new { 
                                 rfid = rfid, 
                                 reader = readerName, 
                                 mode = currentMode,
-                                status = finalStatus,
+                                status = finalStatus, 
                                 location = linen.CurrentLocation,
                                 productName = linen.Product?.ProductName,
                                 timestamp = ThaiTime(),
@@ -334,7 +360,8 @@ namespace Backend.Services
                     else
                     {
                         Console.WriteLine($"❓ [Unknown] {rfid}");
-                        await _mqttPublisher.PublishCommandAsync(readerName, "LED", "RED", true);
+                        // 🔴 ไม่พบ -> ไฟแดง (GPIO 27)
+                        await TriggerLed(readerName, "RED");
                         
                         await _hubContext.Clients.All.SendAsync("OnScan", new { 
                             rfid = rfid, 
