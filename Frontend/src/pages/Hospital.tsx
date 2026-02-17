@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Paper, Typography, TextField, Button, Grid, Table,
+  Box, Paper, Typography, TextField, Button, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow,
-  IconButton, Tabs, Tab, Select, MenuItem, FormControl,
-  Card, Chip, InputAdornment, Stack, CircularProgress, Alert,
-  Divider, CardContent, CardActions, useTheme, alpha
+  IconButton, Tabs, Tab, Select, MenuItem,
+  Chip, InputAdornment, Stack, CircularProgress, Alert,
+  useTheme, alpha
 } from '@mui/material';
 import {
   AddCircle, Delete, Domain, MeetingRoom, Edit, ListAlt, Apartment, CorporateFare, Save, Cancel,
-  Business, LocalHospital, KeyboardArrowRight
+  Business, LocalHospital
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axios from 'axios';
@@ -294,262 +294,265 @@ const HospitalPage: React.FC = () => {
       />
 
       {/* 2. Tabs */}
-      <Card sx={{ mb: 4, overflow: 'visible', border: 'none', boxShadow: 'none', bgcolor: 'transparent' }}>
+      <Box sx={{ mb: 3 }}>
         <Tabs
           value={tabValue}
           onChange={handleTabChange}
           sx={{
-            minHeight: 56,
+            minHeight: 48,
+            '& .MuiTabs-indicator': { display: 'none' },
             '& .MuiTab-root': {
               textTransform: 'none',
               fontWeight: 600,
-              fontSize: '1rem',
+              fontSize: '0.95rem',
               mr: 1,
-              bgcolor: '#fff',
-              borderRadius: '12px 12px 0 0',
-              border: `1px solid ${theme.palette.divider}`,
-              borderBottom: 'none',
-              '&.Mui-selected': { bgcolor: '#fff', color: theme.palette.primary.main, borderTop: `2px solid ${theme.palette.primary.main}` }
-            },
-            '& .MuiTabs-indicator': { display: 'none' } // Hide default indicator for card-tab look
+              px: 3,
+              borderRadius: 50,
+              color: 'text.secondary',
+              transition: 'all 0.2s',
+              '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05), color: theme.palette.primary.main },
+              '&.Mui-selected': { bgcolor: '#fff', color: theme.palette.primary.main, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }
+            }
           }}
         >
-          <Tab label="1. ข้อมูลโรงพยาบาล" icon={<Apartment fontSize="small" />} iconPosition="start" />
-          <Tab label="2. ข้อมูลวอร์ด/แผนก" icon={<MeetingRoom fontSize="small" />} iconPosition="start" />
+          <Tab label="ข้อมูลโรงพยาบาล" icon={<Apartment fontSize="small" />} iconPosition="start" />
+          <Tab label="ข้อมูลวอร์ด/แผนก" icon={<MeetingRoom fontSize="small" />} iconPosition="start" />
         </Tabs>
+      </Box>
 
-        {/* --- Tab 1: Hospital Content --- */}
-        <Card sx={{ mt: -0.2, borderRadius: '0 12px 12px 12px', border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
-          <Box sx={{ display: tabValue === 0 ? 'block' : 'none' }}>
+      {/* --- Tab 1: Hospital Content --- */}
+      <Paper variant="outlined" sx={{ mt: 0, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+        <Box sx={{ display: tabValue === 0 ? 'block' : 'none' }}>
 
-            {/* Form Section */}
-            <Box sx={{ p: 4, bgcolor: editHospitalId ? alpha(theme.palette.warning.light, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
-              <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: editHospitalId ? theme.palette.warning.dark : theme.palette.primary.dark }}>
-                <Box sx={{
-                  width: 32, height: 32, borderRadius: '50%',
-                  bgcolor: editHospitalId ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.primary.main, 0.1),
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: editHospitalId ? theme.palette.warning.main : theme.palette.primary.main
-                }}>
-                  {editHospitalId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />}
-                </Box>
-                {editHospitalId ? 'แก้ไขข้อมูลโรงพยาบาล' : 'เพิ่มโรงพยาบาลใหม่'}
-              </Typography>
-
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={4}>
-                  <FormLabel label="ชื่อโรงพยาบาล" required>
-                    <TextField
-                      placeholder="ระบุชื่อโรงพยาบาล..."
-                      value={hospitalForm.name}
-                      onChange={e => setHospitalForm({ ...hospitalForm, name: e.target.value })}
-                      InputProps={{
-                        startAdornment: <InputAdornment position="start"><CorporateFare fontSize="small" color="action" /></InputAdornment>
-                      }}
-                    />
-                  </FormLabel>
-                </Grid>
-                <Grid item xs={12} md={5}>
-                  <FormLabel label="ที่อยู่ / ข้อมูลติดต่อ">
-                    <TextField
-                      placeholder="ที่อยู่ หรือ เบอร์โทรศัพท์..."
-                      value={hospitalForm.address}
-                      onChange={e => setHospitalForm({ ...hospitalForm, address: e.target.value })}
-                    />
-                  </FormLabel>
-                </Grid>
-                <Grid item xs={12} md={3} sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
-                  {editHospitalId ? (
-                    <>
-                      <Button variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmitHospital} fullWidth>
-                        บันทึก
-                      </Button>
-                      <Button variant="outlined" color="inherit" startIcon={<Cancel />} onClick={handleCancelHospital} fullWidth>
-                        ยกเลิก
-                      </Button>
-                    </>
-                  ) : (
-                    <Button variant="contained" startIcon={<AddCircle />} onClick={handleSubmitHospital} fullWidth>
-                      เพิ่มข้อมูลใหม่
-                    </Button>
-                  )}
-                </Grid>
-              </Grid>
-            </Box>
-
-            {/* Table Section */}
-            <Box sx={{ p: 4 }}>
-              <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="h6" fontWeight="700" color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <ListAlt fontSize="medium" color="disabled" /> รายชื่อโรงพยาบาล ({hospitals.length})
-                </Typography>
-                <TextField
-                  size="small"
-                  placeholder="ค้นหา..."
-                  sx={{ width: 250 }}
-                  InputProps={{ startAdornment: <InputAdornment position="start"><LocalHospital fontSize="small" /></InputAdornment> }}
-                />
+          {/* Form Section */}
+          <Box sx={{ p: 4, bgcolor: editHospitalId ? alpha(theme.palette.warning.light, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
+            <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: editHospitalId ? theme.palette.warning.dark : theme.palette.primary.dark }}>
+              <Box sx={{
+                width: 32, height: 32, borderRadius: '50%',
+                bgcolor: editHospitalId ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.primary.main, 0.1),
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: editHospitalId ? theme.palette.warning.main : theme.palette.primary.main
+              }}>
+                {editHospitalId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />}
               </Box>
+              {editHospitalId ? 'แก้ไขข้อมูลโรงพยาบาล' : 'เพิ่มโรงพยาบาลใหม่'}
+            </Typography>
 
-              <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
-                <Table>
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
-                      <TableCell width="35%">ชื่อโรงพยาบาล</TableCell>
-                      <TableCell width="45%">ที่อยู่ / ติดต่อ</TableCell>
-                      <TableCell width="20%" align="center">จัดการ</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {hospitals.length === 0 ? (
-                      <TableRow><TableCell colSpan={3} align="center" sx={{ py: 6, color: 'text.disabled' }}>ยังไม่มีข้อมูล</TableCell></TableRow>
-                    ) : hospitals.map((h) => (
-                      <TableRow key={h.hospitalId} hover selected={editHospitalId === h.hospitalId}>
-                        <TableCell>
-                          <Typography fontWeight={600} variant="body2">{h.hospitalName}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="text.secondary" noWrap>{h.address || '-'}</Typography>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Stack direction="row" spacing={1} justifyContent="center">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleEditHospital(h)}
-                              sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}
-                            >
-                              <Edit fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDeleteHospital(h.hospitalId, h.hospitalName)}
-                              sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) } }}
-                            >
-                              <Delete fontSize="small" />
-                            </IconButton>
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3 }}>
+              <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
+                <FormLabel label="ชื่อโรงพยาบาล" required>
+                  <TextField
+                    placeholder="ระบุชื่อโรงพยาบาล..."
+                    value={hospitalForm.name}
+                    onChange={e => setHospitalForm({ ...hospitalForm, name: e.target.value })}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start"><CorporateFare fontSize="small" color="action" /></InputAdornment>
+                    }}
+                  />
+                </FormLabel>
+              </Box>
+              <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 5' } }}>
+                <FormLabel label="ที่อยู่ / ข้อมูลติดต่อ">
+                  <TextField
+                    placeholder="ที่อยู่ หรือ เบอร์โทรศัพท์..."
+                    value={hospitalForm.address}
+                    onChange={e => setHospitalForm({ ...hospitalForm, address: e.target.value })}
+                  />
+                </FormLabel>
+              </Box>
+              <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' }, display: 'flex', alignItems: 'flex-end', gap: 1 }}>
+                {editHospitalId ? (
+                  <>
+                    <Button variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmitHospital} fullWidth>
+                      บันทึก
+                    </Button>
+                    <Button variant="outlined" color="inherit" startIcon={<Cancel />} onClick={handleCancelHospital} fullWidth>
+                      ยกเลิก
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="contained" startIcon={<AddCircle />} onClick={handleSubmitHospital} fullWidth>
+                    เพิ่มข้อมูลใหม่
+                  </Button>
+                )}
+              </Box>
             </Box>
           </Box>
 
-          {/* --- Tab 2: Ward Content --- */}
-          <Box sx={{ display: tabValue === 1 ? 'block' : 'none' }}>
-            <Box sx={{ p: 4, bgcolor: editWardId ? alpha(theme.palette.warning.light, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
-              <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: editWardId ? theme.palette.warning.dark : theme.palette.primary.dark }}>
-                <Box sx={{
-                  width: 32, height: 32, borderRadius: '50%',
-                  bgcolor: editWardId ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.primary.main, 0.1),
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: editWardId ? theme.palette.warning.main : theme.palette.primary.main
-                }}>
-                  {editWardId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />}
-                </Box>
-                {editWardId ? 'แก้ไขข้อมูลวอร์ด / แผนก' : 'เพิ่มวอร์ด / แผนกใหม่'}
+          {/* Table Section */}
+          <Box sx={{ p: 4 }}>
+            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="h6" fontWeight="700" color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ListAlt fontSize="medium" color="disabled" /> รายชื่อโรงพยาบาล ({hospitals.length})
               </Typography>
-
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={4}>
-                  <FormLabel label="สังกัดโรงพยาบาล" required>
-                    <Select
-                      value={wardForm.hospitalId}
-                      displayEmpty
-                      onChange={e => setWardForm({ ...wardForm, hospitalId: e.target.value })}
-                      startAdornment={<InputAdornment position="start"><Domain fontSize="small" color="action" /></InputAdornment>}
-                    >
-                      <MenuItem value="" disabled>เลือกโรงพยาบาล</MenuItem>
-                      {hospitals.map(h => <MenuItem key={h.hospitalId} value={h.hospitalId}>{h.hospitalName}</MenuItem>)}
-                    </Select>
-                  </FormLabel>
-                </Grid>
-                <Grid item xs={12} md={5}>
-                  <FormLabel label="ชื่อวอร์ด / แผนก" required>
-                    <TextField
-                      placeholder="เช่น อายุรกรรม, ห้องฉุกเฉิน..."
-                      value={wardForm.name}
-                      onChange={e => setWardForm({ ...wardForm, name: e.target.value })}
-                      InputProps={{ startAdornment: <InputAdornment position="start"><MeetingRoom fontSize="small" color="action" /></InputAdornment> }}
-                    />
-                  </FormLabel>
-                </Grid>
-                <Grid item xs={12} md={3} sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
-                  {editWardId ? (
-                    <>
-                      <Button variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmitWard} fullWidth>
-                        บันทึก
-                      </Button>
-                      <Button variant="outlined" color="inherit" startIcon={<Cancel />} onClick={handleCancelWard} fullWidth>
-                        ยกเลิก
-                      </Button>
-                    </>
-                  ) : (
-                    <Button variant="contained" startIcon={<AddCircle />} onClick={handleSubmitWard} fullWidth>
-                      เพิ่มข้อมูลใหม่
-                    </Button>
-                  )}
-                </Grid>
-              </Grid>
+              <TextField
+                size="small"
+                placeholder="ค้นหา..."
+                sx={{ width: 250 }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><LocalHospital fontSize="small" /></InputAdornment> }}
+              />
             </Box>
 
-            <Box sx={{ p: 4 }}>
-              <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="h6" fontWeight="700" color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <ListAlt fontSize="medium" color="disabled" /> รายชื่อแผนก ({wards.length})
-                </Typography>
-              </Box>
-
-              <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
-                <Table>
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
-                      <TableCell width="35%">ชื่อวอร์ด / แผนก</TableCell>
-                      <TableCell width="45%">สังกัดโรงพยาบาล</TableCell>
-                      <TableCell width="20%" align="center">จัดการ</TableCell>
+            <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
+                    <TableCell width="35%">ชื่อโรงพยาบาล</TableCell>
+                    <TableCell width="45%">ที่อยู่ / ติดต่อ</TableCell>
+                    <TableCell width="20%" align="center">จัดการ</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {hospitals.length === 0 ? (
+                    <TableRow><TableCell colSpan={3} align="center" sx={{ py: 6, color: 'text.disabled' }}>ยังไม่มีข้อมูล</TableCell></TableRow>
+                  ) : hospitals.map((h) => (
+                    <TableRow key={h.hospitalId} hover selected={editHospitalId === h.hospitalId}>
+                      <TableCell>
+                        <Typography fontWeight={600} variant="body2">{h.hospitalName}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary" noWrap>{h.address || '-'}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Stack direction="row" spacing={1} justifyContent="center">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditHospital(h)}
+                            sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}
+                          >
+                            <Edit fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteHospital(h.hospitalId, h.hospitalName)}
+                            sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) } }}
+                          >
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Stack>
+                      </TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {wards.length === 0 ? (
-                      <TableRow><TableCell colSpan={3} align="center" sx={{ py: 6, color: 'text.disabled' }}>ยังไม่มีข้อมูล</TableCell></TableRow>
-                    ) : wards.map((w) => (
-                      <TableRow key={w.wardId} hover selected={editWardId === w.wardId}>
-                        <TableCell>
-                          <Typography fontWeight={600} variant="body2">{w.wardName}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={w.hospital?.hospitalName || 'Unknown'} size="small" variant="outlined" icon={<Business />} />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Stack direction="row" spacing={1} justifyContent="center">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleEditWard(w)}
-                              sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}
-                            >
-                              <Edit fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDeleteWard(w.wardId, w.wardName)}
-                              sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) } }}
-                            >
-                              <Delete fontSize="small" />
-                            </IconButton>
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        </Box>
+
+        {/* --- Tab 2: Ward Content --- */}
+        <Box sx={{ display: tabValue === 1 ? 'block' : 'none' }}>
+          <Box sx={{ p: 4, bgcolor: editWardId ? alpha(theme.palette.warning.light, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
+            <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: editWardId ? theme.palette.warning.dark : theme.palette.primary.dark }}>
+              <Box sx={{
+                width: 32, height: 32, borderRadius: '50%',
+                bgcolor: editWardId ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.primary.main, 0.1),
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: editWardId ? theme.palette.warning.main : theme.palette.primary.main
+              }}>
+                {editWardId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />}
+              </Box>
+              {editWardId ? 'แก้ไขข้อมูลวอร์ด / แผนก' : 'เพิ่มวอร์ด / แผนกใหม่'}
+            </Typography>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3 }}>
+              <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
+                <FormLabel label="สังกัดโรงพยาบาล" required>
+                  <Select
+                    value={wardForm.hospitalId}
+                    displayEmpty
+                    onChange={e => setWardForm({ ...wardForm, hospitalId: e.target.value })}
+                    startAdornment={<InputAdornment position="start"><Domain fontSize="small" color="action" /></InputAdornment>}
+                  >
+                    <MenuItem value="" disabled>เลือกโรงพยาบาล</MenuItem>
+                    {hospitals.map(h => <MenuItem key={h.hospitalId} value={h.hospitalId}>{h.hospitalName}</MenuItem>)}
+                  </Select>
+                </FormLabel>
+              </Box>
+              <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 5' } }}>
+                <FormLabel label="ชื่อวอร์ด / แผนก" required>
+                  <TextField
+                    placeholder="เช่น อายุรกรรม, ห้องฉุกเฉิน..."
+                    value={wardForm.name}
+                    onChange={e => setWardForm({ ...wardForm, name: e.target.value })}
+                    InputProps={{ startAdornment: <InputAdornment position="start"><MeetingRoom fontSize="small" color="action" /></InputAdornment> }}
+                  />
+                </FormLabel>
+              </Box>
+              <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' }, display: 'flex', alignItems: 'flex-end', gap: 1 }}>
+                {editWardId ? (
+                  <>
+                    <Button variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmitWard} fullWidth>
+                      บันทึก
+                    </Button>
+                    <Button variant="outlined" color="inherit" startIcon={<Cancel />} onClick={handleCancelWard} fullWidth>
+                      ยกเลิก
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="contained" startIcon={<AddCircle />} onClick={handleSubmitWard} fullWidth>
+                    เพิ่มข้อมูลใหม่
+                  </Button>
+                )}
+              </Box>
             </Box>
           </Box>
-        </Card>
-      </Card>
+
+          <Box sx={{ p: 4 }}>
+            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="h6" fontWeight="700" color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ListAlt fontSize="medium" color="disabled" /> รายชื่อแผนก ({wards.length})
+              </Typography>
+            </Box>
+
+            <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
+                    <TableCell width="35%">ชื่อวอร์ด / แผนก</TableCell>
+                    <TableCell width="45%">สังกัดโรงพยาบาล</TableCell>
+                    <TableCell width="20%" align="center">จัดการ</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {wards.length === 0 ? (
+                    <TableRow><TableCell colSpan={3} align="center" sx={{ py: 6, color: 'text.disabled' }}>ยังไม่มีข้อมูล</TableCell></TableRow>
+                  ) : wards.map((w) => (
+                    <TableRow key={w.wardId} hover selected={editWardId === w.wardId}>
+                      <TableCell>
+                        <Typography fontWeight={600} variant="body2">{w.wardName}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={w.hospital?.hospitalName || 'Unknown'} size="small" variant="outlined" icon={<Business />} />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Stack direction="row" spacing={1} justifyContent="center">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditWard(w)}
+                            sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}
+                          >
+                            <Edit fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteWard(w.wardId, w.wardName)}
+                            sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.1), '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.2) } }}
+                          >
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        </Box>
+      </Paper>
     </Box>
+
+
   );
 };
 

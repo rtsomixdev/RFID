@@ -156,7 +156,7 @@ namespace Backend.Controllers
         }
 
         // ✅ POST: api/Reader/Wake/{readerName}
-        // สั่งปลุกเครื่อง (Wake Up) และรีเซ็ตเวลา
+        // สั่งปลุกเครื่อง (Wake Up) และรีเซ็ตเวลา + โหมด
         [HttpPost("Wake/{readerName}")]
         public async Task<IActionResult> WakeReader(string readerName)
         {
@@ -168,12 +168,13 @@ namespace Backend.Controllers
                 // Hardware จะรับคำสั่งนี้ -> เปิดเสา RFID -> เปิดไฟเขียว
                 await _mqttPublisher.PublishCommandAsync(readerName, "WAKE", "1", true);
 
-                // 2. อัปเดตเวลาล่าสุดใน DB เพื่อรีเซ็ตตัวนับถอยหลัง (30 วิ)
+                // 2. อัปเดต DB (รีเซ็ตเวลา + เปลี่ยนโหมดกลับเป็น Normal)
                 var reader = await _context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
                 if (reader != null)
                 {
-                    reader.IsActive = true; // กลับมา Online
-                    reader.UpdatedAt = ThaiTime();
+                    reader.IsActive = true;       // สถานะ Online
+                    reader.UpdatedAt = ThaiTime(); // รีเซ็ตเวลานับถอยหลัง (30 วิ)
+                    reader.CurrentMode = "Normal"; // ✅ แก้ตรงนี้: ปรับกลับเป็น Normal เพื่อให้พร้อมทำงานและหยุด Loop Sleep
                     await _context.SaveChangesAsync();
                 }
 

@@ -58,7 +58,7 @@ const Transport: React.FC = () => {
     const [selectedReader, setSelectedReader] = useState<string>('');
     // ✅ เพิ่ม State เช็คสถานะ Reader ว่า Online ไหม
     const [isReaderOnline, setIsReaderOnline] = useState(false);
-    
+
     // Request States (สำหรับ Dropdown เลือกใบงาน)
     const [pendingRequests, setPendingRequests] = useState<TransportRequestItem[]>([]);
     const [selectedRequest, setSelectedRequest] = useState<TransportRequestItem | null>(null);
@@ -77,7 +77,7 @@ const Transport: React.FC = () => {
     useEffect(() => {
         fetchInitialData();
         fetchTransportList(); // ดึงข้อมูลเข้าตารางล่างตอนโหลดหน้า
-        
+
         // Auto Refresh Table ทุก 5 วินาที (เพื่อให้ Realtime เหมือนหน้า Home)
         const interval = setInterval(() => {
             fetchTransportList();
@@ -139,7 +139,7 @@ const Transport: React.FC = () => {
         try {
             const readerRes = await axiosClient.get('/Reader');
             setReaders(readerRes.data);
-            
+
             // ถ้ายังไม่ได้เลือก Reader ให้เลือกตัวแรกที่ Online
             if (!selectedReader && readerRes.data.length > 0) {
                 const online = readerRes.data.find((r: any) => r.isActive);
@@ -153,7 +153,7 @@ const Transport: React.FC = () => {
         try {
             const res = await axiosClient.get('/Request');
             // สมมติ Status 2 = Approved พร้อมส่ง
-            const approved = res.data.filter((r: any) => r.currentStatusId === 2 || r.currentStatusId === 3); 
+            const approved = res.data.filter((r: any) => r.currentStatusId === 2 || r.currentStatusId === 3);
             setPendingRequests(approved);
         } catch (err) { console.error(err); }
     };
@@ -167,12 +167,12 @@ const Transport: React.FC = () => {
             const data = res.data || [];
 
             // กรองเอาเฉพาะสถานะ "กำลังส่ง" หรือ "ระหว่างขนส่ง"
-            const filtered = data.filter((item: any) => 
-                item.status === 'กำลังส่ง' || 
+            const filtered = data.filter((item: any) =>
+                item.status === 'กำลังส่ง' ||
                 item.status === 'ระหว่างขนส่ง' ||
                 item.location === 'ระหว่างขนส่ง'
             );
-            
+
             // Map ให้ตรง Interface
             const mappedData: TransportMonitorItem[] = filtered.map((item: any) => ({
                 rfid: item.rfid,
@@ -181,10 +181,10 @@ const Transport: React.FC = () => {
                 status: item.status,
                 updatedAt: item.updatedAt
             }));
-            
+
             setTransportList(mappedData);
-        } catch (err) { 
-            console.error("Error fetching transport list:", err); 
+        } catch (err) {
+            console.error("Error fetching transport list:", err);
         } finally {
             setLoadingTable(false);
         }
@@ -269,7 +269,7 @@ const Transport: React.FC = () => {
                     await fetchPendingRequests();
                 } else {
                     await sendNotification("รับผ้าเข้าคลัง", `รับผ้า ${successCount} ชิ้น เรียบร้อย`, "SUCCESS", "/transport", undefined, 1);
-                    await fetchTransportList(); 
+                    await fetchTransportList();
                 }
             }
 
@@ -326,13 +326,13 @@ const Transport: React.FC = () => {
                                 <FormLabel label="จุดสแกน (Reader)" required />
                                 {/* ปุ่ม Wake Up */}
                                 {selectedReader && (
-                                    <ReaderWakeButton 
+                                    <ReaderWakeButton
                                         readerName={readers.find(r => r.readerId.toString() === selectedReader)?.readerName || 'Reader1'}
                                         isOnline={isReaderOnline}
                                     />
                                 )}
                             </Stack>
-                            
+
                             <Select
                                 value={selectedReader}
                                 displayEmpty
@@ -494,7 +494,7 @@ const Transport: React.FC = () => {
                     <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                         <LocalShipping /> รายการผ้าที่อยู่ระหว่างขนส่ง (In Transit Items)
                     </Typography>
-                    
+
                     <TableContainer>
                         <Table>
                             <TableHead>

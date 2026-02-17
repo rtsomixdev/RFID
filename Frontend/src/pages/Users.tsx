@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Paper, Typography, TextField, Button, Grid,
+  Box, Paper, Typography, TextField, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  IconButton, Select, MenuItem, FormControl, Chip, Stack,
-  Avatar, Card, CardContent, InputAdornment, Tab, Tabs,
+  IconButton, Select, MenuItem, Chip, Stack,
+  Avatar, InputAdornment, Tab, Tabs,
   Checkbox, FormGroup, FormControlLabel, alpha, useTheme
 } from '@mui/material';
 import {
   Delete, PersonAdd, Edit, Save, Mail,
-  Search, VpnKey, Badge as BadgeIcon, AdminPanelSettings, AddModerator, Cancel,
+  Search, VpnKey, Badge as BadgeIcon, AdminPanelSettings, AddModerator,
   SupervisedUserCircle, VerifiedUser
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
@@ -300,89 +300,126 @@ const Users: React.FC = () => {
       />
 
       {/* Tabs */}
-      <Card sx={{ mb: 4, overflow: 'visible', border: 'none', boxShadow: 'none', bgcolor: 'transparent' }}>
-        <Tabs
-          value={tabIndex}
-          onChange={(e, v) => setTabIndex(v)}
-          sx={{
-            minHeight: 56,
-            '& .MuiTab-root': {
-              textTransform: 'none',
-              fontWeight: 600,
-              fontSize: '1rem',
-              mr: 1,
-              bgcolor: '#fff',
-              borderRadius: '12px 12px 0 0',
-              border: `1px solid ${theme.palette.divider}`,
-              borderBottom: 'none',
-              '&.Mui-selected': { bgcolor: '#fff', color: theme.palette.primary.main, borderTop: `2px solid ${theme.palette.primary.main}` }
+
+      <Tabs
+        value={tabIndex}
+        onChange={(e, v) => setTabIndex(v)}
+        sx={{
+          minHeight: 48,
+          mb: 2,
+          '& .MuiTabs-flexContainer': { gap: 1 },
+          '& .MuiTabs-indicator': { display: 'none' },
+          '& .MuiTab-root': {
+            textTransform: 'none',
+            fontWeight: 600,
+            fontSize: '0.95rem',
+            borderRadius: '10px',
+            minHeight: 44,
+            px: 3,
+            color: theme.palette.text.secondary,
+            transition: 'all 0.2s',
+            '&:hover': {
+              bgcolor: alpha(theme.palette.primary.main, 0.05),
+              color: theme.palette.primary.main,
             },
-            '& .MuiTabs-indicator': { display: 'none' }
-          }}
-        >
-          <Tab label="1. จัดการผู้ใช้งาน (Users)" icon={<SupervisedUserCircle fontSize="small" />} iconPosition="start" />
-          <Tab label="2. จัดการบทบาท (Roles)" icon={<VerifiedUser fontSize="small" />} iconPosition="start" />
-        </Tabs>
+            '&.Mui-selected': {
+              bgcolor: '#fff',
+              color: theme.palette.primary.main,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            }
+          }
+        }}
+      >
+        <Tab label="1. จัดการผู้ใช้งาน (Users)" icon={<SupervisedUserCircle fontSize="small" />} iconPosition="start" />
+        <Tab label="2. จัดการบทบาท (Roles)" icon={<VerifiedUser fontSize="small" />} iconPosition="start" />
+      </Tabs>
 
-        {/* ======================= TAB 1: USERS ======================= */}
-        <Box sx={{ display: tabIndex === 0 ? 'block' : 'none' }}>
-          <Card sx={{ mt: -0.2, borderRadius: '0 12px 12px 12px', border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+      {/* ======================= TAB 1: USERS ======================= */}
+      {tabIndex === 0 && (
+        <Box sx={{ animation: 'fadeIn 0.3s ease-in-out', '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } } }}>
 
-            {/* User Form */}
-            <Box sx={{ p: 4, bgcolor: isEditUser ? alpha(theme.palette.warning.light, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
-              <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: isEditUser ? theme.palette.warning.dark : theme.palette.primary.dark }}>
-                <Box sx={{
-                  width: 32, height: 32, borderRadius: '50%',
-                  bgcolor: isEditUser ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.primary.main, 0.1),
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: isEditUser ? theme.palette.warning.main : theme.palette.primary.main
-                }}>
-                  {isEditUser ? <Edit fontSize="small" /> : <PersonAdd fontSize="small" />}
-                </Box>
-                {isEditUser ? 'แก้ไขข้อมูลผู้ใช้งาน' : 'เพิ่มผู้ใช้งานใหม่'}
-              </Typography>
+          {/* User Form Card */}
+          <Paper
+            elevation={0}
+            sx={{
+              mb: 4,
+              borderRadius: 4,
+              border: `1px solid ${theme.palette.divider}`,
+              overflow: 'hidden',
+              bgcolor: '#fff',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
+            }}
+          >
+            <Box sx={{
+              p: 3,
+              bgcolor: isEditUser ? alpha(theme.palette.warning.main, 0.04) : alpha(theme.palette.primary.main, 0.04),
+              borderBottom: `1px solid ${theme.palette.divider}`,
+              display: 'flex', alignItems: 'center', gap: 2
+            }}>
+              <Avatar
+                variant="rounded"
+                sx={{
+                  bgcolor: isEditUser ? alpha(theme.palette.warning.main, 0.15) : alpha(theme.palette.primary.main, 0.15),
+                  color: isEditUser ? theme.palette.warning.main : theme.palette.primary.main,
+                  width: 48, height: 48
+                }}
+              >
+                {isEditUser ? <Edit /> : <PersonAdd />}
+              </Avatar>
+              <Box>
+                <Typography variant="h6" fontWeight="800" color="text.primary">
+                  {isEditUser ? 'แก้ไขข้อมูลผู้ใช้งาน' : 'ลงทะเบียนผู้ใช้งานใหม่'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {isEditUser ? 'อัปเดตข้อมูลบัญชีผู้ใช้และสิทธิ์การเข้าถึง' : 'สร้างบัญชีผู้ใช้ใหม่เพื่อเข้าถึงระบบ'}
+                </Typography>
+              </Box>
+            </Box>
 
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={2}>
+            <Box sx={{ p: 4 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3 }}>
+                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 2' } }}>
                   <FormLabel label="คำนำหน้า" required>
-                    <Select value={userForm.titleId} displayEmpty onChange={e => setUserForm({ ...userForm, titleId: e.target.value })}>
+                    <Select value={userForm.titleId} displayEmpty onChange={e => setUserForm({ ...userForm, titleId: e.target.value })} fullWidth>
                       <MenuItem value="" disabled>เลือก</MenuItem>
                       {titles.map((t) => <MenuItem key={t.titleId} value={t.titleId}>{t.titleNameTh}</MenuItem>)}
                     </Select>
                   </FormLabel>
-                </Grid>
-                <Grid item xs={12} md={5}>
+                </Box>
+                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 5' } }}>
                   <FormLabel label="ชื่อจริง" required>
-                    <TextField placeholder="ระบุชื่อจริง" value={userForm.firstName} onChange={e => setUserForm({ ...userForm, firstName: e.target.value })} />
+                    <TextField fullWidth placeholder="ระบุชื่อจริง" value={userForm.firstName} onChange={e => setUserForm({ ...userForm, firstName: e.target.value })} />
                   </FormLabel>
-                </Grid>
-                <Grid item xs={12} md={5}>
+                </Box>
+                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 5' } }}>
                   <FormLabel label="นามสกุล" required>
-                    <TextField placeholder="ระบุนามสกุล" value={userForm.lastName} onChange={e => setUserForm({ ...userForm, lastName: e.target.value })} />
+                    <TextField fullWidth placeholder="ระบุนามสกุล" value={userForm.lastName} onChange={e => setUserForm({ ...userForm, lastName: e.target.value })} />
                   </FormLabel>
-                </Grid>
+                </Box>
 
-                <Grid item xs={12} md={4}>
+                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
                   <FormLabel label="Username" required>
                     <TextField
+                      fullWidth
                       placeholder="ตั้งชื่อผู้ใช้งาน"
                       value={userForm.username}
                       onChange={e => setUserForm({ ...userForm, username: e.target.value })}
                       InputProps={{ startAdornment: <InputAdornment position="start"><BadgeIcon fontSize="small" color="action" /></InputAdornment> }}
                     />
                   </FormLabel>
-                </Grid>
-                <Grid item xs={12} md={4}>
+                </Box>
+                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
                   <FormLabel label="ตำแหน่ง / Role" required>
-                    <Select value={userForm.roleId} displayEmpty onChange={e => setUserForm({ ...userForm, roleId: e.target.value })}>
+                    <Select value={userForm.roleId} displayEmpty onChange={e => setUserForm({ ...userForm, roleId: e.target.value })} fullWidth>
                       <MenuItem value="" disabled>เลือกตําแหน่ง</MenuItem>
                       {rolesList.map((r) => <MenuItem key={r.roleId} value={r.roleId}>{r.roleName}</MenuItem>)}
                     </Select>
                   </FormLabel>
-                </Grid>
-                <Grid item xs={12} md={4}>
+                </Box>
+                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
                   <FormLabel label={isEditUser ? "รหัสผ่านใหม่ (ไม่เปลี่ยนเว้นว่าง)" : "รหัสผ่าน"} required={!isEditUser}>
                     <TextField
+                      fullWidth
                       type="password"
                       placeholder="********"
                       value={userForm.passwordHash}
@@ -390,122 +427,151 @@ const Users: React.FC = () => {
                       InputProps={{ startAdornment: <InputAdornment position="start"><VpnKey fontSize="small" color="action" /></InputAdornment> }}
                     />
                   </FormLabel>
-                </Grid>
+                </Box>
 
-                <Grid item xs={12} md={6}>
+                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 6' } }}>
                   <FormLabel label="อีเมล">
                     <TextField
+                      fullWidth
                       placeholder="example@email.com"
                       value={userForm.email}
                       onChange={e => setUserForm({ ...userForm, email: e.target.value })}
                       InputProps={{ startAdornment: <InputAdornment position="start"><Mail fontSize="small" color="action" /></InputAdornment> }}
                     />
                   </FormLabel>
-                </Grid>
-                <Grid item xs={12} md={6} sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
+                </Box>
+                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 6' }, display: 'flex', alignItems: 'flex-end', gap: 1 }}>
                   {isEditUser ? (
                     <>
-                      <Button variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmitUser} fullWidth>บันทึกการแก้ไข</Button>
-                      <Button variant="outlined" color="inherit" onClick={handleCancelUserEdit} fullWidth>ยกเลิก</Button>
+                      <Button variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmitUser} fullWidth sx={{ height: 42 }}>บันทึกการแก้ไข</Button>
+                      <Button variant="outlined" color="inherit" onClick={handleCancelUserEdit} fullWidth sx={{ height: 42 }}>ยกเลิก</Button>
                     </>
                   ) : (
-                    <Button variant="contained" startIcon={<PersonAdd />} onClick={handleSubmitUser} fullWidth>เพิ่มผู้ใช้งาน</Button>
+                    <Button variant="contained" startIcon={<PersonAdd />} onClick={handleSubmitUser} fullWidth sx={{ height: 42 }}>เพิ่มผู้ใช้งาน</Button>
                   )}
-                </Grid>
-              </Grid>
-            </Box>
-
-            {/* User Table */}
-            <Box sx={{ p: 4 }}>
-              <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="h6" fontWeight="700" color="text.primary">
-                  รายชื่อผู้ใช้งานภายในระบบ ({filteredUsers.length})
-                </Typography>
-                <TextField
-                  size="small"
-                  placeholder="ค้นหาชื่อ, Username..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }}
-                  sx={{ width: 280 }}
-                />
-              </Box>
-
-              <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
-                <Table>
-                  <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>ข้อมูลผู้ใช้งาน</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>ช่องทางติดต่อ</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>บัญชี</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>สิทธิ์การใช้งาน</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 600 }}>จัดการ</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredUsers.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} align="center" sx={{ py: 6, color: 'text.disabled' }}>ไม่พบข้อมูลผู้ใช้งาน</TableCell></TableRow>
-                    ) : filteredUsers.map((u) => (
-                      <TableRow key={u.userId} hover>
-                        <TableCell>
-                          <Stack direction="row" spacing={2} alignItems="center">
-                            <Avatar {...stringAvatar(`${u.firstName} ${u.lastName}`)} />
-                            <Box>
-                              <Typography variant="body2" fontWeight="600">{u.firstName} {u.lastName}</Typography>
-                              <Typography variant="caption" color="text.secondary">ID: {u.userId}</Typography>
-                            </Box>
-                          </Stack>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" color="text.secondary">{u.email || '-'}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={u.username} size="small" variant="outlined" sx={{ borderRadius: 1 }} />
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={rolesList.find(r => r.roleId === u.roleId)?.roleName || '-'}
-                            size="small"
-                            color="primary"
-                            sx={{ fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Stack direction="row" spacing={1} justifyContent="center">
-                            <IconButton size="small" onClick={() => handleEditUserClick(u)} sx={{ color: theme.palette.primary.main }}>
-                              <Edit fontSize="small" />
-                            </IconButton>
-                            {currentUser?.userId !== u.userId && (
-                              <IconButton size="small" onClick={() => handleDeleteUser(u.userId)} sx={{ color: theme.palette.error.main }}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            )}
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-          </Card>
-        </Box>
-
-        {/* ======================= TAB 2: ROLES ======================= */}
-        <Box sx={{ display: tabIndex === 1 ? 'block' : 'none' }}>
-          <Grid container spacing={3} sx={{ mt: -0.2 }}>
-            {/* Role Form */}
-            <Grid item xs={12} lg={5}>
-              <Card sx={{ borderRadius: 3, border: isEditRole ? `1px solid ${theme.palette.warning.main}` : `1px solid ${theme.palette.divider}`, height: '100%', boxShadow: 'none' }}>
-                <Box sx={{ p: 3, bgcolor: isEditRole ? alpha(theme.palette.warning.main, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
-                  <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, color: isEditRole ? theme.palette.warning.dark : theme.palette.primary.dark }}>
-                    {isEditRole ? <Edit fontSize="small" /> : <AddModerator fontSize="small" />}
-                    {isEditRole ? 'แก้ไขบทบาท' : 'สร้างบทบาทใหม่'}
-                  </Typography>
                 </Box>
-                <CardContent sx={{ p: 3 }}>
+              </Box>
+            </Box>
+          </Paper>
+
+          {/* User Table */}
+          <Box>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+              <Typography variant="h6" fontWeight="700" color="text.primary">
+                ผู้ใช้งานทั้งหมด <Chip label={filteredUsers.length} color="primary" size="small" sx={{ ml: 1, fontWeight: 'bold', borderRadius: 1 }} />
+              </Typography>
+              <TextField
+                size="small"
+                placeholder="ค้นหาชื่อ, Username..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }}
+                sx={{ width: 280, bgcolor: '#fff', borderRadius: 1 }}
+              />
+            </Stack>
+
+            <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, maxHeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+              <Table stickyHeader>
+                <TableHead>
+                  <TableRow sx={{
+                    '& th': {
+                      bgcolor: alpha('#f8fafc', 0.95),
+                      fontWeight: 700,
+                      color: theme.palette.text.secondary,
+                      borderBottom: `1px solid ${theme.palette.divider}`
+                    }
+                  }}>
+                    <TableCell>ข้อมูลผู้ใช้งาน</TableCell>
+                    <TableCell>ช่องทางติดต่อ</TableCell>
+                    <TableCell>บัญชี</TableCell>
+                    <TableCell>สิทธิ์การใช้งาน</TableCell>
+                    <TableCell align="center">จัดการ</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredUsers.length === 0 ? (
+                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 8, color: 'text.disabled' }}>
+                      <SupervisedUserCircle sx={{ fontSize: 60, opacity: 0.2, mb: 2 }} />
+                      <Typography>ไม่พบข้อมูลผู้ใช้งาน</Typography>
+                    </TableCell></TableRow>
+                  ) : filteredUsers.map((u) => (
+                    <TableRow key={u.userId} hover sx={{ '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) } }}>
+                      <TableCell>
+                        <Stack direction="row" spacing={2} alignItems="center">
+                          <Avatar {...stringAvatar(`${u.firstName} ${u.lastName}`)} />
+                          <Box>
+                            <Typography variant="body2" fontWeight="600">{u.firstName} {u.lastName}</Typography>
+                            <Typography variant="caption" color="text.secondary">ID: {u.userId}</Typography>
+                          </Box>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Mail fontSize="small" color="action" sx={{ fontSize: 16 }} />
+                          <Typography variant="body2" color="text.secondary">{u.email || '-'}</Typography>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={u.username} size="small" variant="outlined" sx={{ borderRadius: 1, borderColor: theme.palette.divider, fontWeight: 500 }} />
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={rolesList.find(r => r.roleId === u.roleId)?.roleName || '-'}
+                          size="small"
+                          sx={{ fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main, borderRadius: 1 }}
+                        />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Stack direction="row" spacing={1} justifyContent="center">
+                          <IconButton size="small" onClick={() => handleEditUserClick(u)} sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                            <Edit fontSize="small" />
+                          </IconButton>
+                          {currentUser?.userId !== u.userId && (
+                            <IconButton size="small" onClick={() => handleDeleteUser(u.userId)} sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.05) }}>
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          )}
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        </Box>
+      )}
+
+      {/* ======================= TAB 2: ROLES ======================= */}
+      {tabIndex === 1 && (
+        <Box sx={{ animation: 'fadeIn 0.3s ease-in-out', '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } } }}>
+          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} alignItems="stretch">
+            {/* Role Form */}
+            <Box sx={{ flex: { lg: 5 }, width: '100%' }}>
+              <Paper
+                elevation={0}
+                sx={{
+                  borderRadius: 4,
+                  border: `1px solid ${theme.palette.divider}`,
+                  height: '100%',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.02)',
+                  overflow: 'hidden'
+                }}
+              >
+                <Box sx={{ p: 3, bgcolor: isEditRole ? alpha(theme.palette.warning.main, 0.04) : alpha(theme.palette.primary.main, 0.04), borderBottom: `1px solid ${theme.palette.divider}` }}>
+                  <Stack direction="row" alignItems="center" spacing={2}>
+                    <Avatar variant="rounded" sx={{ bgcolor: isEditRole ? alpha(theme.palette.warning.main, 0.15) : alpha(theme.palette.primary.main, 0.15), color: isEditRole ? theme.palette.warning.main : theme.palette.primary.main }}>
+                      {isEditRole ? <Edit /> : <AddModerator />}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="bold">{isEditRole ? 'แก้ไขบทบาท' : 'สร้างบทบาทใหม่'}</Typography>
+                      <Typography variant="caption" color="text.secondary">กำหนดชื่อและสิทธิ์การเข้าถึง</Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+                <Box sx={{ p: 3 }}>
                   <FormLabel label="ชื่อบทบาท (Role Name)" required>
-                    <TextField placeholder="เช่น Admin, Staff..." value={roleForm.roleName} onChange={e => setRoleForm({ ...roleForm, roleName: e.target.value })} sx={{ mb: 3 }} />
+                    <TextField fullWidth placeholder="เช่น Admin, Staff..." value={roleForm.roleName} onChange={e => setRoleForm({ ...roleForm, roleName: e.target.value })} sx={{ mb: 3 }} />
                   </FormLabel>
 
                   <FormLabel label="กำหนดสิทธิ์การใช้งาน (Permissions)">
@@ -534,25 +600,25 @@ const Users: React.FC = () => {
                       {isEditRole ? "บันทึก" : "สร้างใหม่"}
                     </Button>
                   </Stack>
-                </CardContent>
-              </Card>
+                </Box>
+              </Paper>
               {!isEditRole && (
-                <Button fullWidth variant="contained" startIcon={<AddModerator />} onClick={handleCreateRole} sx={{ mt: 2, py: 1.5, borderRadius: 2 }}>
+                <Button fullWidth variant="contained" startIcon={<AddModerator />} onClick={handleCreateRole} sx={{ mt: 2, py: 1.5, borderRadius: 2, boxShadow: 'none' }}>
                   เพิ่มบทบาทใหม่
                 </Button>
               )}
-            </Grid>
+            </Box>
 
             {/* Role List */}
-            <Grid item xs={12} lg={7}>
-              <Card sx={{ height: '100%', borderRadius: 3, border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
+            <Box sx={{ flex: { lg: 7 }, width: '100%' }}>
+              <Paper elevation={0} sx={{ height: '100%', borderRadius: 4, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 4px 20px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
                 <Box sx={{ p: 3, borderBottom: `1px solid ${theme.palette.divider}` }}>
                   <Typography variant="h6" fontWeight="bold">รายการบทบาททั้งหมด</Typography>
                 </Box>
-                <CardContent sx={{ p: 0 }}>
+                <Box sx={{ p: 0 }}>
                   <TableContainer>
                     <Table>
-                      <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
+                      <TableHead sx={{ bgcolor: alpha('#f8fafc', 0.95) }}>
                         <TableRow>
                           <TableCell width="30%">ชื่อบทบาท</TableCell>
                           <TableCell width="50%">สิทธิ์ที่ได้รับ</TableCell>
@@ -572,8 +638,8 @@ const Users: React.FC = () => {
                             </TableCell>
                             <TableCell align="center">
                               <Stack direction="row" spacing={1} justifyContent="center">
-                                <IconButton size="small" color="primary" onClick={() => handleEditRole(role)}><Edit fontSize="small" /></IconButton>
-                                <IconButton size="small" color="error" onClick={() => handleDeleteRole(role.roleId)}><Delete fontSize="small" /></IconButton>
+                                <IconButton size="small" onClick={() => handleEditRole(role)} sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.05) }}><Edit fontSize="small" /></IconButton>
+                                <IconButton size="small" onClick={() => handleDeleteRole(role.roleId)} sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.05) }}><Delete fontSize="small" /></IconButton>
                               </Stack>
                             </TableCell>
                           </TableRow>
@@ -581,13 +647,14 @@ const Users: React.FC = () => {
                       </TableBody>
                     </Table>
                   </TableContainer>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
+                </Box>
+              </Paper>
+            </Box>
+          </Stack>
         </Box>
-      </Card>
-    </Box>
+      )}
+
+    </Box >
   );
 };
 

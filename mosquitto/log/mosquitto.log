@@ -1359,3 +1359,77 @@
 1771236371: New client connected from 172.18.0.1:40498 as ESP32-Reader1-4c55 (p4, c1, k15).
 1771236430: Client Backend_Service_Main_e12b8095-dd62-4864-b405-bed7c1a4dc0c [172.18.0.1:60060] disconnected: connection closed by client.
 1771236430: Client Backend_Publisher_f42ad509-f76a-4a12-b89e-e8644fe86284 [172.18.0.1:60068] disconnected: connection closed by client.
+1771236527: New connection from 172.18.0.1:42194 on port 1883.
+1771236527: New client connected from 172.18.0.1:42194 as Backend_Service_Main_a4c695b6-b471-4728-bb21-feee13a1410c (p4, c1, k15).
+1771237061: Client ESP32-Reader1-4c55 [172.18.0.1:40498] disconnected: exceeded timeout.
+1771237348: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771237877: New connection from 172.18.0.1:49236 on port 1883.
+1771237877: New client connected from 172.18.0.1:49236 as ESP32-Reader1-27e3 (p4, c1, k15).
+1771237877: New connection from 172.18.0.1:49248 on port 1883.
+1771237877: New client connected from 172.18.0.1:49248 as Backend_Publisher_15e645be-c33a-4c67-9b0f-e5e1573208a3 (p4, c1, k15).
+1771239335: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771239941: Client Backend_Service_Main_a4c695b6-b471-4728-bb21-feee13a1410c [172.18.0.1:42194] disconnected: connection closed by client.
+1771239941: Client Backend_Publisher_15e645be-c33a-4c67-9b0f-e5e1573208a3 [172.18.0.1:49248] disconnected: connection closed by client.
+1771239963: New connection from 172.18.0.1:34396 on port 1883.
+1771239963: New client connected from 172.18.0.1:34396 as Backend_Service_Main_51ba76dc-ef20-49aa-ad97-feb873840bbe (p4, c1, k15).
+1771239973: New connection from 172.18.0.1:59174 on port 1883.
+1771239973: New client connected from 172.18.0.1:59174 as Backend_Publisher_57d5dc40-64ff-41b2-9ab3-f624e30b0fbf (p4, c1, k15).
+1771240213: New connection from 172.18.0.1:51290 on port 1883.
+1771240213: New client connected from 172.18.0.1:51290 as ESP32-Reader1-3b73 (p4, c1, k15).
+1771240213: Client ESP32-Reader1-27e3 [172.18.0.1:49236] disconnected: connection closed by client.
+1771240377: New connection from 172.18.0.1:59998 on port 1883.
+1771240377: New client connected from 172.18.0.1:59998 as ESP32-Reader1-84dc (p4, c1, k15).
+1771240378: Client ESP32-Reader1-3b73 [172.18.0.1:51290] disconnected: connection closed by client.
+1771240380: New connection from 172.18.0.1:60006 on port 1883.
+1771240380: New client connected from 172.18.0.1:60006 as ESP32-Reader1-6539 (p4, c1, k15).
+1771240383: Client ESP32-Reader1-84dc [172.18.0.1:59998] disconnected: connection closed by client.
+1771240685: Client Backend_Service_Main_51ba76dc-ef20-49aa-ad97-feb873840bbe [172.18.0.1:34396] disconnected: connection closed by client.
+1771240685: Client Backend_Publisher_57d5dc40-64ff-41b2-9ab3-f624e30b0fbf [172.18.0.1:59174] disconnected: connection closed by client.
+1771240704: New connection from 172.18.0.1:33158 on port 1883.
+1771240704: New client connected from 172.18.0.1:33158 as Backend_Service_Main_8e4ae0bc-b37b-4de2-ac3b-ec7d930a1589 (p4, c1, k15).
+1771240710: New connection from 172.18.0.1:33170 on port 1883.
+1771240710: New client connected from 172.18.0.1:33170 as Backend_Publisher_ad72db7f-84ea-4a80-92ce-9fe870fcb6c2 (p4, c1, k15).
+1771240798: New connection from 172.18.0.1:47484 on port 1883.
+1771240798: New client connected from 172.18.0.1:47484 as ESP32-Reader1-98b8 (p4, c1, k15).
+1771240802: Client ESP32-Reader1-6539 [172.18.0.1:60006] disconnected: exceeded timeout.
+1771240814: New connection from 172.18.0.1:35178 on port 1883.
+1771240814: New client connected from 172.18.0.1:35178 as ESP32-Reader1-af9a (p4, c1, k15).
+1771240824: Client ESP32-Reader1-98b8 [172.18.0.1:47484] disconnected: connection closed by client.
+1771241223: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771241850: Client Backend_Service_Main_8e4ae0bc-b37b-4de2-ac3b-ec7d930a1589 [172.18.0.1:33158] disconnected: connection closed by client.
+1771241850: Client Backend_Publisher_ad72db7f-84ea-4a80-92ce-9fe870fcb6c2 [172.18.0.1:33170] disconnected: connection closed by client.
+1771241865: New connection from 172.18.0.1:39680 on port 1883.
+1771241865: New client connected from 172.18.0.1:39680 as Backend_Service_Main_08b38b77-b466-4d41-9f6c-d29fc6cbb665 (p4, c1, k15).
+1771242056: New connection from 172.18.0.1:40014 on port 1883.
+1771242056: New client connected from 172.18.0.1:40014 as ESP32-Reader1-35a7 (p4, c1, k15).
+1771242061: Client ESP32-Reader1-af9a [172.18.0.1:35178] disconnected: exceeded timeout.
+1771242068: New connection from 172.18.0.1:51188 on port 1883.
+1771242068: New client connected from 172.18.0.1:51188 as ESP32-Reader1-ccb8 (p4, c1, k15).
+1771242080: Client ESP32-Reader1-35a7 [172.18.0.1:40014] disconnected: connection closed by client.
+1771242152: New connection from 172.18.0.1:56640 on port 1883.
+1771242152: New client connected from 172.18.0.1:56640 as Backend_Publisher_e2d8dc1b-65b8-4526-a9a5-f0e1ccc21130 (p4, c1, k15).
+1771243026: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771243677: New connection from 172.18.0.1:45398 on port 1883.
+1771243677: New client connected from 172.18.0.1:45398 as ESP32-Reader1-193a (p4, c1, k15).
+1771243679: New connection from 172.18.0.1:45410 on port 1883.
+1771243679: New client connected from 172.18.0.1:45410 as ESP32-Reader1-cd76 (p4, c1, k15).
+1771243679: Client ESP32-Reader1-193a [172.18.0.1:45398] disconnected: connection closed by client.
+1771243680: Client ESP32-Reader1-ccb8 [172.18.0.1:51188] disconnected: exceeded timeout.
+1771244010: Client ESP32-Reader1-cd76 [172.18.0.1:45410] disconnected: exceeded timeout.
+1771244827: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771246227: mosquitto version 2.1.2 terminating
+1771246227: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1771296657: mosquitto version 2.1.2 starting
+1771296657: Config loaded from /mosquitto/config/mosquitto.conf.
+1771296657: Bridge support available.
+1771296657: Persistence support available.
+1771296657: TLS support available.
+1771296657: TLS-PSK support available.
+1771296657: Websockets support available.
+1771296657: Opening ipv4 listen socket on port 1883.
+1771296657: Opening ipv6 listen socket on port 1883.
+1771296657: Opening ipv4 listen socket on port 9001.
+1771296657: Opening ipv6 listen socket on port 9001.
+1771296657: mosquitto version 2.1.2 running
+1771296660: New connection from 172.18.0.1:41518 on port 1883.
+1771296660: New client connected from 172.18.0.1:41518 as ESP32-Reader1-b783 (p4, c1, k15).

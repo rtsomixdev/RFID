@@ -4,12 +4,8 @@ import Swal from "sweetalert2";
 import {
   Box,
   Typography,
-  Grid,
   TextField,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
   Switch,
   FormControlLabel,
   InputAdornment,
@@ -36,7 +32,6 @@ import {
   Save,
   Inventory,
   EventBusy,
-  Tune,
   NotificationsActive,
   Edit,
   Close,
@@ -265,16 +260,18 @@ const Settings = () => {
         }
       />
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
-          <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, height: '100%' }}>
-            <CardHeader
-              avatar={<Paper elevation={0} sx={{ p: 1, bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 2 }}><Inventory color="primary" /></Paper>}
-              title={<Typography variant="h6" fontWeight={600}>Inventory Alerts</Typography>}
-              subheader="แจ้งเตือนเมื่อสต็อกต่ำ (ภาพรวม)"
-            />
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3 }}>
+        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 6' } }}>
+          <Paper variant="outlined" sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+            <Box sx={{ p: 3, pb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Paper elevation={0} sx={{ p: 1, bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 2 }}><Inventory color="primary" /></Paper>
+              <Box>
+                <Typography variant="h6" fontWeight={600}>Inventory Alerts</Typography>
+                <Typography variant="body2" color="text.secondary">แจ้งเตือนเมื่อสต็อกต่ำ (ภาพรวม)</Typography>
+              </Box>
+            </Box>
             <Divider />
-            <CardContent sx={{ p: 3 }}>
+            <Box sx={{ p: 3 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -298,19 +295,22 @@ const Settings = () => {
                   helperText="ใช้เกณฑ์นี้ร่วมกันทุกสินค้า (ถ้าไม่ได้แยกรายตัว)"
                 />
               </FormLabel>
-            </CardContent>
-          </Card>
-        </Grid>
 
-        <Grid item xs={12} md={6}>
-          <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, height: '100%' }}>
-            <CardHeader
-              avatar={<Paper elevation={0} sx={{ p: 1, bgcolor: alpha(theme.palette.warning.main, 0.1), borderRadius: 2 }}><NotificationsActive color="warning" /></Paper>}
-              title={<Typography variant="h6" fontWeight={600}>Web Notifications</Typography>}
-              subheader="การแจ้งเตือนบนหน้าจอ"
-            />
+            </Box>
+          </Paper>
+        </Box>
+
+        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 6' } }}>
+          <Paper variant="outlined" sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+            <Box sx={{ p: 3, pb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Paper elevation={0} sx={{ p: 1, bgcolor: alpha(theme.palette.warning.main, 0.1), borderRadius: 2 }}><NotificationsActive color="warning" /></Paper>
+              <Box>
+                <Typography variant="h6" fontWeight={600}>Web Notifications</Typography>
+                <Typography variant="body2" color="text.secondary">การแจ้งเตือนบนหน้าจอ</Typography>
+              </Box>
+            </Box>
             <Divider />
-            <CardContent sx={{ p: 3 }}>
+            <Box sx={{ p: 3 }}>
               <Stack spacing={2}>
                 <FormControlLabel
                   control={
@@ -328,19 +328,21 @@ const Settings = () => {
                   }
                 />
               </Stack>
-            </CardContent>
-          </Card>
-        </Grid>
+            </Box>
+          </Paper>
+        </Box>
 
-        <Grid item xs={12}>
-          <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
-            <CardHeader
-              avatar={<Paper elevation={0} sx={{ p: 1, bgcolor: alpha(theme.palette.error.main, 0.1), borderRadius: 2 }}><EventBusy color="error" /></Paper>}
-              title={<Typography variant="h6" fontWeight={600}>Product Expiration Rules</Typography>}
-              subheader="กำหนดอายุการใช้งานของผ้าแต่ละประเภทแยกกัน (1 Type : 1 Rule)"
-            />
+        <Box sx={{ gridColumn: 'span 12' }}>
+          <Paper variant="outlined" sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+            <Box sx={{ p: 3, pb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Paper elevation={0} sx={{ p: 1, bgcolor: alpha(theme.palette.error.main, 0.1), borderRadius: 2 }}><EventBusy color="error" /></Paper>
+              <Box>
+                <Typography variant="h6" fontWeight={600}>Product Expiration Rules</Typography>
+                <Typography variant="body2" color="text.secondary">กำหนดอายุการใช้งานของผ้าแต่ละประเภทแยกกัน (1 Type : 1 Rule)</Typography>
+              </Box>
+            </Box>
             <Divider />
-            <CardContent sx={{ p: 0 }}>
+            <Box sx={{ p: 0 }}>
               <TableContainer component={Paper} elevation={0} sx={{ maxHeight: 600 }}>
                 <Table stickyHeader sx={{ minWidth: 650 }}>
                   <TableHead>
@@ -393,14 +395,14 @@ const Settings = () => {
                   </TableBody>
                 </Table>
               </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
+            </Box>
+          </Paper>
+        </Box>
 
-      </Grid>
+      </Box >
 
       {/* Popup Dialog */}
-      <Dialog
+      < Dialog
         open={openDialog}
         onClose={() => setOpenDialog(false)}
         maxWidth="sm"
@@ -454,9 +456,9 @@ const Settings = () => {
             ยืนยันการแก้ไข
           </Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
 
-    </Box>
+    </Box >
   );
 };
 

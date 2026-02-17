@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Paper, Typography, TextField, Button, Grid, Table,
+  Box, Paper, Typography, TextField, Button, Table,
   TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton,
-  Card, InputAdornment, Stack, Chip, Tooltip, useTheme, alpha
+  InputAdornment, Stack, Tooltip, useTheme, alpha
 } from '@mui/material';
 import {
-  Delete, AddCircle, Business, Badge, Edit, Storefront, ListAlt, Save, Cancel, Search
+  Delete, AddCircle, Business, Badge, Edit, Storefront, ListAlt, Save
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axios from 'axios';
@@ -137,9 +137,9 @@ const Vendor: React.FC = () => {
         ]}
       />
 
-      <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
+      <Box>
         {/* Form Section */}
-        <Box sx={{ p: 4, bgcolor: editId ? alpha(theme.palette.warning.light, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
+        <Paper variant="outlined" sx={{ p: 4, mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, bgcolor: editId ? alpha(theme.palette.warning.light, 0.05) : '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
           <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: editId ? theme.palette.warning.dark : theme.palette.primary.dark }}>
             <Box sx={{
               width: 32, height: 32, borderRadius: '50%',
@@ -152,8 +152,8 @@ const Vendor: React.FC = () => {
             {editId ? 'แก้ไขข้อมูลบริษัท' : 'เพิ่มบริษัทคู่ค้าใหม่'}
           </Typography>
 
-          <Grid container spacing={3} alignItems="flex-start">
-            <Grid item xs={12} md={5}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3 }}>
+            <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 5' } }}>
               <FormLabel label="ชื่อบริษัท / ร้านค้า" required>
                 <TextField
                   placeholder="ตัวอย่าง: บริษัท ซักอบรีด จำกัด"
@@ -162,8 +162,8 @@ const Vendor: React.FC = () => {
                   InputProps={{ startAdornment: <InputAdornment position="start"><Business fontSize="small" color="action" /></InputAdornment> }}
                 />
               </FormLabel>
-            </Grid>
-            <Grid item xs={12} md={4}>
+            </Box>
+            <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
               <FormLabel label="เลขทะเบียน / เบอร์โทร">
                 <TextField
                   placeholder="ระบุข้อมูลติดต่อ..."
@@ -172,8 +172,8 @@ const Vendor: React.FC = () => {
                   InputProps={{ startAdornment: <InputAdornment position="start"><Badge fontSize="small" color="action" /></InputAdornment> }}
                 />
               </FormLabel>
-            </Grid>
-            <Grid item xs={12} md={3} sx={{ display: 'flex', gap: 1, pt: 3.2 }}>
+            </Box>
+            <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' }, display: 'flex', gap: 1, pt: 3.2 }}>
               {editId ? (
                 <>
                   <Button fullWidth variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmit}>
@@ -188,9 +188,9 @@ const Vendor: React.FC = () => {
                   เพิ่มข้อมูล
                 </Button>
               )}
-            </Grid>
-          </Grid>
-        </Box>
+            </Box>
+          </Box>
+        </Paper>
 
         {/* Table Section */}
         <Box sx={{ p: 4 }}>
@@ -242,7 +242,7 @@ const Vendor: React.FC = () => {
             </Table>
           </TableContainer>
         </Box>
-      </Card>
+      </Box>
     </Box>
   );
 };
