@@ -36,7 +36,7 @@ namespace Backend.Services
         // ✅ กำหนดขา GPIO
         private const string GPIO_GREEN = "12";
         private const string GPIO_YELLOW = "13";
-        private const string GPIO_RED = "27";
+        private const string GPIO_RED = "14"; // แก้ตาม ESP32 Code ล่าสุดของคุณ (Red=14)
 
         public MqttListenerService(IServiceScopeFactory scopeFactory, IHubContext<NotificationHub> hubContext, MqttPublisherService mqttPublisher)
         {
@@ -99,7 +99,7 @@ namespace Backend.Services
             };
 
             await _mqttClient.StartAsync(managedMqttClientOptions);
-            _ = MonitorOfflineNodes(stoppingToken); // เริ่ม Loop เช็คเวลา
+            _ = MonitorOfflineNodes(stoppingToken); // เริ่ม Loop เช็คเวลาและ Offline
 
             while (!stoppingToken.IsCancellationRequested) await Task.Delay(1000, stoppingToken);
         }
@@ -113,32 +113,50 @@ namespace Backend.Services
             string readerName = (parts.Length >= 2) ? parts[1].Trim() : "Unknown";
 
             // -----------------------------------------------------------
-            // 🟢 CASE A: Status Heartbeat
+            // 🟢 CASE A: Status Heartbeat (Online Status / Wake Up)
             // -----------------------------------------------------------
             if (topic.EndsWith("/status"))
             {
-                // ✅ Heartbeat มา = Online แต่ "ไม่รีเซ็ตเวลา" UpdatedAt
-                // เพื่อให้เวลานับถอยหลัง 30 วินาทีทำงานต่อไป
                 try 
                 {
                     var statusData = JsonSerializer.Deserialize<ReaderStatusDto>(payloadStr, _jsonOptions);
+                    
                     using (var scope = _scopeFactory.CreateScope())
                     {
                         var context = scope.ServiceProvider.GetRequiredService<LinenDbContext>();
                         var reader = await context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
+                        
                         if (reader != null)
                         {
-                            bool wasOffline = !(reader.IsActive ?? false);
-                            
+                            // 1. ระบุว่าเครื่อง Online แล้ว (Heartbeat มา = Online)
                             reader.IsActive = true; 
-                            // ❌ ลบ reader.UpdatedAt = ThaiTime(); ออก เพื่อไม่ให้รีเซ็ตเวลา
-                            if (statusData?.ip != null) reader.IpAddress = statusData.ip;
-                            await context.SaveChangesAsync();
+                            
+                            // 2. อัปเดตเวลาล่าสุดเสมอ เพื่อไม่ให้โดนตัด Offline
+                            reader.UpdatedAt = ThaiTime(); 
 
-                            // ถ้าเพิ่งตื่น/Online กลับมา -> สั่งไฟเขียว (Ready)
-                            if (wasOffline) {
-                                await TriggerLed(readerName, "GREEN");
+                            if (statusData?.ip != null) reader.IpAddress = statusData.ip;
+
+                            // 3. 🔥 เช็คว่าตื่นจากการกดปุ่มหรือไม่ (Active)
+                            if (statusData?.status == "active")
+                            {
+                                // ถ้าสถานะเป็น active ให้ปรับโหมดเป็น Normal เพื่อรับสแกนทันที
+                                if (reader.CurrentMode == "SLEEP")
+                                {
+                                    reader.CurrentMode = "Normal";
+                                    Console.WriteLine($"🔘 Hardware Wakeup: {readerName} is now ACTIVE.");
+                                }
                             }
+                            else if (statusData?.status == "sleep")
+                            {
+                                // Hardware บอกเองว่าหลับแล้ว
+                                if (reader.CurrentMode != "SLEEP")
+                                {
+                                    reader.CurrentMode = "SLEEP";
+                                    Console.WriteLine($"💤 Hardware Reported Sleep: {readerName}");
+                                }
+                            }
+
+                            await context.SaveChangesAsync();
                         }
                     }
                 }
@@ -151,7 +169,7 @@ namespace Backend.Services
             // -----------------------------------------------------------
             if (topic.EndsWith("/scan"))
             {
-                // ✅ สแกนปุ๊บ -> สั่งไฟเหลือง (Latency/Busy)
+                // ✅ สแกนปุ๊บ -> สั่งไฟเหลือง (Processing)
                 await TriggerLed(readerName, "YELLOW");
 
                 using (var scope = _scopeFactory.CreateScope())
@@ -169,12 +187,12 @@ namespace Backend.Services
 
                     var readerDB = await context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
                     
-                    // ✅ สแกนเจอ -> รีเซ็ตเวลา (ต่ออายุไปอีก 30 วิ)
+                    // ✅ สแกนเจอ -> รีเซ็ตเวลา UpdatedAt เพื่อต่ออายุ Online และ Active 30s
                     if (readerDB != null) {
-                        readerDB.UpdatedAt = ThaiTime(); // Update เวลาล่าสุดที่ใช้งาน
-                        
-                        // ถ้าเคยหลับอยู่ (SLEEP) ให้ตื่นกลับมาเป็น Normal โดยอัตโนมัติด้วย
-                        // (Hardware อาจไม่รับรู้การสแกนถ้าปิดเสา แต่ถ้า Hardware ส่งมาได้แสดงว่าตื่นแล้วหรือยังไม่หลับจริง)
+                        readerDB.UpdatedAt = ThaiTime(); 
+                        readerDB.IsActive = true; // ยืนยันว่า Online
+
+                        // ถ้าเครื่องหลับอยู่ แต่ดันส่ง scan มาได้ (แปลกๆ แต่กันไว้) ให้ตื่น
                         if (readerDB.CurrentMode == "SLEEP") {
                              readerDB.CurrentMode = "Normal";
                         }
@@ -189,7 +207,7 @@ namespace Backend.Services
                     }
                     var state = _readerStates[readerName];
 
-                    // 1. เช็ค Special Tag
+                    // 1. เช็ค Special Tag (เปลี่ยนโหมด)
                     var specialTag = await context.SpecialTags.FindAsync(rfid);
                     if (specialTag != null)
                     {
@@ -202,16 +220,14 @@ namespace Backend.Services
                         }
 
                         Console.WriteLine($"🎛 [Mode Change] {readerName} -> {currentMode}");
-                        // เปลี่ยนโหมดเสร็จ -> สั่งไฟเขียว (พร้อมสแกนต่อ)
                         await TriggerLed(readerName, "GREEN");
                         await _hubContext.Clients.All.SendAsync("OnModeChanged", new { reader = readerName, mode = currentMode });
                         return;
                     }
 
-                    // 2. เช็ค Timeout (ของโหมดพิเศษ)
+                    // 2. เช็ค Timeout โหมดพิเศษ
                     if (currentMode != "Normal" && state.ScanningUntil.HasValue && !state.IsScanningActive)
                     {
-                        Console.WriteLine($"⛔ [Timeout] {readerName} reset to Normal.");
                         currentMode = "Normal";
                         if(readerDB != null) {
                             readerDB.CurrentMode = "Normal";
@@ -271,7 +287,6 @@ namespace Backend.Services
                         // ✅ จบงาน -> สั่งไฟเขียว (Ready)
                         if (isDuplicate) {
                             Console.WriteLine($"🔁 [Duplicate] {rfid}");
-                            // ซ้ำก็ให้เขียว (บอกว่าอ่านได้) หรือจะเหลืองกระพริบก็ได้ แต่เอาเขียวเพื่อความต่อเนื่อง
                             await TriggerLed(readerName, "GREEN"); 
                             await _hubContext.Clients.All.SendAsync("OnScan", new { rfid, reader = readerName, mode = currentMode, status = finalStatus, productName = linen.Product?.ProductName, timestamp = ThaiTime(), isDuplicate = true });
                         }
@@ -286,7 +301,6 @@ namespace Backend.Services
                     else
                     {
                         Console.WriteLine($"❓ [Unknown] {rfid}");
-                        // ไม่พบ -> ไฟแดง
                         await TriggerLed(readerName, "RED");
                         await _hubContext.Clients.All.SendAsync("OnScan", new { rfid, reader = readerName, mode = currentMode, status = "ไม่พบในระบบ", productName = "ไม่พบในระบบ", timestamp = ThaiTime(), isDuplicate = false });
                     }
@@ -314,33 +328,47 @@ namespace Backend.Services
             {
                 try
                 {
-                    // เช็คทุก 5 วินาที
-                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                    // เช็คทุก 3 วินาที (เพื่อให้สถานะ Offline ขึ้นไวขึ้น)
+                    await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
+                    
                     using (var scope = _scopeFactory.CreateScope())
                     {
                         var context = scope.ServiceProvider.GetRequiredService<LinenDbContext>();
-                        
-                        // ✅ Threshold = 30 วินาที
-                        // ถ้าไม่มีการสแกน (UpdatedAt ไม่เปลี่ยน) เกิน 30 วิ -> สั่ง Sleep
-                        var threshold = ThaiTime().AddSeconds(-30);
-                        
-                        // ✅ เพิ่มเงื่อนไข: หาเฉพาะเครื่องที่หมดเวลา และ "ยังไม่ได้อยู่ในโหมด SLEEP"
-                        // เพื่อป้องกันการส่งคำสั่ง SLEEP ซ้ำๆ (Spamming)
-                        var timeoutReaders = await context.Readers
-                            .Where(r => r.IsActive == true && r.UpdatedAt < threshold && r.CurrentMode != "SLEEP")
+                        var now = ThaiTime();
+
+                        // 1. Threshold: ถ้าไม่มี Heartbeat เกิน 15 วินาที -> ถือว่า Offline (Unplugged)
+                        var offlineThreshold = now.AddSeconds(-15);
+                        var offlineReaders = await context.Readers
+                            .Where(r => r.IsActive == true && r.UpdatedAt < offlineThreshold)
                             .ToListAsync(stoppingToken);
 
-                        if (timeoutReaders.Any())
+                        if (offlineReaders.Any())
                         {
-                            foreach (var reader in timeoutReaders)
+                            foreach (var reader in offlineReaders)
                             {
-                                // 1. สั่ง Hardware ให้หลับ
+                                // ถ้า Offline จริงๆ (ถอดปลั๊ก) เราสั่ง SLEEP ไปก็อาจจะไม่ถึง
+                                // แต่เราต้องแก้สถานะใน DB ให้เว็บรู้ว่า Offline
+                                reader.IsActive = false; // 🔴 ปรับเป็น Offline
+                                // reader.CurrentMode = "SLEEP"; // ไม่ต้องแก้ Mode ก็ได้ หรือจะแก้ก็ได้ตาม Logic หน้าเว็บ
+                                Console.WriteLine($"🔌 Reader {reader.ReaderName} is OFFLINE (No Heartbeat > 15s)");
+                            }
+                            await context.SaveChangesAsync(stoppingToken);
+                        }
+
+                        // 2. Threshold: Sleep Logic (30s)
+                        // ถ้า Online อยู่ แต่ไม่มี Activity เกิน 30s -> สั่ง Sleep
+                        var sleepThreshold = now.AddSeconds(-30);
+                        var activeIdleReaders = await context.Readers
+                            .Where(r => r.IsActive == true && r.UpdatedAt < sleepThreshold && r.CurrentMode != "SLEEP")
+                            .ToListAsync(stoppingToken);
+
+                        if (activeIdleReaders.Any())
+                        {
+                            foreach (var reader in activeIdleReaders)
+                            {
                                 await SetSleepMode(reader.ReaderName, true);
-                                Console.WriteLine($"💤 Reader {reader.ReaderName} Timeout (30s) -> SLEEP MODE");
-                                
-                                // 2. ✅ อัปเดต DB ว่าหลับแล้ว (CurrentMode = "SLEEP")
-                                // Loop ครั้งหน้าจะไม่เข้าเงื่อนไข r.CurrentMode != "SLEEP" ทำให้หยุด Spam
                                 reader.CurrentMode = "SLEEP";
+                                Console.WriteLine($"💤 Reader {reader.ReaderName} Timeout (30s) -> SLEEP MODE");
                             }
                             await context.SaveChangesAsync(stoppingToken);
                         }
@@ -366,5 +394,11 @@ namespace Backend.Services
     }
 
     public class ScanPayload { public string? rfid { get; set; } }
-    public class ReaderStatusDto { public string? ip { get; set; } public string? status { get; set; } }
+    
+    // ✅ เพิ่ม source ใน DTO เพื่อรับค่าจาก ESP32
+    public class ReaderStatusDto { 
+        public string? ip { get; set; } 
+        public string? status { get; set; } 
+        public string? source { get; set; } 
+    }
 }

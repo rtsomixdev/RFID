@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Paper, Typography, Grid, TextField, Button,
     TableContainer, Table, TableHead, TableBody, TableRow, TableCell,
-    Chip, CircularProgress, Alert, MenuItem, FormControl, InputLabel, Select,
-    useTheme, alpha, Tabs, Tab, Divider, IconButton
+    Chip, CircularProgress, MenuItem, Select,
+    useTheme, alpha, Tabs, Tab
 } from '@mui/material';
 import {
-    PictureAsPdf, TableView, Search, FilterList, Summarize,
-    History, Inventory, ArrowRightAlt, Save, Refresh
+    PictureAsPdf, TableView, Search, Summarize,
+    History, Inventory, Refresh
 } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -79,8 +79,8 @@ const Reports: React.FC = () => {
     const [stockData, setStockData] = useState<StockItem[]>([]);
 
     const [loading, setLoading] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [error, setError] = useState<string | null>(null);
-    const [currentUser, setCurrentUser] = useState<any>(null);
 
     // Filter Options
     const activityTypes = [
@@ -94,14 +94,9 @@ const Reports: React.FC = () => {
     ];
 
     useEffect(() => {
-        const userStr = localStorage.getItem('currentUser');
-        if (userStr) {
-            try { setCurrentUser(JSON.parse(userStr)); } catch (e) { }
-        }
-        
         if (currentTab === 0) handleFetchReport();
         else handleFetchStock();
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTab]); 
 
     // --- API Handlers ---

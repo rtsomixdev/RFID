@@ -68,11 +68,14 @@ namespace Backend.Controllers
         [HttpGet("CheckStock/{productId}")]
         public async Task<IActionResult> GetStock(int productId)
         {
+            // นับของจริงที่สถานะพร้อมใช้ (รวมภาษาไทย)
             var physicalStock = await _context.Linens
-                .CountAsync(l => l.ProductId == productId && l.Status == "Available" && l.IsActive == true);
+                .CountAsync(l => l.ProductId == productId && l.IsActive == true && 
+                                (l.Status == "Available" || l.Status == "Stock" || l.Status == "พร้อมใช้"));
 
+            // หักลบยอดที่ "รออนุมัติ" (จองไว้แล้ว)
             var pendingStock = await _context.RequestItems
-                .Where(ri => ri.ProductId == productId && ri.Request.CurrentStatusId == 1)
+                .Where(ri => ri.ProductId == productId && (ri.Request.CurrentStatusId == 1 || ri.Request.Status == "Pending"))
                 .SumAsync(ri => ri.QuantityRequested); 
 
             var effectiveStock = physicalStock - pendingStock;
@@ -96,10 +99,11 @@ namespace Backend.Controllers
             foreach (var item in request.RequestItems)
             {
                 var physicalStock = await _context.Linens
-                    .CountAsync(l => l.ProductId == item.ProductId && l.Status == "Available" && l.IsActive == true);
+                    .CountAsync(l => l.ProductId == item.ProductId && l.IsActive == true && 
+                                    (l.Status == "Available" || l.Status == "Stock" || l.Status == "พร้อมใช้"));
 
                 var pendingStock = await _context.RequestItems
-                    .Where(ri => ri.ProductId == item.ProductId && ri.Request.CurrentStatusId == 1)
+                    .Where(ri => ri.ProductId == item.ProductId && (ri.Request.CurrentStatusId == 1 || ri.Request.Status == "Pending"))
                     .SumAsync(ri => ri.QuantityRequested); 
 
                 var availableStock = physicalStock - pendingStock;
@@ -184,7 +188,7 @@ namespace Backend.Controllers
             var newStatusId = request.CurrentStatusId;
 
             existingRequest.CurrentStatusId = newStatusId;
-            existingRequest.Status = newStatusId == 2 ? "Approved" : (newStatusId == 99 ? "Cancelled" : "Pending");
+            existingRequest.Status = newStatusId == 2 ? "Approved" : (newStatusId == 3 ? "Rejected" : "Pending"); // แก้ 3=Rejected
             existingRequest.UpdatedAt = ThaiTime(); 
 
             // กรณีเปลี่ยนเป็น Approved (2) -> ตัดสต็อก (เปลี่ยน Linen เป็น In Use)
@@ -196,13 +200,14 @@ namespace Backend.Controllers
 
                 foreach (var item in requestItems)
                 {
-                    // ✅ ตัด logic เช็ค LinenId ออก เหลือแค่การตัดสต็อกตามจำนวน (FIFO/LIFO)
+                    // หาของในสต็อกที่ Available (FIFO - เอาของเก่าออกก่อน หรือ LIFO ก็ได้ แล้วแต่ OrderBy)
                     var availableLinens = await _context.Linens
-                        .Where(l => l.ProductId == item.ProductId && l.Status == "Available" && l.IsActive == true)
+                        .Where(l => l.ProductId == item.ProductId && l.IsActive == true && 
+                                   (l.Status == "Available" || l.Status == "Stock" || l.Status == "พร้อมใช้"))
                         .Take(item.QuantityRequested) 
                         .ToListAsync();
 
-                    // เช็คว่าของพอไหม
+                    // เช็คว่าของพอไหม (กันเหนียวอีกรอบ)
                     if (availableLinens.Count < item.QuantityRequested)
                     {
                         return BadRequest(new { message = $"สินค้า ID {item.ProductId} มีไม่พอสำหรับการอนุมัติ (ต้องการ {item.QuantityRequested}, พบ {availableLinens.Count})" });
@@ -210,16 +215,19 @@ namespace Backend.Controllers
 
                     foreach (var linen in availableLinens)
                     {
-                        linen.Status = "In Use";
-                        linen.CurrentLocation = "In Use"; 
+                        linen.Status = "In Use"; // สถานะ "ถูกใช้งาน"
+                        linen.CurrentLocation = "In Use"; // หรือชื่อ Ward ปลายทาง
                         linen.UpdatedAt = ThaiTime();
 
                         _context.LinenLogs.Add(new LinenLog
                         {
                             LinenId = linen.LinenId,
                             ActivityType = "ISSUE", 
-                            Description = $"อนุมัติคำร้อง {existingRequest.RequestCode}",
-                            Timestamp = ThaiTime()
+                            Description = $"อนุมัติคำร้อง {existingRequest.RequestCode} (จ่ายออก)",
+                            FromLocation = "Stock",
+                            ToLocation = "In Use",
+                            Timestamp = ThaiTime(),
+                            CreatedAt = ThaiTime()
                         });
                     }
                 }
@@ -228,7 +236,7 @@ namespace Backend.Controllers
             // System Log
             if (oldStatusId != newStatusId)
             {
-                var statusText = newStatusId == 2 ? "อนุมัติ" : (newStatusId == 99 ? "ยกเลิก" : "รออนุมัติ");
+                var statusText = newStatusId == 2 ? "อนุมัติ" : (newStatusId == 3 ? "ปฏิเสธ" : "รออนุมัติ");
                 var log = new SystemLog
                 {
                     UserId = request.RequestedByUserId, 
@@ -270,17 +278,16 @@ namespace Backend.Controllers
 
                 foreach (var item in items)
                 {
-                    // ✅ ลบ logic เช็ค LinenId ออก เหลือแค่การคืนของตามจำนวน
                     // หาผ้าที่เป็น Product เดียวกัน และสถานะ In Use (LIFO - คืนตัวล่าสุดที่เพิ่งเบิกไป)
                     var linensToReturn = await _context.Linens
-                        .Where(l => l.ProductId == item.ProductId && l.Status == "In Use")
+                        .Where(l => l.ProductId == item.ProductId && (l.Status == "In Use" || l.Status == "ถูกใช้งาน"))
                         .OrderByDescending(l => l.UpdatedAt) 
                         .Take(item.QuantityRequested) 
                         .ToListAsync();
 
                     foreach (var linen in linensToReturn)
                     {
-                        linen.Status = "Available";
+                        linen.Status = "Available"; // คืนสถานะพร้อมใช้
                         linen.CurrentLocation = "Stock";
                         linen.UpdatedAt = ThaiTime();
 
@@ -289,14 +296,17 @@ namespace Backend.Controllers
                             LinenId = linen.LinenId,
                             ActivityType = "RETURN_STOCK",
                             Description = $"ยกเลิกคำร้อง {request.RequestCode} (Auto Return)",
-                            Timestamp = ThaiTime()
+                            FromLocation = "In Use",
+                            ToLocation = "Stock",
+                            Timestamp = ThaiTime(),
+                            CreatedAt = ThaiTime()
                         });
                     }
                 }
             }
 
             // เปลี่ยนสถานะเป็น Cancelled (99)
-            request.CurrentStatusId = 99; 
+            request.CurrentStatusId = 99; // ใช้ 99 แทนการลบ
             request.Status = "Cancelled";
             request.UpdatedAt = ThaiTime();
 
