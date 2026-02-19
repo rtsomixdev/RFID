@@ -154,20 +154,8 @@ RFID
 │  ├─ Hubs
 │  │  └─ NotificationHub.cs
 │  ├─ Migrations
-│  │  ├─ 20260105105122_InitialCreate.cs
-│  │  ├─ 20260105105122_InitialCreate.Designer.cs
-│  │  ├─ 20260114133307_UpdateRequirements.cs
-│  │  ├─ 20260114133307_UpdateRequirements.Designer.cs
-│  │  ├─ 20260114143018_AddNotificationSystem_Final.cs
-│  │  ├─ 20260114143018_AddNotificationSystem_Final.Designer.cs
-│  │  ├─ 20260114184320_AddProductRules.cs
-│  │  ├─ 20260114184320_AddProductRules.Designer.cs
-│  │  ├─ 20260114190808_UpdateNotificationSchema.cs
-│  │  ├─ 20260114190808_UpdateNotificationSchema.Designer.cs
-│  │  ├─ 20260210073658_UpdateModelsForIoT.cs
-│  │  ├─ 20260210073658_UpdateModelsForIoT.Designer.cs
-│  │  ├─ 20260210103756_AddReaderUpdatedAt.cs
-│  │  ├─ 20260210103756_AddReaderUpdatedAt.Designer.cs
+│  │  ├─ 20260215155812_InitialCreate.cs
+│  │  ├─ 20260215155812_InitialCreate.Designer.cs
 │  │  └─ LinenDbContextModelSnapshot.cs
 │  ├─ Models
 │  │  ├─ Category.cs
@@ -262,7 +250,11 @@ RFID
 │  │  │  │  └─ ModernTable.tsx
 │  │  │  ├─ Navbar.tsx
 │  │  │  ├─ ProtectedRoute.tsx
-│  │  │  └─ Sidebar.tsx
+│  │  │  ├─ ReaderWakeButton.tsx
+│  │  │  ├─ Sidebar.tsx
+│  │  │  └─ ui
+│  │  │     ├─ FormLabel.tsx
+│  │  │     └─ PageHeader.tsx
 │  │  ├─ index.css
 │  │  ├─ layouts
 │  │  │  └─ MainLayout.tsx
@@ -303,16 +295,9 @@ RFID
 │  ├─ azurecredentialcache
 │  ├─ pgadmin4.db
 │  ├─ sessions
-│  │  ├─ 07e11e74-d5c3-42bc-99b6-d95dd2de32b0
-│  │  ├─ 15ef21a5-bb1d-453a-b623-d89a669ea033
-│  │  ├─ 2dc43123-e699-49a0-9051-3ded31640d9f
-│  │  ├─ 9a3438b7-781a-4081-88b0-aadfc675c63e
-│  │  ├─ 9d455048-ed62-4767-8b63-7256dbaf2481
-│  │  ├─ b03a08e0-907a-49b1-85a1-bda02b87af07
-│  │  ├─ b1e826ed-c7d1-4a67-95e7-4d4aa7653ab3
-│  │  ├─ cc94f8da-57a2-46e1-919c-e347076179b6
-│  │  ├─ d855ea51-e1a6-4f8e-ab79-58965747be90
-│  │  └─ dd449326-6c5e-4faf-a528-df2389d21f26
+│  │  ├─ 659ad2e5-8e96-4fd0-b51d-c77ad3e039fa
+│  │  ├─ 88815f97-c901-4cb0-a414-991d8024fd89
+│  │  └─ eeb269a2-9f93-4821-b333-e4328272b286
 │  └─ storage
 │     └─ admin_linen.com
 ├─ README.md

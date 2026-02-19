@@ -44,7 +44,7 @@ import FormLabel from '../components/ui/FormLabel';
 const DEFAULT_GLOBAL_SETTINGS = {
   LOW_STOCK_THRESHOLD: "20",
   ENABLE_LOW_STOCK_ALERT: "true",
-  ENABLE_SOUND_ALERT: "false", // Default to false since sound is removed
+  ENABLE_SOUND_ALERT: "false",
   ENABLE_POPUP_ALERT: "true",
 };
 
@@ -54,11 +54,13 @@ interface ProductRule {
   categoryName: string;
   maxWashCount: number | string;
   maxLifespanDays: number | string;
+  rawProduct: any; 
 }
 
 const Settings = () => {
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
+  const [isFetchingProducts, setIsFetchingProducts] = useState(true); // ✅ เพิ่ม State ไว้จัดการวงล้อโหลดแยกต่างหาก
   const [globalValues, setGlobalValues] = useState(DEFAULT_GLOBAL_SETTINGS);
   const [products, setProducts] = useState<ProductRule[]>([]);
 
@@ -89,6 +91,7 @@ const Settings = () => {
   };
 
   const fetchProducts = async () => {
+    setIsFetchingProducts(true); // ✅ เริ่มโหลด
     try {
       const res = await axios.get("/Product");
       const productList = res.data.map((p: any) => ({
@@ -96,11 +99,15 @@ const Settings = () => {
         productName: p.productName,
         categoryName: p.category?.categoryName || null,
         maxWashCount: p.maxWashCount || 100,
-        maxLifespanDays: p.maxLifespanDays || 365
+        maxLifespanDays: p.maxLifespanDays || 365,
+        rawProduct: p 
       }));
       setProducts(productList);
     } catch (err) {
       console.error("Error fetching products:", err);
+      // ไม่ต้อง Alert ก็ได้เดี๋ยว User ตกใจ ให้มันโชว์ในตารางว่าไม่พบข้อมูล
+    } finally {
+      setIsFetchingProducts(false); // ✅ โหลดเสร็จแล้ว (ไม่ว่าจะสำเร็จหรือ Error ก็ให้หยุดหมุน)
     }
   };
 
@@ -126,14 +133,11 @@ const Settings = () => {
     }
   };
 
-  // ✅ ปรับปรุง: ยิง API บันทึกลงฐานข้อมูลทันทีที่กดยืนยันใน Popup
   const handleModalConfirm = async () => {
     if (!currentRule) return;
 
-    // 1. ปิด Popup ก่อนเพื่อความสวยงาม
     setOpenDialog(false);
 
-    // 2. โชว์ Loading หมุนๆ
     Swal.fire({
       title: 'กำลังบันทึก...',
       html: 'กรุณารอสักครู่ ระบบกำลังอัปเดตฐานข้อมูล',
@@ -144,21 +148,18 @@ const Settings = () => {
     });
 
     try {
-      // 3. 🚀 ส่งข้อมูลไปบันทึกที่ Backend ทันที!
-      await axios.put(`/Product/${currentRule.productId}`, {
-        productId: currentRule.productId,
-        productName: currentRule.productName,
-        // แปลงค่าให้ชัวร์ว่าเป็นตัวเลข (กันส่ง string ว่าง)
+      const payload = {
+        ...currentRule.rawProduct, 
         maxWashCount: parseInt(String(currentRule.maxWashCount || 0)),
         maxLifespanDays: parseInt(String(currentRule.maxLifespanDays || 0))
-      });
+      };
 
-      // 4. ถ้าผ่าน -> อัปเดตหน้าจอ (State)
+      await axios.put(`/Product/${currentRule.productId}`, payload);
+
       setProducts(prev => prev.map(p =>
-        p.productId === currentRule.productId ? currentRule : p
+        p.productId === currentRule.productId ? { ...currentRule, rawProduct: payload } : p
       ));
 
-      // 5. แจ้งเตือนความสำเร็จ (กลางจอ เฟี้ยวๆ)
       Swal.fire({
         icon: 'success',
         title: 'บันทึกเรียบร้อย!',
@@ -171,13 +172,11 @@ const Settings = () => {
 
     } catch (err: any) {
       console.error("Save Error:", err);
-      // ถ้าพัง -> แจ้งเตือนและไม่แก้หน้าจอ
       Swal.fire({
         icon: 'error',
         title: 'บันทึกไม่สำเร็จ',
         text: 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์ กรุณาลองใหม่',
       });
-      // (Optional) อาจจะเปิด Popup กลับมาให้แก้ใหม่
       setOpenDialog(true);
     }
   };
@@ -186,7 +185,6 @@ const Settings = () => {
   const handleSave = async () => {
     setLoading(true);
 
-    // โชว์หมุนๆ ตอนกด Save ใหญ่
     Swal.fire({
       title: 'กำลังบันทึกการตั้งค่าทั้งหมด...',
       allowOutsideClick: false,
@@ -208,8 +206,7 @@ const Settings = () => {
 
       const productPromises = products.map(p =>
         axios.put(`/Product/${p.productId}`, {
-          productId: p.productId,
-          productName: p.productName,
+          ...p.rawProduct,
           maxWashCount: parseInt(String(p.maxWashCount || 0)),
           maxLifespanDays: parseInt(String(p.maxLifespanDays || 0))
         })
@@ -295,7 +292,6 @@ const Settings = () => {
                   helperText="ใช้เกณฑ์นี้ร่วมกันทุกสินค้า (ถ้าไม่ได้แยกรายตัว)"
                 />
               </FormLabel>
-
             </Box>
           </Paper>
         </Box>
@@ -355,11 +351,18 @@ const Settings = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {products.length === 0 ? (
+                    {/* ✅ แก้ไขเงื่อนไขการโหลดตรงนี้ */}
+                    {isFetchingProducts ? (
                       <TableRow>
                         <TableCell colSpan={5} align="center" sx={{ py: 5 }}>
                           <CircularProgress size={24} sx={{ mb: 1 }} />
                           <Typography color="text.secondary">กำลังโหลดข้อมูลสินค้า...</Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : products.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center" sx={{ py: 5 }}>
+                          <Typography color="error">ไม่พบข้อมูลสินค้า (เซิร์ฟเวอร์อาจเกิดปัญหา กรุณาตรวจสอบ Backend)</Typography>
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -398,7 +401,6 @@ const Settings = () => {
             </Box>
           </Paper>
         </Box>
-
       </Box >
 
       {/* Popup Dialog */}

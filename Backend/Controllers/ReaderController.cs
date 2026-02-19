@@ -33,7 +33,9 @@ namespace Backend.Controllers
                 .ToListAsync();
         }
 
-        // POST: api/Reader
+        // =============================================
+        // POST: api/Reader (เพิ่มเครื่องอ่านใหม่)
+        // =============================================
         [HttpPost]
         public async Task<IActionResult> AddReader([FromBody] Reader reader)
         {
@@ -42,8 +44,16 @@ namespace Backend.Controllers
                 return BadRequest(new { message = $"ชื่อเครื่อง '{reader.ReaderName}' มีอยู่ในระบบแล้ว" });
             }
 
-            reader.IsActive = true;
-            if (string.IsNullOrEmpty(reader.CurrentMode)) reader.CurrentMode = "Normal";
+            // ✅ บังคับตั้งค่าเริ่มต้นให้เป็น "Offline" เสมอเมื่อเพิ่งสร้างใหม่
+            reader.IsActive = false; 
+            reader.CurrentMode = "Offline"; 
+            
+            // ✅ ถ้าไม่มีการส่ง IP มา ให้ใส่ขีดแดชไว้ก่อน (เดี๋ยวฮาร์ดแวร์ต่อเน็ตแล้วมันจะส่ง IP มาอัปเดตเอง)
+            if (string.IsNullOrEmpty(reader.IpAddress))
+            {
+                reader.IpAddress = "-";
+            }
+
             if (string.IsNullOrEmpty(reader.ReaderFunction)) reader.ReaderFunction = "CHECK";
             reader.UpdatedAt = ThaiTime();
 
@@ -54,7 +64,7 @@ namespace Backend.Controllers
                 UserId = null,  
                 RoleId = 1,     
                 Title = "เพิ่มอุปกรณ์ใหม่",
-                Message = $"เพิ่มอุปกรณ์: {reader.ReaderName} เข้าสู่ระบบ",
+                Message = $"เพิ่มอุปกรณ์: {reader.ReaderName} เข้าสู่ระบบ (สถานะเริ่มต้น: ออฟไลน์)",
                 Type = "INFO",  
                 IsRead = false,
                 CreatedAt = ThaiTime(),

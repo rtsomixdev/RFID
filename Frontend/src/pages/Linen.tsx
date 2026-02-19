@@ -4,20 +4,20 @@ import {
     TableBody, TableCell, TableContainer, TableHead, TableRow,
     IconButton, Card, CardContent, Select, MenuItem,
     Stack, InputAdornment, Autocomplete, createFilterOptions, Collapse, Alert, Chip, Paper,
-    useTheme, alpha, Divider, Grid
+    useTheme, alpha, Divider, Grid, Switch, FormControlLabel
 } from '@mui/material';
 import {
     AppRegistration, Delete, PlaylistAddCheck, QrCodeScanner, RestartAlt,
     LocalLaundryService, Info, Save,
     Category, FiberNew, SettingsRemote,
     CheckCircle, ErrorOutline, AddCircleOutline, Room,
-    FitnessCenter, Straighten, Scale, CalendarToday
+    FitnessCenter, Straighten, Scale, CalendarToday, Palette, DeleteSweep
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
 import PageHeader from '../components/ui/PageHeader';
 import FormLabel from '../components/ui/FormLabel';
-import ReaderWakeButton from '../components/ReaderWakeButton'; // ✅ Import ปุ่ม Wake
+import ReaderWakeButton from '../components/ReaderWakeButton';
 
 const filter = createFilterOptions<any>();
 
@@ -32,6 +32,8 @@ interface Product {
     maxWashCount?: number;
     standardWeightKg?: number; 
     maxLifespanDays?: number;  
+    color?: string; // ✅ เพิ่ม color
+    isDisposable?: boolean; // ✅ เพิ่ม isDisposable
     [key: string]: any;
 }
 
@@ -59,7 +61,6 @@ const RegisterLinen: React.FC = () => {
     const [selectedVendor, setSelectedVendor] = useState<string>('');
     const [selectedLocation, setSelectedLocation] = useState<string>('');
     const [selectedReader, setSelectedReader] = useState<string>('');
-    // ✅ เพิ่ม State เช็คสถานะ Reader ว่า Online ไหม
     const [isReaderOnline, setIsReaderOnline] = useState(false);
     
     const [maxWash, setMaxWash] = useState<number>(100);
@@ -68,7 +69,7 @@ const RegisterLinen: React.FC = () => {
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [isNewProduct, setIsNewProduct] = useState(false);
 
-    // เพิ่ม standardWeightKg และ maxLifespanDays ใน State
+    // ✅ เพิ่ม color และ isDisposable ใน State
     const [newProductData, setNewProductData] = useState({
         productName: '',
         productCode: '',
@@ -76,7 +77,9 @@ const RegisterLinen: React.FC = () => {
         sizeSpec: '',
         unitName: 'ชิ้น',
         standardWeightKg: '', 
-        maxLifespanDays: ''
+        maxLifespanDays: '',
+        color: '', 
+        isDisposable: false 
     });
 
     const [rfidInput, setRfidInput] = useState('');
@@ -87,14 +90,12 @@ const RegisterLinen: React.FC = () => {
     useEffect(() => {
         fetchMasterData();
         
-        // Auto Refresh Reader Status (ทุก 5 วินาที)
         const interval = setInterval(() => {
             fetchReadersOnly();
         }, 5000);
         return () => clearInterval(interval);
     }, []);
 
-    // ✅ อัปเดตสถานะ Online เมื่อเปลี่ยน Reader หรือ Fetch ใหม่
     useEffect(() => {
         if (selectedReader && readers.length > 0) {
             const reader = readers.find(r => r.readerName === selectedReader);
@@ -102,14 +103,12 @@ const RegisterLinen: React.FC = () => {
         }
     }, [selectedReader, readers]);
 
-    // ✅ Real-time Scan Listener
+    // --- Real-time Scan Listener ---
     useEffect(() => {
         const handleAutoScan = (e: any) => {
             const incomingData = e.detail;
             const rfid = typeof incomingData === 'object' ? incomingData.rfid : incomingData;
-            const readerName = typeof incomingData === 'object' ? incomingData.reader : null;
 
-            // 1. Validate Selections
             if (!selectedReader) {
                 toastWarning('กรุณาเลือกเครื่องอ่านก่อนเริ่มสแกน');
                 return;
@@ -119,12 +118,6 @@ const RegisterLinen: React.FC = () => {
                 return;
             }
 
-            // 2. Filter Reader
-            // if (readerName && selectedReader !== readerName) {
-            //     return; // Ignore other readers
-            // }
-
-            // 3. Add to list
             if (rfid) {
                 addRfidToList(rfid);
             }
@@ -177,7 +170,6 @@ const RegisterLinen: React.FC = () => {
 
         const readerData = await fetchData('/Reader', setReaders);
 
-        // Logic ใหม่: Auto-select Reader และ Location ของมัน
         if (readerData.length > 0 && !selectedReader) {
             const active = readerData.find((r: Reader) => r.isActive);
             if (active) {
@@ -279,7 +271,7 @@ const RegisterLinen: React.FC = () => {
                         catId = catRes.data.categoryId;
                     }
 
-                    // ✅ ส่งข้อมูลครบถ้วนรวมถึง Weight และ Lifespan
+                    // ✅ ส่ง Color และ IsDisposable ไปบันทึกที่ Backend
                     const prodRes = await axiosClient.post('/Product', {
                         productName: newProductData.productName,
                         productCode: newProductData.productCode,
@@ -289,6 +281,8 @@ const RegisterLinen: React.FC = () => {
                         maxWashCount: Number(maxWash),
                         standardWeightKg: newProductData.standardWeightKg ? Number(newProductData.standardWeightKg) : 0, 
                         maxLifespanDays: newProductData.maxLifespanDays ? Number(newProductData.maxLifespanDays) : 365,
+                        color: newProductData.color, // ส่งสี
+                        isDisposable: newProductData.isDisposable, // ส่งสถานะใช้แล้วทิ้ง
                         defaultRoomId: selectedLocation ? parseInt(selectedLocation) : 1
                     });
                     finalProductId = prodRes.data.productId;
@@ -317,10 +311,11 @@ const RegisterLinen: React.FC = () => {
             setRfidInput('');
             setIsNewProduct(false);
             setSelectedProduct(null);
-            // ✅ Reset State ให้ครบทุก field
+            
+            // ✅ Reset State คืนค่าทั้งหมดรวมถึงสีและ isDisposable
             setNewProductData({ 
                 productName: '', productCode: '', categoryName: '', sizeSpec: '', unitName: 'ชิ้น',
-                standardWeightKg: '', maxLifespanDays: ''
+                standardWeightKg: '', maxLifespanDays: '', color: '', isDisposable: false
             });
 
             fetchMasterData();
@@ -445,18 +440,21 @@ const RegisterLinen: React.FC = () => {
                                                 )}
                                                 freeSolo
                                                 renderInput={(params) => (
-                                                    <TextField {...params} fullWidth placeholder="พิมพ์ชื่อสินค้า..." HelperText={null} />
+                                                    <TextField {...params} fullWidth placeholder="พิมพ์ชื่อสินค้า..." />
                                                 )}
                                             />
                                         </FormLabel>
                                     </Grid>
                                 </Grid>
 
-                                {/* --- ✅ Existing Product Detail (แสดงข้อมูลครบถ้วน) --- */}
+                                {/* --- ✅ Existing Product Detail --- */}
                                 <Collapse in={!isNewProduct && selectedProduct !== null}>
                                     {selectedProduct && (
                                         <Paper elevation={0} sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-                                            <Typography variant="subtitle2" fontWeight="bold" color="primary" sx={{ mb: 2 }}>{selectedProduct.productName}</Typography>
+                                            <Typography variant="subtitle2" fontWeight="bold" color="primary" sx={{ mb: 2 }}>
+                                                {selectedProduct.productName} 
+                                                {selectedProduct.isDisposable && <Chip label="ใช้แล้วทิ้ง" color="warning" size="small" sx={{ ml: 2, height: 20 }} />}
+                                            </Typography>
                                             <Grid container spacing={2}>
                                                 <Grid item xs={6} md={3}>
                                                     <Typography variant="caption" color="textSecondary">รหัสสินค้า</Typography>
@@ -471,6 +469,10 @@ const RegisterLinen: React.FC = () => {
                                                 <Grid item xs={6} md={2}>
                                                     <Typography variant="caption" color="textSecondary">ขนาด</Typography>
                                                     <Typography variant="body2" fontWeight="600">{selectedProduct.sizeSpec || '-'}</Typography>
+                                                </Grid>
+                                                <Grid item xs={6} md={2}>
+                                                    <Typography variant="caption" color="textSecondary">สี</Typography>
+                                                    <Typography variant="body2" fontWeight="600">{selectedProduct.color || '-'}</Typography>
                                                 </Grid>
                                                 <Grid item xs={6} md={2}>
                                                     <Typography variant="caption" color="textSecondary">หน่วยนับ</Typography>
@@ -496,7 +498,7 @@ const RegisterLinen: React.FC = () => {
                                     )}
                                 </Collapse>
 
-                                {/* --- ✅ New Product Form (เพิ่มช่องกรอกข้อมูล) --- */}
+                                {/* --- ✅ New Product Form --- */}
                                 <Collapse in={isNewProduct}>
                                     <Box sx={{ mt: 3, p: 3, bgcolor: alpha(theme.palette.secondary.main, 0.05), borderRadius: 2, border: `1px dashed ${theme.palette.secondary.main}` }}>
                                         <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2, color: theme.palette.secondary.main }}>
@@ -527,12 +529,17 @@ const RegisterLinen: React.FC = () => {
                                             </Grid>
                                             
                                             {/* Physical Specs */}
-                                            <Grid item xs={6} md={4}>
-                                                <FormLabel label="ขนาด (Size Spec)">
+                                            <Grid item xs={6} md={3}>
+                                                <FormLabel label="ขนาด (Size)">
                                                     <TextField fullWidth value={newProductData.sizeSpec} onChange={e => setNewProductData(prev => ({ ...prev, sizeSpec: e.target.value }))} InputProps={{ startAdornment: <Straighten fontSize="small" color="action" sx={{ mr: 1 }} /> }} />
                                                 </FormLabel>
                                             </Grid>
-                                            <Grid item xs={6} md={4}>
+                                            <Grid item xs={6} md={3}>
+                                                <FormLabel label="สี (Color)">
+                                                    <TextField fullWidth placeholder="เช่น ขาว, เขียว" value={newProductData.color} onChange={e => setNewProductData(prev => ({ ...prev, color: e.target.value }))} InputProps={{ startAdornment: <Palette fontSize="small" color="action" sx={{ mr: 1 }} /> }} />
+                                                </FormLabel>
+                                            </Grid>
+                                            <Grid item xs={6} md={3}>
                                                 <FormLabel label="น้ำหนัก (กก.)">
                                                     <TextField 
                                                         fullWidth 
@@ -546,14 +553,18 @@ const RegisterLinen: React.FC = () => {
                                                     />
                                                 </FormLabel>
                                             </Grid>
-                                            <Grid item xs={6} md={4}>
+                                            <Grid item xs={6} md={3}>
                                                 <FormLabel label="หน่วยนับ">
                                                     <TextField fullWidth value={newProductData.unitName} onChange={e => setNewProductData(prev => ({ ...prev, unitName: e.target.value }))} />
                                                 </FormLabel>
                                             </Grid>
 
-                                            {/* Lifespan Specs */}
-                                            <Grid item xs={6} md={6}>
+                                            {/* Lifespan Specs & Disposable Switch */}
+                                            <Grid item xs={12}>
+                                                <Divider sx={{ my: 1, borderStyle: 'dashed' }} />
+                                            </Grid>
+                                            
+                                            <Grid item xs={6} md={4}>
                                                 <FormLabel label="อายุการใช้งาน (วัน)">
                                                     <TextField 
                                                         fullWidth 
@@ -568,19 +579,37 @@ const RegisterLinen: React.FC = () => {
                                                     />
                                                 </FormLabel>
                                             </Grid>
-                                            <Grid item xs={6} md={6}>
+                                            <Grid item xs={6} md={4}>
                                                 <FormLabel label="อายุการใช้งาน (รอบซัก)">
                                                     <TextField 
                                                         fullWidth 
                                                         type="number"
                                                         value={maxWash} 
                                                         onChange={e => setMaxWash(Number(e.target.value))} 
+                                                        disabled={newProductData.isDisposable} // ถ้าใช้แล้วทิ้ง ไม่ต้องซัก
                                                         InputProps={{ 
-                                                            startAdornment: <LocalLaundryService fontSize="small" color="action" sx={{ mr: 1 }} />,
+                                                            startAdornment: <LocalLaundryService fontSize="small" color={newProductData.isDisposable ? "disabled" : "action"} sx={{ mr: 1 }} />,
                                                             endAdornment: <Typography variant="caption">รอบ</Typography> 
                                                         }} 
                                                     />
                                                 </FormLabel>
+                                            </Grid>
+                                            <Grid item xs={12} md={4} sx={{ display: 'flex', alignItems: 'flex-end', pb: 1 }}>
+                                                <FormControlLabel
+                                                    control={
+                                                        <Switch 
+                                                            color="warning" 
+                                                            checked={newProductData.isDisposable} 
+                                                            onChange={e => setNewProductData(prev => ({ ...prev, isDisposable: e.target.checked }))} 
+                                                        />
+                                                    }
+                                                    label={
+                                                        <Typography variant="body2" fontWeight="bold" color={newProductData.isDisposable ? 'warning.main' : 'textSecondary'}>
+                                                            <DeleteSweep fontSize="inherit" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
+                                                            เป็นผ้าชนิดใช้แล้วทิ้ง (Disposable)
+                                                        </Typography>
+                                                    }
+                                                />
                                             </Grid>
                                         </Grid>
                                     </Box>
@@ -596,6 +625,7 @@ const RegisterLinen: React.FC = () => {
                                                         type="number"
                                                         value={maxWash}
                                                         onChange={e => setMaxWash(Number(e.target.value))}
+                                                        disabled={selectedProduct?.isDisposable} // ถ้าใช้แล้วทิ้ง ไม่ต้องตั้งรอบซัก
                                                         InputProps={{ startAdornment: <InputAdornment position="start"><LocalLaundryService fontSize="small" /></InputAdornment>, endAdornment: <Typography variant="caption">รอบ</Typography> }}
                                                     />
                                                 </FormLabel>
@@ -623,7 +653,6 @@ const RegisterLinen: React.FC = () => {
                                 <Box sx={{ mb: 3 }}>
                                     <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
                                         <FormLabel label="เครื่องอ่าน RFID (Reader)" required />
-                                        {/* ✅ ปุ่ม Wake Up */}
                                         {selectedReader && (
                                             <ReaderWakeButton 
                                                 readerName={selectedReader} 

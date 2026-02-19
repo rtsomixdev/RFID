@@ -32,12 +32,12 @@ interface MovementItem {
 }
 
 interface StockItem {
-    id: string; // Composite Key (Product_Location)
+    id: string; 
     productName: string;
     location: string;
-    totalQty: number; // System Qty
+    totalQty: number; 
     unitName: string;
-    countedQty?: number; // Physical Count (Editable)
+    countedQty?: number; 
 }
 
 // --- Helper Functions ---
@@ -181,19 +181,35 @@ const Reports: React.FC = () => {
     const handleExportExcel = () => {
         if (currentTab === 0) {
             if (reportData.length === 0) return alert("ไม่มีข้อมูล");
+            
+            // ✅ ปรับ Format ข้อมูลก่อนลง Excel
             const data = reportData.map(item => ({
                 "วัน/เวลา": new Date(item.date).toLocaleString('th-TH'),
                 "ประเภท": getActivityLabel(item.type),
                 "สินค้า": item.productName,
-                "เส้นทาง": item.flow,
+                "เส้นทาง (Flow)": item.flow.replace('->', '➜'), // ทำให้ลูกศรสวยขึ้น
                 "จำนวน": item.qty,
                 "หน่วยนับ": item.unitName || 'ชิ้น',
                 "ผู้ทำรายการ": item.user
             }));
+            
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(data);
+
+            // ✅ บังคับขยายความกว้างคอลัมน์ (Column Width) อัตโนมัติ เพื่อไม่ให้ข้อมูลโดนตัด
+            ws['!cols'] = [
+                { wch: 22 }, // วัน/เวลา
+                { wch: 18 }, // ประเภท
+                { wch: 35 }, // สินค้า
+                { wch: 30 }, // เส้นทาง
+                { wch: 10 }, // จำนวน
+                { wch: 12 }, // หน่วยนับ
+                { wch: 20 }  // ผู้ทำรายการ
+            ];
+
             XLSX.utils.book_append_sheet(wb, ws, "Movement_Logs");
             XLSX.writeFile(wb, `Movement_${startDate}.xlsx`);
+
         } else {
             if (stockData.length === 0) return alert("ไม่มีข้อมูล");
             const data = stockData.map(item => ({
@@ -205,9 +221,12 @@ const Reports: React.FC = () => {
                 "ผลต่าง (Diff)": item.countedQty !== undefined ? (item.countedQty - item.totalQty) : "",
                 "สถานะ": getStockStatus(item.totalQty, item.countedQty).label
             }));
+            
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(data);
-            ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 10 }, { wch: 15 }];
+            
+            ws['!cols'] = [{ wch: 35 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }];
+            
             XLSX.utils.book_append_sheet(wb, ws, "Stock_Balance");
             XLSX.writeFile(wb, `Stock_Audit_${new Date().toISOString().split('T')[0]}.xlsx`);
         }
@@ -226,7 +245,6 @@ const Reports: React.FC = () => {
                 reader.onloadend = () => {
                     if (reader.result) {
                         const base64data = (reader.result as string).split(',')[1];
-                        // ✅ เพิ่มฟอนต์เข้า jsPDF
                         doc.addFileToVFS('Sarabun.ttf', base64data);
                         doc.addFont('Sarabun.ttf', 'Sarabun', 'normal');
                         doc.setFont('Sarabun'); 
@@ -242,13 +260,11 @@ const Reports: React.FC = () => {
         }
     };
 
-    // --- ✅ Export PDF (ใช้ตัวบางทั้งหมด) ---
+    // --- ✅ Export PDF ---
     const handleExportPDF = async () => {
         const doc = new jsPDF();
         
-        // 1. โหลดฟอนต์ก่อนเริ่มวาด
         await addThaiFont(doc);
-
         doc.setFontSize(18);
         
         if (currentTab === 0) {
@@ -267,7 +283,7 @@ const Reports: React.FC = () => {
                     new Date(item.date).toLocaleString('th-TH'),
                     getActivityLabel(item.type),
                     item.productName,
-                    item.flow,
+                    item.flow.replace('->', '➜'), // ✅ เปลี่ยนลูกศรให้สวยงามตรงกับ Excel
                     `${item.qty} ${item.unitName || 'ชิ้น'}`,
                     item.user
                 ]),
@@ -275,16 +291,16 @@ const Reports: React.FC = () => {
                 styles: { 
                     font: 'Sarabun', 
                     fontSize: 10,
-                    fontStyle: 'normal' // 🔴 บังคับใช้ตัวบางทั้งหมด
+                    fontStyle: 'normal' 
                 },
                 headStyles: { 
                     fillColor: [41, 128, 185], 
                     font: 'Sarabun',
-                    fontStyle: 'normal' // 🔴 บังคับ Header ใช้ตัวบาง (แก้ปัญหาเพี้ยน)
+                    fontStyle: 'normal'
                 },
                 bodyStyles: { 
                     font: 'Sarabun',
-                    fontStyle: 'normal' // 🔴 บังคับ Body ใช้ตัวบาง
+                    fontStyle: 'normal' 
                 } 
             });
             doc.save(`Movement_${startDate}.pdf`);
@@ -313,16 +329,16 @@ const Reports: React.FC = () => {
                 styles: { 
                     font: 'Sarabun', 
                     fontSize: 10,
-                    fontStyle: 'normal' // 🔴 บังคับใช้ตัวบาง
+                    fontStyle: 'normal' 
                 },
                 headStyles: { 
                     fillColor: [46, 125, 50], 
                     font: 'Sarabun',
-                    fontStyle: 'normal' // 🔴 บังคับใช้ตัวบาง
+                    fontStyle: 'normal' 
                 }, 
                 bodyStyles: { 
                     font: 'Sarabun',
-                    fontStyle: 'normal' // 🔴 บังคับใช้ตัวบาง
+                    fontStyle: 'normal' 
                 } 
             });
             doc.save(`Stock_Audit_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -390,7 +406,6 @@ const Reports: React.FC = () => {
                         <Table stickyHeader size="small">
                             <TableHead>
                                 <TableRow>
-                                    {/* 🔴 แก้ไข: เอา fontWeight: 'bold' ออก และใช้ 'normal' แทน */}
                                     <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>วัน/เวลา</TableCell>
                                     <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>ประเภท</TableCell>
                                     <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>สินค้า</TableCell>
@@ -409,17 +424,14 @@ const Reports: React.FC = () => {
                                         <TableRow key={row.id} hover>
                                             <TableCell>{new Date(row.date).toLocaleString('th-TH')}</TableCell>
                                             <TableCell>
-                                                {/* 🔴 แก้ไข: เอาตัวหนาออกจาก Chip */}
                                                 <Chip label={getActivityLabel(row.type)} size="small" color={getActivityColor(row.type) as any} variant="filled" sx={{ fontWeight: 'normal', minWidth: 90 }} />
                                             </TableCell>
-                                            {/* 🔴 แก้ไข: เอา fontWeight: 600 ออก */}
                                             <TableCell sx={{ fontWeight: 'normal', color: 'text.primary' }}>{row.productName}</TableCell>
                                             <TableCell>
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', fontSize: '0.85rem' }}>
                                                     {row.flow.replace('->', '➜')}
                                                 </Box>
                                             </TableCell>
-                                            {/* 🔴 แก้ไข: เอา fontWeight: 'bold' ออก */}
                                             <TableCell align="right" sx={{ fontWeight: 'normal', color: 'text.primary' }}>
                                                 {row.qty} {row.unitName || 'ชิ้น'}
                                             </TableCell>
@@ -453,7 +465,6 @@ const Reports: React.FC = () => {
                         <Table>
                             <TableHead>
                                 <TableRow>
-                                    {/* 🔴 แก้ไข: Header Tab 2 เปลี่ยนเป็นตัวบางทั้งหมด */}
                                     <TableCell sx={{ fontWeight: 'normal', width: '30%' }}>สินค้า</TableCell>
                                     <TableCell sx={{ fontWeight: 'normal', width: '20%' }}>สถานที่เก็บ</TableCell>
                                     <TableCell align="center" sx={{ fontWeight: 'normal', width: '15%', bgcolor: '#f0f9ff' }}>ยอดระบบ (System)</TableCell>
@@ -472,7 +483,6 @@ const Reports: React.FC = () => {
                                         const status = getStockStatus(item.totalQty, item.countedQty);
                                         return (
                                             <TableRow key={item.id} hover>
-                                                {/* 🔴 แก้ไข: Body Tab 2 เปลี่ยนเป็นตัวบางทั้งหมด */}
                                                 <TableCell sx={{ fontWeight: 'normal' }}>{item.productName}</TableCell>
                                                 <TableCell>
                                                     <Chip icon={<Inventory sx={{ fontSize: 16 }} />} label={item.location} size="small" variant="outlined" />
@@ -487,7 +497,7 @@ const Reports: React.FC = () => {
                                                         placeholder="0"
                                                         value={item.countedQty !== undefined ? item.countedQty : ''}
                                                         onChange={(e) => handleCountChange(item.id, e.target.value)}
-                                                        sx={{ width: 80, '& input': { textAlign: 'center', fontWeight: 'normal' } }} // 🔴 input text normal
+                                                        sx={{ width: 80, '& input': { textAlign: 'center', fontWeight: 'normal' } }}
                                                     />
                                                 </TableCell>
                                                 <TableCell align="center">

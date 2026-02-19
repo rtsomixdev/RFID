@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-// เพิ่มบรรทัดนี้สำหรับ [JsonIgnore] หรือ [ValidateNever] ถ้าจำเป็น
 using System.Text.Json.Serialization; 
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation; 
 
@@ -14,7 +13,6 @@ public partial class Product
 
     public string ProductName { get; set; } = null!;
 
-    // ✅✅ 1. ตัวนี้ไม่มีเครื่องหมาย ? แปลว่า "บังคับต้องมี" (Logic ถูกต้องตามที่คุณต้องการ) ✅✅
     public int CategoryId { get; set; }
 
     public string? SizeSpec { get; set; }
@@ -23,13 +21,20 @@ public partial class Product
 
     public decimal? StandardWeightKg { get; set; }
 
+    // ✅ 1. เพิ่มตัวแปรเก็บ "สีของผ้า" (อนุญาตให้เป็นค่าว่างได้)
+    public string? Color { get; set; }
+
+    // ✅ 2. เพิ่มตัวแปรเช็ค "ผ้าใช้แล้วทิ้ง" (ค่าเริ่มต้นคือ false = ใช้ซ้ำและซักได้)
+    public bool IsDisposable { get; set; } = false;
+
     public int MaxWashCount { get; set; } = 100;
     
     public int MaxLifespanDays { get; set; } = 365;
 
     public int? DefaultRoomId { get; set; }
 
-    // ✅✅ 2. ใส่ [ValidateNever] เพื่อบอกว่า "ตอนรับข้อมูลเข้า ไม่ต้องเช็คตัวนี้" (แก้ Error 400) ✅✅
+    // ❌ ลบ MinStockLevel ออกไปแล้วครับ (เพราะเราใช้ Global Setting แทนแล้ว)
+
     [ValidateNever] 
     public virtual Category? Category { get; set; }
 

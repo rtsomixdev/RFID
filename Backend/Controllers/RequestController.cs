@@ -198,20 +198,33 @@ namespace Backend.Controllers
                     .Where(ri => ri.RequestId == id)
                     .ToListAsync();
 
+                // ✅ ดึงค่าขั้นต่ำจากตาราง Settings (ถ้าไม่มีให้ใช้ 20)
+                var minStockSetting = await _context.Settings.FirstOrDefaultAsync(s => s.Key == "GlobalMinStock");
+                int minStockLevel = 20;
+                if (minStockSetting != null && int.TryParse(minStockSetting.Value, out int parsedValue))
+                {
+                    minStockLevel = parsedValue;
+                }
+
                 foreach (var item in requestItems)
                 {
-                    // หาของในสต็อกที่ Available (FIFO - เอาของเก่าออกก่อน หรือ LIFO ก็ได้ แล้วแต่ OrderBy)
-                    var availableLinens = await _context.Linens
+                    // เตรียม Query หาของในสต็อกที่ Available
+                    var availableLinensQuery = _context.Linens
                         .Where(l => l.ProductId == item.ProductId && l.IsActive == true && 
-                                   (l.Status == "Available" || l.Status == "Stock" || l.Status == "พร้อมใช้"))
-                        .Take(item.QuantityRequested) 
-                        .ToListAsync();
+                                   (l.Status == "Available" || l.Status == "Stock" || l.Status == "พร้อมใช้"));
+
+                    var totalAvailable = await availableLinensQuery.CountAsync();
 
                     // เช็คว่าของพอไหม (กันเหนียวอีกรอบ)
-                    if (availableLinens.Count < item.QuantityRequested)
+                    if (totalAvailable < item.QuantityRequested)
                     {
-                        return BadRequest(new { message = $"สินค้า ID {item.ProductId} มีไม่พอสำหรับการอนุมัติ (ต้องการ {item.QuantityRequested}, พบ {availableLinens.Count})" });
+                        return BadRequest(new { message = $"สินค้า ID {item.ProductId} มีไม่พอสำหรับการอนุมัติ (ต้องการ {item.QuantityRequested}, พบ {totalAvailable})" });
                     }
+
+                    // ตัดของออกตามจำนวน
+                    var availableLinens = await availableLinensQuery
+                        .Take(item.QuantityRequested) 
+                        .ToListAsync();
 
                     foreach (var linen in availableLinens)
                     {
@@ -230,6 +243,29 @@ namespace Backend.Controllers
                             CreatedAt = ThaiTime()
                         });
                     }
+
+                    // =========================================================
+                    // ✅ แจ้งเตือนเมื่อสต็อกต่ำกว่ากำหนด (Low Stock Alert)
+                    // =========================================================
+                    var remainingStock = totalAvailable - item.QuantityRequested;
+                    if (remainingStock <= minStockLevel)
+                    {
+                        var productInfo = await _context.Products.FindAsync(item.ProductId);
+                        string pName = productInfo?.ProductName ?? "ไม่ทราบชื่อสินค้า";
+
+                        var noti = new Notification
+                        {
+                            RoleId = 1, // 1 = แจ้งเตือนไปที่ Role Admin
+                            Title = "⚠️ แจ้งเตือนสต็อกผ้าต่ำ",
+                            Message = $"ผ้า {pName} คงเหลือ {remainingStock} ชิ้น (ต่ำกว่าเกณฑ์ที่กำหนด {minStockLevel} ชิ้น)",
+                            Type = "WARNING",
+                            IsRead = false,
+                            LinkUrl = "/linen", // ลิงก์ไปหน้าจัดการผ้า
+                            CreatedAt = ThaiTime()
+                        };
+                        _context.Notifications.Add(noti);
+                    }
+                    // =========================================================
                 }
             }
 

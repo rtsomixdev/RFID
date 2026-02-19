@@ -1,5 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Backend.Models; // Ensure this matches your namespace for Models
+using Backend.Models; 
 
 namespace Backend.Models;
 
@@ -99,7 +99,7 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.ReaderId).HasColumnName("reader_id");
             entity.Property(e => e.RoomId).HasColumnName("room_id");
             entity.Property(e => e.ActivityType).HasColumnName("activity_type");
-            entity.Property(e => e.Timestamp).HasColumnName("timestamp"); // or remove if unnecessary and only use created_at
+            entity.Property(e => e.Timestamp).HasColumnName("timestamp"); 
             entity.Property(e => e.FromLocation).HasColumnName("from_location");
             entity.Property(e => e.ToLocation).HasColumnName("to_location");
             entity.Property(e => e.StatusAfter).HasColumnName("status_after");
@@ -118,9 +118,15 @@ public partial class LinenDbContext : DbContext
             entity.Property(e => e.UnitName).HasColumnName("unit_name");
             entity.Property(e => e.StandardWeightKg).HasColumnName("standard_weight_kg");
             entity.Property(e => e.DefaultRoomId).HasColumnName("default_room_id");
-             // Add MaxLifespanDays mapping if needed in DB, otherwise ignore
-             // entity.Property(e => e.MaxLifespanDays).HasColumnName("MaxLifespanDays");
-             // entity.Property(e => e.MaxWashCount).HasColumnName("MaxWashCount");
+            
+            // ✅ แมปคอลัมน์ใหม่ 2 ตัวที่เพิ่งเพิ่มเข้ามา
+            entity.Property(e => e.Color).HasColumnName("color");
+            entity.Property(e => e.IsDisposable).HasColumnName("is_disposable");
+
+            entity.Property(e => e.MaxLifespanDays).HasColumnName("MaxLifespanDays");
+            entity.Property(e => e.MaxWashCount).HasColumnName("MaxWashCount");
+
+            entity.Ignore("MinStockLevel"); 
         });
 
         // 7. Reader
