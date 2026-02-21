@@ -25,6 +25,9 @@ interface MovementItem {
     date: string;
     type: string;
     productName: string;
+    categoryName?: string; // ✅ เพิ่มหมวดหมู่
+    sizeSpec?: string;     // ✅ เพิ่มขนาด
+    color?: string;        // ✅ เพิ่มสี
     unitName?: string;
     flow: string;
     qty: number;
@@ -34,6 +37,10 @@ interface MovementItem {
 interface StockItem {
     id: string; 
     productName: string;
+    categoryName?: string; // ✅ เพิ่มหมวดหมู่
+    sizeSpec?: string;     // ✅ เพิ่มขนาด
+    color?: string;        // ✅ เพิ่มสี
+    isDisposable?: boolean;// ✅ เพิ่มสถานะใช้แล้วทิ้ง
     location: string;
     totalQty: number; 
     unitName: string;
@@ -107,21 +114,31 @@ const Reports: React.FC = () => {
             const reqReport = axios.get(`${BASE_URL}/Report/Movement`, {
                 params: { start: startDate, end: endDate, type: selectedType }
             });
-            const reqUnits = axios.get(`${BASE_URL}/Linen`);
+            // ✅ ดึงข้อมูล Product มาเพื่อจับคู่ สี, ขนาด, หมวดหมู่ ให้รายงานความเคลื่อนไหว
+            const reqProducts = axios.get(`${BASE_URL}/Product`);
 
-            const [resReport, resUnits] = await Promise.all([reqReport, reqUnits]);
+            const [resReport, resProducts] = await Promise.all([reqReport, reqProducts]);
 
-            const unitMap: Record<string, string> = {};
-            (resUnits.data || []).forEach((item: any) => {
-                if (item.product?.productName && item.product?.unitName) {
-                    unitMap[item.product.productName] = item.product.unitName;
-                }
+            const prodMap: Record<string, any> = {};
+            (resProducts.data || []).forEach((p: any) => {
+                prodMap[p.productName] = {
+                    categoryName: p.category?.categoryName || '-',
+                    sizeSpec: p.sizeSpec || '-',
+                    color: p.color || '-',
+                    unitName: p.unitName || 'ชิ้น'
+                };
             });
 
-            const enrichedData = resReport.data.map((item: any) => ({
-                ...item,
-                unitName: item.unitName || unitMap[item.productName] || 'ชิ้น' 
-            }));
+            const enrichedData = resReport.data.map((item: any) => {
+                const pInfo = prodMap[item.productName] || {};
+                return {
+                    ...item,
+                    categoryName: pInfo.categoryName || '-',
+                    sizeSpec: pInfo.sizeSpec || '-',
+                    color: pInfo.color || '-',
+                    unitName: item.unitName || pInfo.unitName || 'ชิ้น' 
+                };
+            });
 
             setReportData(enrichedData);
         } catch (err) {
@@ -143,13 +160,23 @@ const Reports: React.FC = () => {
             const groupedStock: { [key: string]: StockItem } = {};
 
             allLinens.forEach(item => {
-                const productName = item.product?.productName || 'สินค้าไม่ระบุ';
+                const p = item.product || {};
+                const productName = p.productName || 'สินค้าไม่ระบุ';
+                const categoryName = p.category?.categoryName || '-';
+                const sizeSpec = p.sizeSpec || '-';
+                const color = p.color || '-';
+                const isDisposable = p.isDisposable || false;
                 const location = item.currentLocation || 'ไม่ระบุตำแหน่ง';
-                const unitName = item.product?.unitName || 'ชิ้น';
-                const key = `${productName}_${location}`;
+                const unitName = p.unitName || 'ชิ้น';
+                
+                // ✅ จัดกลุ่มแยกตาม ชื่อ+ขนาด+สี+สถานที่ เพื่อความแม่นยำ
+                const key = `${productName}_${sizeSpec}_${color}_${location}`;
 
                 if (!groupedStock[key]) {
-                    groupedStock[key] = { id: key, productName, location, totalQty: 0, unitName, countedQty: undefined };
+                    groupedStock[key] = { 
+                        id: key, productName, categoryName, sizeSpec, color, isDisposable, 
+                        location, totalQty: 0, unitName, countedQty: undefined 
+                    };
                 }
                 groupedStock[key].totalQty += 1;
             });
@@ -182,12 +209,15 @@ const Reports: React.FC = () => {
         if (currentTab === 0) {
             if (reportData.length === 0) return alert("ไม่มีข้อมูล");
             
-            // ✅ ปรับ Format ข้อมูลก่อนลง Excel
+            // ✅ ข้อมูล Excel ที่ครบถ้วน
             const data = reportData.map(item => ({
                 "วัน/เวลา": new Date(item.date).toLocaleString('th-TH'),
                 "ประเภท": getActivityLabel(item.type),
-                "สินค้า": item.productName,
-                "เส้นทาง (Flow)": item.flow.replace('->', '➜'), // ทำให้ลูกศรสวยขึ้น
+                "หมวดหมู่": item.categoryName,
+                "ชื่อสินค้า": item.productName,
+                "ขนาด": item.sizeSpec,
+                "สี": item.color,
+                "เส้นทาง (Flow)": item.flow.replace('->', '➜'),
                 "จำนวน": item.qty,
                 "หน่วยนับ": item.unitName || 'ชิ้น',
                 "ผู้ทำรายการ": item.user
@@ -196,15 +226,18 @@ const Reports: React.FC = () => {
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(data);
 
-            // ✅ บังคับขยายความกว้างคอลัมน์ (Column Width) อัตโนมัติ เพื่อไม่ให้ข้อมูลโดนตัด
+            // ✅ บังคับขยายความกว้างคอลัมน์ Excel อัตโนมัติ
             ws['!cols'] = [
-                { wch: 22 }, // วัน/เวลา
+                { wch: 20 }, // วัน/เวลา
                 { wch: 18 }, // ประเภท
-                { wch: 35 }, // สินค้า
-                { wch: 30 }, // เส้นทาง
+                { wch: 15 }, // หมวดหมู่
+                { wch: 30 }, // ชื่อสินค้า
+                { wch: 12 }, // ขนาด
+                { wch: 12 }, // สี
+                { wch: 25 }, // เส้นทาง
                 { wch: 10 }, // จำนวน
-                { wch: 12 }, // หน่วยนับ
-                { wch: 20 }  // ผู้ทำรายการ
+                { wch: 10 }, // หน่วยนับ
+                { wch: 15 }  // ผู้ทำรายการ
             ];
 
             XLSX.utils.book_append_sheet(wb, ws, "Movement_Logs");
@@ -213,8 +246,11 @@ const Reports: React.FC = () => {
         } else {
             if (stockData.length === 0) return alert("ไม่มีข้อมูล");
             const data = stockData.map(item => ({
-                "สินค้า": item.productName,
                 "สถานที่เก็บปัจจุบัน": item.location,
+                "หมวดหมู่": item.categoryName,
+                "ชื่อสินค้า": item.productName + (item.isDisposable ? ' (ใช้แล้วทิ้ง)' : ''),
+                "ขนาด": item.sizeSpec,
+                "สี": item.color,
                 "ยอดคงเหลือ (System)": item.totalQty,
                 "หน่วยนับ": item.unitName,
                 "ยอดตรวจนับจริง": item.countedQty !== undefined ? item.countedQty : "",
@@ -225,7 +261,11 @@ const Reports: React.FC = () => {
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(data);
             
-            ws['!cols'] = [{ wch: 35 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }];
+            // ✅ ขยายคอลัมน์ Excel สำหรับหน้า Stock
+            ws['!cols'] = [
+                { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, 
+                { wch: 18 }, { wch: 10 }, { wch: 18 }, { wch: 12 }, { wch: 15 }
+            ];
             
             XLSX.utils.book_append_sheet(wb, ws, "Stock_Balance");
             XLSX.writeFile(wb, `Stock_Audit_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -260,9 +300,10 @@ const Reports: React.FC = () => {
         }
     };
 
-    // --- ✅ Export PDF ---
+    // --- ✅ Export PDF (แนวนอน Landscape) ---
     const handleExportPDF = async () => {
-        const doc = new jsPDF();
+        // ✅ เปลี่ยนเป็นแนวนอน ('landscape') เพื่อให้ใส่คอลัมน์ได้เยอะๆ
+        const doc = new jsPDF('landscape'); 
         
         await addThaiFont(doc);
         doc.setFontSize(18);
@@ -278,30 +319,23 @@ const Reports: React.FC = () => {
 
             autoTable(doc, {
                 startY: 40,
-                head: [['เวลา', 'ประเภท', 'สินค้า', 'เส้นทาง', 'จำนวน', 'ผู้ทำรายการ']],
+                // ✅ เพิ่มคอลัมน์ หมวดหมู่ ขนาด สี ลงใน PDF
+                head: [['เวลา', 'ประเภท', 'หมวดหมู่', 'สินค้า', 'ขนาด', 'สี', 'เส้นทาง', 'จำนวน', 'ผู้ทำรายการ']],
                 body: reportData.map(item => [
                     new Date(item.date).toLocaleString('th-TH'),
                     getActivityLabel(item.type),
+                    item.categoryName,
                     item.productName,
-                    item.flow.replace('->', '➜'), // ✅ เปลี่ยนลูกศรให้สวยงามตรงกับ Excel
+                    item.sizeSpec,
+                    item.color,
+                    item.flow.replace('->', '➜'), 
                     `${item.qty} ${item.unitName || 'ชิ้น'}`,
                     item.user
                 ]),
                 theme: 'grid',
-                styles: { 
-                    font: 'Sarabun', 
-                    fontSize: 10,
-                    fontStyle: 'normal' 
-                },
-                headStyles: { 
-                    fillColor: [41, 128, 185], 
-                    font: 'Sarabun',
-                    fontStyle: 'normal'
-                },
-                bodyStyles: { 
-                    font: 'Sarabun',
-                    fontStyle: 'normal' 
-                } 
+                styles: { font: 'Sarabun', fontSize: 9, fontStyle: 'normal' },
+                headStyles: { fillColor: [41, 128, 185], font: 'Sarabun', fontStyle: 'normal' },
+                bodyStyles: { font: 'Sarabun', fontStyle: 'normal' } 
             });
             doc.save(`Movement_${startDate}.pdf`);
 
@@ -315,10 +349,13 @@ const Reports: React.FC = () => {
 
             autoTable(doc, {
                 startY: 35,
-                head: [['สินค้า', 'สถานที่', 'ยอดระบบ', 'หน่วย', 'นับจริง', 'ผลต่าง', 'สถานะ']],
+                // ✅ เพิ่มคอลัมน์ หมวดหมู่ ขนาด สี ลงใน PDF
+                head: [['สถานที่', 'สินค้า', 'ขนาด', 'สี', 'ยอดระบบ', 'หน่วย', 'นับจริง', 'ผลต่าง', 'สถานะ']],
                 body: stockData.map(item => [
-                    item.productName,
                     item.location,
+                    item.productName + (item.isDisposable ? ' (ทิ้ง)' : ''),
+                    item.sizeSpec,
+                    item.color,
                     item.totalQty,
                     item.unitName,
                     item.countedQty !== undefined ? item.countedQty : '',
@@ -326,20 +363,9 @@ const Reports: React.FC = () => {
                     getStockStatus(item.totalQty, item.countedQty).label
                 ]),
                 theme: 'grid',
-                styles: { 
-                    font: 'Sarabun', 
-                    fontSize: 10,
-                    fontStyle: 'normal' 
-                },
-                headStyles: { 
-                    fillColor: [46, 125, 50], 
-                    font: 'Sarabun',
-                    fontStyle: 'normal' 
-                }, 
-                bodyStyles: { 
-                    font: 'Sarabun',
-                    fontStyle: 'normal' 
-                } 
+                styles: { font: 'Sarabun', fontSize: 9, fontStyle: 'normal' },
+                headStyles: { fillColor: [46, 125, 50], font: 'Sarabun', fontStyle: 'normal' }, 
+                bodyStyles: { font: 'Sarabun', fontStyle: 'normal' } 
             });
             doc.save(`Stock_Audit_${new Date().toISOString().split('T')[0]}.pdf`);
         }
@@ -377,23 +403,23 @@ const Reports: React.FC = () => {
                         <Grid container spacing={3} alignItems="flex-end">
                             <Grid item xs={6} md={3}>
                                 <FormLabel label="วันที่เริ่มต้น">
-                                    <TextField type="date" fullWidth value={startDate} onChange={e => setStartDate(e.target.value)} />
+                                    <TextField type="date" fullWidth size="small" value={startDate} onChange={e => setStartDate(e.target.value)} />
                                 </FormLabel>
                             </Grid>
                             <Grid item xs={6} md={3}>
                                 <FormLabel label="วันที่สิ้นสุด">
-                                    <TextField type="date" fullWidth value={endDate} onChange={e => setEndDate(e.target.value)} />
+                                    <TextField type="date" fullWidth size="small" value={endDate} onChange={e => setEndDate(e.target.value)} />
                                 </FormLabel>
                             </Grid>
                             <Grid item xs={12} md={3}>
                                 <FormLabel label="ประเภทรายการ">
-                                    <Select fullWidth value={selectedType} onChange={(e) => setSelectedType(e.target.value)} displayEmpty>
+                                    <Select fullWidth size="small" value={selectedType} onChange={(e) => setSelectedType(e.target.value)} displayEmpty>
                                         {activityTypes.map((type) => (<MenuItem key={type.value} value={type.value}>{type.label}</MenuItem>))}
                                     </Select>
                                 </FormLabel>
                             </Grid>
                             <Grid item xs={12} md={3}>
-                                <Button variant="contained" fullWidth size="large" startIcon={<Search />} onClick={handleFetchReport} sx={{ height: 48 }}>ค้นหา</Button>
+                                <Button variant="contained" fullWidth startIcon={<Search />} onClick={handleFetchReport} sx={{ height: 40 }}>ค้นหา</Button>
                             </Grid>
                         </Grid>
                         <Box sx={{ mt: 3, pt: 2, borderTop: `1px dashed ${theme.palette.divider}`, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
@@ -409,6 +435,7 @@ const Reports: React.FC = () => {
                                     <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>วัน/เวลา</TableCell>
                                     <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>ประเภท</TableCell>
                                     <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>สินค้า</TableCell>
+                                    <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>รายละเอียด (สี/ขนาด)</TableCell>
                                     <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>เส้นทาง (Flow)</TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>จำนวน</TableCell>
                                     <TableCell align="center" sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>โดย</TableCell>
@@ -416,17 +443,23 @@ const Reports: React.FC = () => {
                             </TableHead>
                             <TableBody>
                                 {loading ? (
-                                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 8 }}><CircularProgress /><Typography variant="body2" sx={{ mt: 2 }}>กำลังโหลด...</Typography></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={7} align="center" sx={{ py: 8 }}><CircularProgress /><Typography variant="body2" sx={{ mt: 2 }}>กำลังโหลด...</Typography></TableCell></TableRow>
                                 ) : reportData.length === 0 ? (
-                                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 8, color: 'text.disabled' }}>ไม่พบข้อมูล</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={7} align="center" sx={{ py: 8, color: 'text.disabled' }}>ไม่พบข้อมูล</TableCell></TableRow>
                                 ) : (
-                                    reportData.map((row) => (
-                                        <TableRow key={row.id} hover>
+                                    reportData.map((row, idx) => (
+                                        <TableRow key={idx} hover>
                                             <TableCell>{new Date(row.date).toLocaleString('th-TH')}</TableCell>
                                             <TableCell>
                                                 <Chip label={getActivityLabel(row.type)} size="small" color={getActivityColor(row.type) as any} variant="filled" sx={{ fontWeight: 'normal', minWidth: 90 }} />
                                             </TableCell>
-                                            <TableCell sx={{ fontWeight: 'normal', color: 'text.primary' }}>{row.productName}</TableCell>
+                                            <TableCell sx={{ fontWeight: 'normal', color: 'text.primary' }}>
+                                                {row.productName}
+                                                <Typography variant="caption" display="block" color="text.secondary">{row.categoryName}</Typography>
+                                            </TableCell>
+                                            <TableCell sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
+                                                {row.color} / {row.sizeSpec}
+                                            </TableCell>
                                             <TableCell>
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary', fontSize: '0.85rem' }}>
                                                     {row.flow.replace('->', '➜')}
@@ -462,28 +495,36 @@ const Reports: React.FC = () => {
                     </Box>
                     
                     <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 3 }}>
-                        <Table>
+                        <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell sx={{ fontWeight: 'normal', width: '30%' }}>สินค้า</TableCell>
-                                    <TableCell sx={{ fontWeight: 'normal', width: '20%' }}>สถานที่เก็บ</TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 'normal', width: '15%', bgcolor: '#f0f9ff' }}>ยอดระบบ (System)</TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 'normal', width: '15%', bgcolor: '#fff7ed' }}>ยอดนับจริง (Count)</TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 'normal', width: '10%' }}>ผลต่าง (Diff)</TableCell>
+                                    <TableCell sx={{ fontWeight: 'normal', width: '25%' }}>สินค้า</TableCell>
+                                    <TableCell sx={{ fontWeight: 'normal', width: '15%' }}>รายละเอียด</TableCell>
+                                    <TableCell sx={{ fontWeight: 'normal', width: '15%' }}>สถานที่เก็บ</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 'normal', width: '15%', bgcolor: '#f0f9ff' }}>ยอดระบบ</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 'normal', width: '10%', bgcolor: '#fff7ed' }}>นับจริง</TableCell>
+                                    <TableCell align="center" sx={{ fontWeight: 'normal', width: '10%' }}>ผลต่าง</TableCell>
                                     <TableCell align="center" sx={{ fontWeight: 'normal', width: '10%' }}>สถานะ</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {loading ? (
-                                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5 }}><CircularProgress /></TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5 }}><CircularProgress /></TableCell></TableRow>
                                 ) : stockData.length === 0 ? (
-                                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.disabled' }}>ไม่พบข้อมูลสต็อก</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.disabled' }}>ไม่พบข้อมูลสต็อก</TableCell></TableRow>
                                 ) : (
                                     stockData.map((item) => {
                                         const status = getStockStatus(item.totalQty, item.countedQty);
                                         return (
                                             <TableRow key={item.id} hover>
-                                                <TableCell sx={{ fontWeight: 'normal' }}>{item.productName}</TableCell>
+                                                <TableCell sx={{ fontWeight: 'normal' }}>
+                                                    {item.productName}
+                                                    {item.isDisposable && <Chip label="ใช้แล้วทิ้ง" size="small" color="warning" sx={{ ml: 1, height: 16, fontSize: '0.65rem' }} />}
+                                                    <Typography variant="caption" display="block" color="text.secondary">{item.categoryName}</Typography>
+                                                </TableCell>
+                                                <TableCell sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
+                                                    สี: {item.color} <br/> ขนาด: {item.sizeSpec}
+                                                </TableCell>
                                                 <TableCell>
                                                     <Chip icon={<Inventory sx={{ fontSize: 16 }} />} label={item.location} size="small" variant="outlined" />
                                                 </TableCell>
