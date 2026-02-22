@@ -36,7 +36,7 @@ namespace Backend.Services
         // ✅ กำหนดขา GPIO
         private const string GPIO_GREEN = "12";
         private const string GPIO_YELLOW = "13";
-        private const string GPIO_RED = "14"; // แก้ตาม ESP32 Code ล่าสุดของคุณ (Red=14)
+        private const string GPIO_RED = "14";
 
         public MqttListenerService(IServiceScopeFactory scopeFactory, IHubContext<NotificationHub> hubContext, MqttPublisherService mqttPublisher)
         {
@@ -47,7 +47,6 @@ namespace Backend.Services
 
         private DateTime ThaiTime() => DateTime.UtcNow.AddHours(7);
 
-        // Helper: สั่งเปิดไฟ LED
         private async Task TriggerLed(string readerName, string color)
         {
             string gpio = color switch
@@ -60,7 +59,6 @@ namespace Backend.Services
             await _mqttPublisher.PublishCommandAsync(readerName, "LED", gpio, true);
         }
 
-        // Helper: สั่ง Sleep/Wake
         private async Task SetSleepMode(string readerName, bool sleep)
         {
             string cmd = sleep ? "SLEEP" : "WAKE";
@@ -99,7 +97,7 @@ namespace Backend.Services
             };
 
             await _mqttClient.StartAsync(managedMqttClientOptions);
-            _ = MonitorOfflineNodes(stoppingToken); // เริ่ม Loop เช็คเวลาและ Offline
+            _ = MonitorOfflineNodes(stoppingToken); 
 
             while (!stoppingToken.IsCancellationRequested) await Task.Delay(1000, stoppingToken);
         }
@@ -128,30 +126,24 @@ namespace Backend.Services
                         
                         if (reader != null)
                         {
-                            // 1. ระบุว่าเครื่อง Online แล้ว (Heartbeat มา = Online)
                             reader.IsActive = true; 
-                            
-                            // 2. อัปเดตเวลาล่าสุดเสมอ เพื่อไม่ให้โดนตัด Offline
                             reader.UpdatedAt = ThaiTime(); 
 
                             if (statusData?.ip != null) reader.IpAddress = statusData.ip;
 
-                            // 3. 🔥 เช็คว่าตื่นจากการกดปุ่มหรือไม่ (Active)
                             if (statusData?.status == "active")
                             {
-                                // ถ้าสถานะเป็น active ให้ปรับโหมดเป็น Normal เพื่อรับสแกนทันที
-                                if (reader.CurrentMode == "SLEEP")
+                                if (reader.CurrentMode == "SLEEP" || reader.CurrentMode == "โหมดหลับ (SLEEP)")
                                 {
-                                    reader.CurrentMode = "Normal";
+                                    reader.CurrentMode = "โหมดปกติ (Normal)"; // ✅ อัปเดตให้เป็นภาษาไทย
                                     Console.WriteLine($"🔘 Hardware Wakeup: {readerName} is now ACTIVE.");
                                 }
                             }
                             else if (statusData?.status == "sleep")
                             {
-                                // Hardware บอกเองว่าหลับแล้ว
-                                if (reader.CurrentMode != "SLEEP")
+                                if (reader.CurrentMode != "โหมดหลับ (SLEEP)")
                                 {
-                                    reader.CurrentMode = "SLEEP";
+                                    reader.CurrentMode = "โหมดหลับ (SLEEP)"; // ✅ อัปเดตให้เป็นภาษาไทย
                                     Console.WriteLine($"💤 Hardware Reported Sleep: {readerName}");
                                 }
                             }
@@ -165,145 +157,185 @@ namespace Backend.Services
             }
 
             // -----------------------------------------------------------
-            // 🔵 CASE B: Scan RFID
+            // 🔵 CASE B: Scan RFID (รองรับการรับแบบ Batch Array)
             // -----------------------------------------------------------
             if (topic.EndsWith("/scan"))
             {
-                // ✅ สแกนปุ๊บ -> สั่งไฟเหลือง (Processing)
                 await TriggerLed(readerName, "YELLOW");
 
                 using (var scope = _scopeFactory.CreateScope())
                 {
                     var context = scope.ServiceProvider.GetRequiredService<LinenDbContext>();
                     
-                    string rfid = payloadStr;
-                    if (payloadStr.Trim().StartsWith("{")) {
+                    List<string> rfidTagsToProcess = new List<string>();
+
+                    // 📦 1. พยายาม Parse JSON แบบใหม่ (Batch Array)
+                    if (payloadStr.Trim().StartsWith("{")) 
+                    {
                         try {
-                            var data = JsonSerializer.Deserialize<ScanPayload>(payloadStr, _jsonOptions);
-                            rfid = data?.rfid ?? "";
+                            var data = JsonSerializer.Deserialize<ScanBatchPayload>(payloadStr, _jsonOptions);
+                            
+                            // ถ้ารับแบบ Batch มาได้ ให้เพิ่มลง List
+                            if (data?.rfid_tags != null && data.rfid_tags.Count > 0) {
+                                rfidTagsToProcess.AddRange(data.rfid_tags);
+                            } 
+                            // Fallback เผื่อมีข้อความแบบเก่าหลงมา
+                            else if (!string.IsNullOrEmpty(data?.rfid)) {
+                                rfidTagsToProcess.Add(data.rfid);
+                            }
                         } catch { /* Ignore */ }
                     }
-                    if (string.IsNullOrEmpty(rfid)) return;
+                    else {
+                        rfidTagsToProcess.Add(payloadStr.Trim());
+                    }
+
+                    if (rfidTagsToProcess.Count == 0) return;
 
                     var readerDB = await context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
                     
-                    // ✅ สแกนเจอ -> รีเซ็ตเวลา UpdatedAt เพื่อต่ออายุ Online และ Active 30s
                     if (readerDB != null) {
                         readerDB.UpdatedAt = ThaiTime(); 
-                        readerDB.IsActive = true; // ยืนยันว่า Online
+                        readerDB.IsActive = true; 
 
-                        // ถ้าเครื่องหลับอยู่ แต่ดันส่ง scan มาได้ (แปลกๆ แต่กันไว้) ให้ตื่น
-                        if (readerDB.CurrentMode == "SLEEP") {
-                             readerDB.CurrentMode = "Normal";
+                        if (readerDB.CurrentMode == "SLEEP" || readerDB.CurrentMode == "โหมดหลับ (SLEEP)") {
+                             readerDB.CurrentMode = "โหมดปกติ (Normal)";
                         }
-                        
                         await context.SaveChangesAsync();
                     }
 
-                    string currentMode = readerDB?.CurrentMode ?? "Normal";
+                    string currentMode = readerDB?.CurrentMode ?? "โหมดปกติ (Normal)";
 
                     if (!_readerStates.ContainsKey(readerName)) {
                         _readerStates[readerName] = new ReaderRuntimeState();
                     }
                     var state = _readerStates[readerName];
 
-                    // 1. เช็ค Special Tag (เปลี่ยนโหมด)
-                    var specialTag = await context.SpecialTags.FindAsync(rfid);
-                    if (specialTag != null)
+                    // 🔄 วนลูปประมวลผลทีละ Tag ใน Batch
+                    foreach (var rfid in rfidTagsToProcess)
                     {
-                        currentMode = specialTag.CommandType;
-                        state.ScanningUntil = (currentMode == "Normal") ? null : ThaiTime().AddSeconds(30); 
-                        
-                        if(readerDB != null) {
-                            readerDB.CurrentMode = currentMode;
-                            await context.SaveChangesAsync();
-                        }
+                        if (string.IsNullOrEmpty(rfid)) continue;
 
-                        Console.WriteLine($"🎛 [Mode Change] {readerName} -> {currentMode}");
-                        await TriggerLed(readerName, "GREEN");
-                        await _hubContext.Clients.All.SendAsync("OnModeChanged", new { reader = readerName, mode = currentMode });
-                        return;
-                    }
-
-                    // 2. เช็ค Timeout โหมดพิเศษ
-                    if (currentMode != "Normal" && state.ScanningUntil.HasValue && !state.IsScanningActive)
-                    {
-                        currentMode = "Normal";
-                        if(readerDB != null) {
-                            readerDB.CurrentMode = "Normal";
-                            await context.SaveChangesAsync();
-                        }
-                    }
-
-                    // 3. ประมวลผลผ้า
-                    var linen = await context.Linens.Include(l => l.Product).FirstOrDefaultAsync(l => l.RfidCode == rfid);
-                    
-                    if (linen != null)
-                    {
-                        bool isDuplicate = false;
-                        bool shouldSave = false;
-                        string prevLoc = linen.CurrentLocation ?? "ไม่ระบุ";
-                        string finalStatus = TranslateStatus(linen.Status); 
-
-                        Console.WriteLine($"🔍 Processing {rfid} | Reader: '{readerName}' | ModeDB: {currentMode} | Status: {linen.Status}");
-
-                        switch (currentMode)
+                        // 2.1 เช็ค Special Tag (เปลี่ยนโหมด)
+                        var specialTag = await context.SpecialTags.FindAsync(rfid);
+                        if (specialTag != null)
                         {
-                            case "MODE_WASH":
-                                if (linen.Status == "ส่งซัก" || linen.Status == "SendingToLaundry") isDuplicate = true;
-                                else { linen.Status = "ส่งซัก"; finalStatus = "ส่งซัก"; linen.CurrentLocation = "จุดรอรับ (Transit)"; LogMovement(context, linen.LinenId, "SendToWash", "ส่งผ้าออกจากวอร์ด (รอรับ)", prevLoc, "จุดรอรับ (Transit)"); shouldSave = true; }
-                                break;
-                            case "MODE_RECEIVE_LAUNDRY": 
-                                if (linen.Status == "กำลังซัก" || linen.Status == "Washing") isDuplicate = true;
-                                else { linen.Status = "กำลังซัก"; finalStatus = "กำลังซัก"; linen.CurrentLocation = "โรงซัก (Laundry)"; linen.WashCount++; linen.LastWashDate = ThaiTime(); LogMovement(context, linen.LinenId, "ReceiveWash", "รับผ้าเข้าเครื่องซัก", prevLoc, "โรงซัก (Laundry)"); shouldSave = true; }
-                                break;
-                            case "MODE_RESTOCK":
-                                if ((linen.Status == "พร้อมใช้" || linen.Status == "Available") && linen.CurrentLocation == "คลังผ้า (Stock)") isDuplicate = true;
-                                else { linen.Status = "พร้อมใช้"; finalStatus = "พร้อมใช้"; linen.CurrentLocation = "คลังผ้า (Stock)"; LogMovement(context, linen.LinenId, "Restock", "รับเข้าคลัง (Auto)", prevLoc, "คลังผ้า (Stock)"); shouldSave = true; }
-                                break;
-                            case "MODE_DISCARD":
-                                if (linen.IsActive == false) isDuplicate = true;
-                                else { linen.Status = "จำหน่ายออก"; finalStatus = "จำหน่ายออก"; linen.IsActive = false; linen.CurrentLocation = "จุดจำหน่าย (Disposal)"; LogMovement(context, linen.LinenId, "Discard", "จำหน่ายออก (Auto)", prevLoc, "จุดจำหน่าย (Disposal)"); shouldSave = true; }
-                                break;
-                            case "MODE_DISPATCH":
-                                if (linen.Status == "กำลังส่ง" && linen.CurrentLocation == "ระหว่างขนส่ง") isDuplicate = true;
-                                else { linen.Status = "กำลังส่ง"; finalStatus = "กำลังส่ง"; linen.CurrentLocation = "ระหว่างขนส่ง"; LogMovement(context, linen.LinenId, "Dispatch", "กำลังขนส่งไปยังปลายทาง", prevLoc, "ระหว่างขนส่ง"); shouldSave = true; }
-                                break;
-                            default: // Normal
-                                if (linen.CurrentLocation != readerName) {
-                                    linen.CurrentLocation = readerName;
-                                    shouldSave = true;
-                                    if(linen.Status == "กำลังส่ง" || linen.Status == "Dispatch" || linen.Status == "ระหว่างขนส่ง") {
-                                        linen.Status = "ถูกใช้งาน"; finalStatus = "ถูกใช้งาน (รับเข้า)"; LogMovement(context, linen.LinenId, "Receive", "รับผ้าจากการขนส่ง (Auto)", prevLoc, readerName);
-                                    } else if(linen.Status == "พร้อมใช้" || linen.Status == "Available") {
-                                        linen.Status = "ถูกใช้งาน"; finalStatus = "ถูกใช้งาน"; LogMovement(context, linen.LinenId, "Move", "นำผ้าไปใช้งาน", prevLoc, readerName);
-                                    } else {
-                                        LogMovement(context, linen.LinenId, "Move", "ย้ายตำแหน่ง", prevLoc, readerName);
-                                    }
-                                } else { isDuplicate = true; }
-                                break;
+                            currentMode = specialTag.CommandType; // ✅ ใช้ค่าจาก DB ตรงๆ
+                            
+                            // ถ้าไม่ใช่โหมดปกติ ให้มีเวลานับถอยหลัง 30 วินาที
+                            state.ScanningUntil = (currentMode == "โหมดปกติ (Normal)" || currentMode == "Normal") ? null : ThaiTime().AddSeconds(30); 
+                            
+                            if(readerDB != null) {
+                                readerDB.CurrentMode = currentMode;
+                                await context.SaveChangesAsync();
+                            }
+
+                            Console.WriteLine($"🎛 [Mode Change] {readerName} -> {currentMode} (Triggered by {rfid})");
+                            await TriggerLed(readerName, "GREEN");
+                            await _hubContext.Clients.All.SendAsync("OnModeChanged", new { reader = readerName, mode = currentMode });
+                            continue; // ข้ามไปอ่าน Tag ถัดไปใน Batch
                         }
 
-                        // ✅ จบงาน -> สั่งไฟเขียว (Ready)
-                        if (isDuplicate) {
-                            Console.WriteLine($"🔁 [Duplicate] {rfid}");
-                            await TriggerLed(readerName, "GREEN"); 
-                            await _hubContext.Clients.All.SendAsync("OnScan", new { rfid, reader = readerName, mode = currentMode, status = finalStatus, productName = linen.Product?.ProductName, timestamp = ThaiTime(), isDuplicate = true });
+                        // 2.2 เช็ค Timeout โหมดพิเศษ (หมดเวลา 30 วิ ให้กลับเป็นโหมดปกติ)
+                        if (currentMode != "โหมดปกติ (Normal)" && currentMode != "Normal" && state.ScanningUntil.HasValue && !state.IsScanningActive)
+                        {
+                            currentMode = "โหมดปกติ (Normal)";
+                            if(readerDB != null) {
+                                readerDB.CurrentMode = "โหมดปกติ (Normal)";
+                                await context.SaveChangesAsync();
+                            }
                         }
-                        else if (shouldSave) {
-                            linen.UpdatedAt = ThaiTime();
-                            await context.SaveChangesAsync();
-                            Console.WriteLine($"✅ [Success] {rfid}");
-                            await TriggerLed(readerName, "GREEN");
-                            await _hubContext.Clients.All.SendAsync("OnScan", new { rfid, reader = readerName, mode = currentMode, status = finalStatus, location = linen.CurrentLocation, productName = linen.Product?.ProductName, timestamp = ThaiTime(), isDuplicate = false });
+
+                        // 2.3 ประมวลผลผ้า
+                        var linen = await context.Linens.Include(l => l.Product).FirstOrDefaultAsync(l => l.RfidCode == rfid);
+                        
+                        if (linen != null)
+                        {
+                            bool isDuplicate = false;
+                            bool shouldSave = false;
+                            string prevLoc = linen.CurrentLocation ?? "ไม่ระบุ";
+                            string finalStatus = TranslateStatus(linen.Status); 
+
+                            Console.WriteLine($"🔍 Processing {rfid} | Reader: '{readerName}' | Mode: {currentMode} | Status: {linen.Status}");
+
+                            // 📍 2.4 ดึงสถานที่ตั้งของ Reader (เพื่อ Update Location ของผ้า)
+                            string targetLocation = readerName; 
+                            if (readerDB != null && !string.IsNullOrEmpty(readerDB.Location)) {
+                                targetLocation = readerDB.Location; 
+                            }
+
+                            // ✅ 2.5 ปรับ Switch Case ให้ตรงกับคำใน Database ของคุณเป๊ะๆ
+                            switch (currentMode)
+                            {
+                                case "ส่งผ้าซัก": // ตรงกับรูปใน DBeaver
+                                case "โหมดส่งซัก": 
+                                case "MODE_WASH": 
+                                    if (linen.Status == "ส่งซัก" || linen.Status == "SendingToLaundry") isDuplicate = true;
+                                    else { linen.Status = "ส่งซัก"; finalStatus = "ส่งซัก"; linen.CurrentLocation = "จุดรอรับ (Transit)"; LogMovement(context, linen.LinenId, "SendToWash", "ส่งผ้าออกจากวอร์ด (รอรับ)", prevLoc, "จุดรอรับ (Transit)"); shouldSave = true; }
+                                    break;
+
+                                case "กำลังซัก": // ตรงกับรูปใน DBeaver
+                                case "รับผ้าซัก":
+                                case "MODE_RECEIVE_LAUNDRY": 
+                                    if (linen.Status == "กำลังซัก" || linen.Status == "Washing") isDuplicate = true;
+                                    else { linen.Status = "กำลังซัก"; finalStatus = "กำลังซัก"; linen.CurrentLocation = "โรงซัก (Laundry)"; linen.WashCount++; linen.LastWashDate = ThaiTime(); LogMovement(context, linen.LinenId, "ReceiveWash", "รับผ้าเข้าเครื่องซัก", prevLoc, "โรงซัก (Laundry)"); shouldSave = true; }
+                                    break;
+
+                                case "รับกลับเข้าคลัง": // ตรงกับรูปใน DBeaver
+                                case "โหมดรับเข้าคลัง": 
+                                case "MODE_RESTOCK":
+                                    if ((linen.Status == "พร้อมใช้" || linen.Status == "Available") && linen.CurrentLocation == "คลังผ้า (Stock)") isDuplicate = true;
+                                    else { linen.Status = "พร้อมใช้"; finalStatus = "พร้อมใช้"; linen.CurrentLocation = "คลังผ้า (Stock)"; LogMovement(context, linen.LinenId, "Restock", "รับเข้าคลัง (Auto)", prevLoc, "คลังผ้า (Stock)"); shouldSave = true; }
+                                    break;
+
+                                case "จำหน่ายออก": // ตรงกับรูปใน DBeaver
+                                case "MODE_DISCARD":
+                                    if (linen.IsActive == false) isDuplicate = true;
+                                    else { linen.Status = "จำหน่ายออก"; finalStatus = "จำหน่ายออก"; linen.IsActive = false; linen.CurrentLocation = "จุดจำหน่าย (Disposal)"; LogMovement(context, linen.LinenId, "Discard", "จำหน่ายออก (Auto)", prevLoc, "จุดจำหน่าย (Disposal)"); shouldSave = true; }
+                                    break;
+
+                                case "กำลังจัดส่ง": // ตรงกับรูปใน DBeaver
+                                case "โหมดส่งไปยังวอร์ด": 
+                                case "MODE_DISPATCH":
+                                    if (linen.Status == "กำลังส่ง" && linen.CurrentLocation == "ระหว่างขนส่ง") isDuplicate = true;
+                                    else { linen.Status = "กำลังส่ง"; finalStatus = "กำลังส่ง"; linen.CurrentLocation = "ระหว่างขนส่ง"; LogMovement(context, linen.LinenId, "Dispatch", "กำลังขนส่งไปยังปลายทาง", prevLoc, "ระหว่างขนส่ง"); shouldSave = true; }
+                                    break;
+
+                                default: // โหมดปกติ (Normal Mode)
+                                    if (linen.CurrentLocation != targetLocation) {
+                                        linen.CurrentLocation = targetLocation; // ✅ อัปเดต Location ตาม Reader 
+                                        shouldSave = true;
+                                        if(linen.Status == "กำลังส่ง" || linen.Status == "Dispatch" || linen.Status == "ระหว่างขนส่ง") {
+                                            linen.Status = "ถูกใช้งาน"; finalStatus = "ถูกใช้งาน (รับเข้า)"; LogMovement(context, linen.LinenId, "Receive", "รับผ้าจากการขนส่ง (Auto)", prevLoc, targetLocation);
+                                        } else if(linen.Status == "พร้อมใช้" || linen.Status == "Available") {
+                                            linen.Status = "ถูกใช้งาน"; finalStatus = "ถูกใช้งาน"; LogMovement(context, linen.LinenId, "Move", "นำผ้าไปใช้งาน", prevLoc, targetLocation);
+                                        } else {
+                                            LogMovement(context, linen.LinenId, "Move", "ย้ายตำแหน่ง", prevLoc, targetLocation);
+                                        }
+                                    } else { isDuplicate = true; }
+                                    break;
+                            }
+
+                            // แจ้งเตือนหน้าเว็บ
+                            if (isDuplicate) {
+                                Console.WriteLine($"🔁 [Duplicate] {rfid}");
+                                await _hubContext.Clients.All.SendAsync("OnScan", new { rfid, reader = readerName, mode = currentMode, status = finalStatus, productName = linen.Product?.ProductName, timestamp = ThaiTime(), isDuplicate = true });
+                            }
+                            else if (shouldSave) {
+                                linen.UpdatedAt = ThaiTime();
+                                await context.SaveChangesAsync();
+                                Console.WriteLine($"✅ [Success] {rfid} moved to {linen.CurrentLocation}");
+                                await _hubContext.Clients.All.SendAsync("OnScan", new { rfid, reader = readerName, mode = currentMode, status = finalStatus, location = linen.CurrentLocation, productName = linen.Product?.ProductName, timestamp = ThaiTime(), isDuplicate = false });
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine($"❓ [Unknown] {rfid}");
+                            await _hubContext.Clients.All.SendAsync("OnScan", new { rfid, reader = readerName, mode = currentMode, status = "ไม่พบในระบบ", productName = "ไม่พบในระบบ", timestamp = ThaiTime(), isDuplicate = false });
                         }
                     }
-                    else
-                    {
-                        Console.WriteLine($"❓ [Unknown] {rfid}");
-                        await TriggerLed(readerName, "RED");
-                        await _hubContext.Clients.All.SendAsync("OnScan", new { rfid, reader = readerName, mode = currentMode, status = "ไม่พบในระบบ", productName = "ไม่พบในระบบ", timestamp = ThaiTime(), isDuplicate = false });
-                    }
+
+                    // ✅ จบการลูป (สแกน Batch เสร็จหมด) -> สั่งไฟเขียว (Ready) 
+                    await TriggerLed(readerName, "GREEN");
                 }
             }
         }
@@ -328,7 +360,6 @@ namespace Backend.Services
             {
                 try
                 {
-                    // เช็คทุก 3 วินาที (เพื่อให้สถานะ Offline ขึ้นไวขึ้น)
                     await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
                     
                     using (var scope = _scopeFactory.CreateScope())
@@ -336,7 +367,6 @@ namespace Backend.Services
                         var context = scope.ServiceProvider.GetRequiredService<LinenDbContext>();
                         var now = ThaiTime();
 
-                        // 1. Threshold: ถ้าไม่มี Heartbeat เกิน 15 วินาที -> ถือว่า Offline (Unplugged)
                         var offlineThreshold = now.AddSeconds(-15);
                         var offlineReaders = await context.Readers
                             .Where(r => r.IsActive == true && r.UpdatedAt < offlineThreshold)
@@ -346,20 +376,15 @@ namespace Backend.Services
                         {
                             foreach (var reader in offlineReaders)
                             {
-                                // ถ้า Offline จริงๆ (ถอดปลั๊ก) เราสั่ง SLEEP ไปก็อาจจะไม่ถึง
-                                // แต่เราต้องแก้สถานะใน DB ให้เว็บรู้ว่า Offline
-                                reader.IsActive = false; // 🔴 ปรับเป็น Offline
-                                // reader.CurrentMode = "SLEEP"; // ไม่ต้องแก้ Mode ก็ได้ หรือจะแก้ก็ได้ตาม Logic หน้าเว็บ
+                                reader.IsActive = false; 
                                 Console.WriteLine($"🔌 Reader {reader.ReaderName} is OFFLINE (No Heartbeat > 15s)");
                             }
                             await context.SaveChangesAsync(stoppingToken);
                         }
 
-                        // 2. Threshold: Sleep Logic (30s)
-                        // ถ้า Online อยู่ แต่ไม่มี Activity เกิน 30s -> สั่ง Sleep
                         var sleepThreshold = now.AddSeconds(-30);
                         var activeIdleReaders = await context.Readers
-                            .Where(r => r.IsActive == true && r.UpdatedAt < sleepThreshold && r.CurrentMode != "SLEEP")
+                            .Where(r => r.IsActive == true && r.UpdatedAt < sleepThreshold && r.CurrentMode != "SLEEP" && r.CurrentMode != "โหมดหลับ (SLEEP)")
                             .ToListAsync(stoppingToken);
 
                         if (activeIdleReaders.Any())
@@ -367,7 +392,7 @@ namespace Backend.Services
                             foreach (var reader in activeIdleReaders)
                             {
                                 await SetSleepMode(reader.ReaderName, true);
-                                reader.CurrentMode = "SLEEP";
+                                reader.CurrentMode = "โหมดหลับ (SLEEP)";
                                 Console.WriteLine($"💤 Reader {reader.ReaderName} Timeout (30s) -> SLEEP MODE");
                             }
                             await context.SaveChangesAsync(stoppingToken);
@@ -393,9 +418,18 @@ namespace Backend.Services
         }
     }
 
-    public class ScanPayload { public string? rfid { get; set; } }
+    // ✅ คลาส DTO สำหรับรับข้อมูลแบบเดิม (1 Tag ต่อข้อความ)
+    public class ScanPayload { 
+        public string? rfid { get; set; } 
+    }
     
-    // ✅ เพิ่ม source ใน DTO เพื่อรับค่าจาก ESP32
+    // 🚀 [NEW] คลาส DTO สำหรับรับข้อมูลแบบ Array (Batch Processing จาก ESP32 ล่าสุด)
+    public class ScanBatchPayload {
+        public string? reader_id { get; set; }
+        public List<string>? rfid_tags { get; set; }
+        public string? rfid { get; set; }
+    }
+    
     public class ReaderStatusDto { 
         public string? ip { get; set; } 
         public string? status { get; set; } 

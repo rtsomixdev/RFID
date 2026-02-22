@@ -37,6 +37,32 @@ interface SpecialTag {
   isActive?: boolean;
 }
 
+// ✅ ฟังก์ชันสำหรับแปลงข้อความโหมด ให้มีสีสันสวยงาม (ใช้ทั้งภาษาไทยและอังกฤษเผื่อไว้)
+const getModeDisplay = (mode: string) => {
+  const safeMode = mode || "โหมดปกติ (Normal)";
+  
+  if (safeMode.includes("ส่งซัก") || safeMode.includes("WASH")) {
+      return { label: "โหมดส่งซัก", color: "primary" as const }; 
+  }
+  if (safeMode.includes("รับผ้าซัก") || safeMode.includes("RECEIVE")) {
+      return { label: "โหมดรับผ้าซัก", color: "info" as const }; 
+  }
+  if (safeMode.includes("รับเข้าคลัง") || safeMode.includes("RESTOCK")) {
+      return { label: "โหมดรับเข้าคลัง", color: "success" as const }; 
+  }
+  if (safeMode.includes("จำหน่าย") || safeMode.includes("DISCARD")) {
+      return { label: "โหมดจำหน่ายออก", color: "error" as const }; 
+  }
+  if (safeMode.includes("ส่งไป") || safeMode.includes("DISPATCH")) {
+      return { label: "โหมดส่งไปยังวอร์ด", color: "warning" as const }; 
+  }
+  if (safeMode.includes("SLEEP") || safeMode.includes("หลับ")) {
+      return { label: "โหมดหลับ (SLEEP)", color: "default" as const }; 
+  }
+  
+  return { label: "โหมดปกติ (Normal)", color: "success" as const }; 
+};
+
 const RfidConnect: React.FC = () => {
   const theme = useTheme();
   const [tabValue, setTabValue] = useState(0);
@@ -55,17 +81,18 @@ const RfidConnect: React.FC = () => {
   const [isEditingReader, setIsEditingReader] = useState(false);
   const [editingReaderId, setEditingReaderId] = useState<number | null>(null);
 
-  const [tagForm, setTagForm] = useState({ rfid: '', action: 'MODE_WASH', desc: '' });
+  // ✅ แก้ไขค่า Default ให้ตรงกับภาษาไทย
+  const [tagForm, setTagForm] = useState({ rfid: '', action: 'โหมดส่งซัก', desc: '' });
   const rfidInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Action Options (เหลือแค่ 6 โหมดหลักตามที่ตกลง)
+  // ✅ Action Options (เปลี่ยน value เป็นภาษาไทยให้ตรงกับ Database และ Backend)
   const actionOptions = [
-    { value: 'Normal', label: '🟢 โหมดปกติ (Tracking Only)', color: '#10b981' }, 
-    { value: 'MODE_WASH', label: '🔵 โหมดส่งซัก (Send to Laundry)', color: '#3b82f6' }, 
-    { value: 'MODE_RECEIVE_LAUNDRY', label: '🧺 โหมดรับผ้าเข้าโรงซัก (Receive at Laundry)', color: '#9333ea' }, 
-    { value: 'MODE_RESTOCK', label: '🟡 โหมดรับคืน/เติมสต็อก (Restock)', color: '#f59e0b' }, 
-    { value: 'MODE_DISCARD', label: '🔴 โหมดจำหน่าย/ทิ้ง (Discard)', color: '#ef4444' }, 
-    { value: 'MODE_DISPATCH', label: '🚚 โหมดกำลังส่ง (In Transit)', color: '#0ea5e9' }, // เพิ่มใหม่
+    { value: 'โหมดปกติ (Normal)', label: '🟢 โหมดปกติ (Tracking Only)', color: '#10b981' }, 
+    { value: 'โหมดส่งซัก', label: '🔵 โหมดส่งซัก (Send to Laundry)', color: '#3b82f6' }, 
+    { value: 'โหมดรับผ้าซัก', label: '🧺 โหมดรับผ้าเข้าโรงซัก (Receive at Laundry)', color: '#9333ea' }, 
+    { value: 'โหมดรับเข้าคลัง', label: '🟡 โหมดรับคืน/เติมสต็อก (Restock)', color: '#f59e0b' }, 
+    { value: 'โหมดจำหน่ายออก', label: '🔴 โหมดจำหน่าย/ทิ้ง (Discard)', color: '#ef4444' }, 
+    { value: 'โหมดส่งไปยังวอร์ด', label: '🚚 โหมดกำลังส่ง (In Transit)', color: '#0ea5e9' }, 
   ];
 
   // ✅ Initial Load & Real-time (SignalR)
@@ -144,7 +171,7 @@ const RfidConnect: React.FC = () => {
       location: readerForm.location,
       readerFunction: readerForm.func,
       isActive: true,
-      currentMode: 'Normal'
+      currentMode: 'โหมดปกติ (Normal)' // ✅ แก้ตอนสร้างใหม่ให้เป็นภาษาไทย
     };
 
     try {
@@ -251,7 +278,8 @@ const RfidConnect: React.FC = () => {
         isActive: true
       });
       Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
-      setTagForm({ rfid: '', action: 'MODE_WASH', desc: '' });
+      // ✅ หลังเซฟเสร็จ คืนค่าเป็นตัวตั้งต้นภาษาไทย
+      setTagForm({ rfid: '', action: 'โหมดส่งซัก', desc: '' });
       setTimeout(() => rfidInputRef.current?.focus(), 100);
       fetchSpecialTags();
     } catch (err: any) {
@@ -400,8 +428,20 @@ const RfidConnect: React.FC = () => {
                             sx={{ fontWeight: 'bold', minWidth: 90 }}
                           />
                         </TableCell>
+                        {/* ✅ อัปเดตคอลัมน์ Mode ให้ใช้ฟังก์ชันแต่งสี */}
                         <TableCell>
-                          <Chip label={r.currentMode || 'Normal'} size="small" variant="outlined" color="secondary" />
+                          {(() => {
+                            const display = getModeDisplay(r.currentMode || "");
+                            return (
+                              <Chip 
+                                label={display.label} 
+                                color={display.color} 
+                                variant="outlined" 
+                                size="small" 
+                                sx={{ fontWeight: 'bold' }}
+                              />
+                            );
+                          })()}
                         </TableCell>
                         <TableCell align="center">
                           <Stack direction="row" spacing={1} justifyContent="center">
@@ -442,7 +482,6 @@ const RfidConnect: React.FC = () => {
               <Grid container spacing={3} alignItems="center" sx={{ mb: 4, p: 3, bgcolor: alpha(theme.palette.warning.main, 0.05), borderRadius: 2, border: `1px solid ${theme.palette.warning.light}` }}>
                 <Grid item xs={12}><Typography variant="subtitle2" fontWeight="bold" color="warning.main">ลงทะเบียนป้ายคำสั่ง</Typography></Grid>
                 <Grid item xs={12} md={4}>
-                  {/* 🔥🔥🔥 จุดรับค่า Auto-Fill 🔥🔥🔥 */}
                   <FormLabel label="Scan RFID Tag" required>
                     <TextField
                       inputRef={rfidInputRef}

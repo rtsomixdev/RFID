@@ -24,7 +24,7 @@ namespace Backend.Controllers
         private DateTime ThaiTime() => DateTime.UtcNow.AddHours(7);
 
         // =============================================
-        // 1. GET STATS
+        // 1. GET STATS (ตัวเลข 4 กล่องด้านบน)
         // =============================================
         [HttpGet("Stats")]
         public async Task<IActionResult> GetStats()
@@ -39,7 +39,7 @@ namespace Backend.Controllers
                     .Select(l => new { l.Status, l.RegisteredAt }) 
                     .ToListAsync();
 
-                // 2. นับยอดผ้าใหม่ (ใช้การเปรียบเทียบใน Memory เพื่อความชัวร์เรื่อง Timezone)
+                // 2. นับยอดผ้าใหม่ 
                 var startOfDayUtc = DateTime.UtcNow.Date; 
                 var newLinenToday = allLinens.Count(l => l.RegisteredAt >= startOfDayUtc);
 
@@ -47,28 +47,23 @@ namespace Backend.Controllers
                 var pendingRequests = await _context.Requests
                     .CountAsync(r => r.Status == "Pending" || r.Status == "Waiting");
 
-                // ✅ แก้ไข: เพิ่มเงื่อนไขภาษาไทยให้ตรงกับ Database
                 var stats = new
                 {
                     totalLinen = allLinens.Count,
                     newLinenToday = newLinenToday,
                     
-                    // เพิ่ม "ส่งซัก", "กำลังซัก"
                     washing = allLinens.Count(l => 
                         l.Status == "Washing" || l.Status == "SendingToLaundry" || l.Status == "In Laundry" || 
                         l.Status == "กำลังซัก" || l.Status == "ส่งซัก"),
                     
-                    // เพิ่ม "พร้อมใช้"
                     available = allLinens.Count(l => 
                         l.Status == "Available" || l.Status == "Stock" || l.Status == "พร้อมใช้"),
                     
                     pendingRequests = pendingRequests,
                     
-                    // เพิ่ม "ชำรุด"
                     damaged = allLinens.Count(l => 
                         l.Status == "Damaged" || l.Status == "Repairing" || l.Status == "ชำรุด"),
                     
-                    // เพิ่ม "จำหน่ายออก"
                     disposed = allLinens.Count(l => 
                         l.Status == "Discarded" || l.Status == "Disposed" || l.Status == "จำหน่ายออก")
                 };
@@ -82,7 +77,7 @@ namespace Backend.Controllers
         }
 
         // =============================================
-        // 2. GET CHART DATA
+        // 2. GET CHART DATA (ข้อมูลกราฟทั้งหมด)
         // =============================================
         [HttpGet("ChartData")]
         public async Task<IActionResult> GetChartData()
@@ -104,8 +99,7 @@ namespace Backend.Controllers
                     .Take(5)
                     .ToListAsync();
 
-                // --- B. Daily Data (7 Days) ---
-                // ดึงข้อมูลดิบเฉพาะที่จำเป็น
+                // --- B. Daily Data (7 Days) - กราฟแท่งคู่ (จุดที่แก้) ---
                 var logsRaw = await _context.LinenLogs
                     .Where(l => l.Timestamp >= DateTime.UtcNow.AddDays(-8))
                     .Select(l => new { l.ActivityType, l.Timestamp })
@@ -126,9 +120,19 @@ namespace Backend.Controllers
                         return new
                         {
                             name = dateLabel,
-                            // เพิ่มเงื่อนไข Activity ภาษาไทย
-                            use = logsOfDay.Count(l => l.ActivityType == "Move" || l.ActivityType == "Restock" || l.ActivityType == "Dispatch" || l.ActivityType == "เบิกจ่าย"), 
-                            wash = logsOfDay.Count(l => l.ActivityType == "SendToWash" || l.ActivityType == "ReceiveWash" || l.ActivityType == "ส่งซัก")
+                            // ✅ แก้ให้ครอบคลุมคำที่บันทึกจากการสแกน RFID (เช่น รับเข้า, ย้าย, ใช้งาน)
+                            use = logsOfDay.Count(l => 
+                                l.ActivityType == "Move" || 
+                                l.ActivityType == "Restock" || 
+                                l.ActivityType == "Dispatch" || 
+                                l.ActivityType == "Receive" || 
+                                l.ActivityType == "เบิกจ่าย"), 
+                            
+                            // ✅ แก้ให้ครอบคลุมการซัก
+                            wash = logsOfDay.Count(l => 
+                                l.ActivityType == "SendToWash" || 
+                                l.ActivityType == "ReceiveWash" || 
+                                l.ActivityType == "ส่งซัก")
                         };
                     })
                     .ToList();
