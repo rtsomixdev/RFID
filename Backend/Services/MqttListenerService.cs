@@ -33,7 +33,6 @@ namespace Backend.Services
             PropertyNameCaseInsensitive = true
         };
 
-        // ✅ กำหนดขา GPIO
         private const string GPIO_GREEN = "12";
         private const string GPIO_YELLOW = "13";
         private const string GPIO_RED = "14";
@@ -115,6 +114,8 @@ namespace Backend.Services
             // -----------------------------------------------------------
             if (topic.EndsWith("/status"))
             {
+                Console.WriteLine($"[DEBUG-STATUS] Topic: {topic} | Payload: {payloadStr}");
+
                 try 
                 {
                     var statusData = JsonSerializer.Deserialize<ReaderStatusDto>(payloadStr, _jsonOptions);
@@ -126,29 +127,47 @@ namespace Backend.Services
                         
                         if (reader != null)
                         {
-                            reader.IsActive = true; 
-                            reader.UpdatedAt = ThaiTime(); 
+                            bool stateChanged = false; 
 
-                            if (statusData?.ip != null) reader.IpAddress = statusData.ip;
+                            if (!string.IsNullOrEmpty(statusData?.ip) && statusData.ip != "-") 
+                            {
+                                reader.IpAddress = statusData.ip;
+                            }
+
+                            if (reader.IsActive == false || reader.IsActive == null)
+                            {
+                                reader.IsActive = true; 
+                                stateChanged = true;
+                                Console.WriteLine($"✅ Reader {readerName} is ONLINE (Connected)");
+                            }
+
+                            reader.UpdatedAt = ThaiTime(); 
 
                             if (statusData?.status == "active")
                             {
                                 if (reader.CurrentMode == "SLEEP" || reader.CurrentMode == "โหมดหลับ (SLEEP)")
                                 {
-                                    reader.CurrentMode = "โหมดปกติ (Normal)"; // ✅ อัปเดตให้เป็นภาษาไทย
-                                    Console.WriteLine($"🔘 Hardware Wakeup: {readerName} is now ACTIVE.");
+                                    reader.CurrentMode = "โหมดปกติ (Normal)"; 
+                                    stateChanged = true;
+                                    Console.WriteLine($"🔘 Hardware Wakeup: {readerName} is now Normal.");
                                 }
                             }
                             else if (statusData?.status == "sleep")
                             {
                                 if (reader.CurrentMode != "โหมดหลับ (SLEEP)")
                                 {
-                                    reader.CurrentMode = "โหมดหลับ (SLEEP)"; // ✅ อัปเดตให้เป็นภาษาไทย
+                                    reader.CurrentMode = "โหมดหลับ (SLEEP)"; 
+                                    stateChanged = true;
                                     Console.WriteLine($"💤 Hardware Reported Sleep: {readerName}");
                                 }
                             }
 
                             await context.SaveChangesAsync();
+
+                            if (stateChanged)
+                            {
+                                await _hubContext.Clients.All.SendAsync("OnModeChanged");
+                            }
                         }
                     }
                 }
@@ -157,10 +176,12 @@ namespace Backend.Services
             }
 
             // -----------------------------------------------------------
-            // 🔵 CASE B: Scan RFID (รองรับการรับแบบ Batch Array)
+            // 🔵 CASE B: Scan RFID (รองรับทั้ง Sequential และ Batch Override)
             // -----------------------------------------------------------
             if (topic.EndsWith("/scan"))
             {
+                Console.WriteLine($"[DEBUG-SCAN] Topic: {topic} | Payload: {payloadStr}");
+
                 await TriggerLed(readerName, "YELLOW");
 
                 using (var scope = _scopeFactory.CreateScope())
@@ -169,17 +190,14 @@ namespace Backend.Services
                     
                     List<string> rfidTagsToProcess = new List<string>();
 
-                    // 📦 1. พยายาม Parse JSON แบบใหม่ (Batch Array)
                     if (payloadStr.Trim().StartsWith("{")) 
                     {
                         try {
                             var data = JsonSerializer.Deserialize<ScanBatchPayload>(payloadStr, _jsonOptions);
                             
-                            // ถ้ารับแบบ Batch มาได้ ให้เพิ่มลง List
                             if (data?.rfid_tags != null && data.rfid_tags.Count > 0) {
                                 rfidTagsToProcess.AddRange(data.rfid_tags);
                             } 
-                            // Fallback เผื่อมีข้อความแบบเก่าหลงมา
                             else if (!string.IsNullOrEmpty(data?.rfid)) {
                                 rfidTagsToProcess.Add(data.rfid);
                             }
@@ -194,48 +212,69 @@ namespace Backend.Services
                     var readerDB = await context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
                     
                     if (readerDB != null) {
+                        bool stateChanged = false;
+
                         readerDB.UpdatedAt = ThaiTime(); 
-                        readerDB.IsActive = true; 
+
+                        if (readerDB.IsActive == false || readerDB.IsActive == null) {
+                            readerDB.IsActive = true;
+                            stateChanged = true;
+                        }
 
                         if (readerDB.CurrentMode == "SLEEP" || readerDB.CurrentMode == "โหมดหลับ (SLEEP)") {
                              readerDB.CurrentMode = "โหมดปกติ (Normal)";
+                             stateChanged = true;
                         }
-                        await context.SaveChangesAsync();
-                    }
 
-                    string currentMode = readerDB?.CurrentMode ?? "โหมดปกติ (Normal)";
+                        await context.SaveChangesAsync();
+                        if (stateChanged) await _hubContext.Clients.All.SendAsync("OnModeChanged");
+                    }
 
                     if (!_readerStates.ContainsKey(readerName)) {
                         _readerStates[readerName] = new ReaderRuntimeState();
                     }
                     var state = _readerStates[readerName];
+                    string currentMode = readerDB?.CurrentMode ?? "โหมดปกติ (Normal)";
 
-                    // 🔄 วนลูปประมวลผลทีละ Tag ใน Batch
+                    // 🔥🔥🔥 สเต็ปที่ 1: Pre-scan (กวาดสายตาหา Special Tag ในกอง) 🔥🔥🔥
+                    // ถ้าเจอ Special Tag ให้ Override โหมดสำหรับทั้ง Batch นี้เลย
+                    string overrideModeForBatch = null;
+                    List<string> regularTagsInBatch = new List<string>();
+
                     foreach (var rfid in rfidTagsToProcess)
                     {
                         if (string.IsNullOrEmpty(rfid)) continue;
 
-                        // 2.1 เช็ค Special Tag (เปลี่ยนโหมด)
                         var specialTag = await context.SpecialTags.FindAsync(rfid);
                         if (specialTag != null)
                         {
-                            currentMode = specialTag.CommandType; // ✅ ใช้ค่าจาก DB ตรงๆ
-                            
-                            // ถ้าไม่ใช่โหมดปกติ ให้มีเวลานับถอยหลัง 30 วินาที
-                            state.ScanningUntil = (currentMode == "โหมดปกติ (Normal)" || currentMode == "Normal") ? null : ThaiTime().AddSeconds(30); 
-                            
-                            if(readerDB != null) {
-                                readerDB.CurrentMode = currentMode;
-                                await context.SaveChangesAsync();
-                            }
-
-                            Console.WriteLine($"🎛 [Mode Change] {readerName} -> {currentMode} (Triggered by {rfid})");
-                            await TriggerLed(readerName, "GREEN");
-                            await _hubContext.Clients.All.SendAsync("OnModeChanged", new { reader = readerName, mode = currentMode });
-                            continue; // ข้ามไปอ่าน Tag ถัดไปใน Batch
+                            overrideModeForBatch = specialTag.CommandType;
+                            // เจออันเดียว ถือว่าครอบคลุมทั้งกอง (ใช้เพื่อประหยัดเวลาลูป)
                         }
+                        else
+                        {
+                            // ถ้าไม่ใช่ป้ายพิเศษ ให้เก็บไว้รอประมวลผลตามปกติ
+                            regularTagsInBatch.Add(rfid);
+                        }
+                    }
 
-                        // 2.2 เช็ค Timeout โหมดพิเศษ (หมดเวลา 30 วิ ให้กลับเป็นโหมดปกติ)
+                    // ⚙️ ถ้ามีการ Override ให้ตั้งโหมดและจับเวลาใหม่
+                    if (overrideModeForBatch != null)
+                    {
+                        currentMode = overrideModeForBatch;
+                        state.ScanningUntil = (currentMode == "โหมดปกติ (Normal)" || currentMode == "Normal") ? null : ThaiTime().AddSeconds(30); 
+                        
+                        if(readerDB != null) {
+                            readerDB.CurrentMode = currentMode;
+                            await context.SaveChangesAsync();
+                        }
+                        Console.WriteLine($"🎛 [Batch Mode Override] Special Tag found in batch -> Mode set to: {currentMode}");
+                        await TriggerLed(readerName, "GREEN");
+                        await _hubContext.Clients.All.SendAsync("OnModeChanged", new { reader = readerName, mode = currentMode });
+                    }
+                    else
+                    {
+                        // ถ้าไม่มีป้ายพิเศษเลยในกอง ให้เช็คว่าโหมดเดิมหมดเวลาหรือยัง (Logic เดิม 100%)
                         if (currentMode != "โหมดปกติ (Normal)" && currentMode != "Normal" && state.ScanningUntil.HasValue && !state.IsScanningActive)
                         {
                             currentMode = "โหมดปกติ (Normal)";
@@ -244,8 +283,11 @@ namespace Backend.Services
                                 await context.SaveChangesAsync();
                             }
                         }
+                    }
 
-                        // 2.3 ประมวลผลผ้า
+                    // 🔥🔥🔥 สเต็ปที่ 2: วนลูปประมวลผลเฉพาะ Tag ปกติ (Logic เดิมเป๊ะๆ แค่ตัด Special Tag ออกไปแล้ว) 🔥🔥🔥
+                    foreach (var rfid in regularTagsInBatch)
+                    {
                         var linen = await context.Linens.Include(l => l.Product).FirstOrDefaultAsync(l => l.RfidCode == rfid);
                         
                         if (linen != null)
@@ -257,52 +299,50 @@ namespace Backend.Services
 
                             Console.WriteLine($"🔍 Processing {rfid} | Reader: '{readerName}' | Mode: {currentMode} | Status: {linen.Status}");
 
-                            // 📍 2.4 ดึงสถานที่ตั้งของ Reader (เพื่อ Update Location ของผ้า)
                             string targetLocation = readerName; 
                             if (readerDB != null && !string.IsNullOrEmpty(readerDB.Location)) {
                                 targetLocation = readerDB.Location; 
                             }
 
-                            // ✅ 2.5 ปรับ Switch Case ให้ตรงกับคำใน Database ของคุณเป๊ะๆ
                             switch (currentMode)
                             {
-                                case "ส่งผ้าซัก": // ตรงกับรูปใน DBeaver
+                                case "ส่งผ้าซัก": 
                                 case "โหมดส่งซัก": 
                                 case "MODE_WASH": 
                                     if (linen.Status == "ส่งซัก" || linen.Status == "SendingToLaundry") isDuplicate = true;
                                     else { linen.Status = "ส่งซัก"; finalStatus = "ส่งซัก"; linen.CurrentLocation = "จุดรอรับ (Transit)"; LogMovement(context, linen.LinenId, "SendToWash", "ส่งผ้าออกจากวอร์ด (รอรับ)", prevLoc, "จุดรอรับ (Transit)"); shouldSave = true; }
                                     break;
 
-                                case "กำลังซัก": // ตรงกับรูปใน DBeaver
+                                case "กำลังซัก": 
                                 case "รับผ้าซัก":
                                 case "MODE_RECEIVE_LAUNDRY": 
                                     if (linen.Status == "กำลังซัก" || linen.Status == "Washing") isDuplicate = true;
                                     else { linen.Status = "กำลังซัก"; finalStatus = "กำลังซัก"; linen.CurrentLocation = "โรงซัก (Laundry)"; linen.WashCount++; linen.LastWashDate = ThaiTime(); LogMovement(context, linen.LinenId, "ReceiveWash", "รับผ้าเข้าเครื่องซัก", prevLoc, "โรงซัก (Laundry)"); shouldSave = true; }
                                     break;
 
-                                case "รับกลับเข้าคลัง": // ตรงกับรูปใน DBeaver
+                                case "รับกลับเข้าคลัง": 
                                 case "โหมดรับเข้าคลัง": 
                                 case "MODE_RESTOCK":
                                     if ((linen.Status == "พร้อมใช้" || linen.Status == "Available") && linen.CurrentLocation == "คลังผ้า (Stock)") isDuplicate = true;
                                     else { linen.Status = "พร้อมใช้"; finalStatus = "พร้อมใช้"; linen.CurrentLocation = "คลังผ้า (Stock)"; LogMovement(context, linen.LinenId, "Restock", "รับเข้าคลัง (Auto)", prevLoc, "คลังผ้า (Stock)"); shouldSave = true; }
                                     break;
 
-                                case "จำหน่ายออก": // ตรงกับรูปใน DBeaver
+                                case "จำหน่ายออก": 
                                 case "MODE_DISCARD":
                                     if (linen.IsActive == false) isDuplicate = true;
                                     else { linen.Status = "จำหน่ายออก"; finalStatus = "จำหน่ายออก"; linen.IsActive = false; linen.CurrentLocation = "จุดจำหน่าย (Disposal)"; LogMovement(context, linen.LinenId, "Discard", "จำหน่ายออก (Auto)", prevLoc, "จุดจำหน่าย (Disposal)"); shouldSave = true; }
                                     break;
 
-                                case "กำลังจัดส่ง": // ตรงกับรูปใน DBeaver
+                                case "กำลังจัดส่ง": 
                                 case "โหมดส่งไปยังวอร์ด": 
                                 case "MODE_DISPATCH":
                                     if (linen.Status == "กำลังส่ง" && linen.CurrentLocation == "ระหว่างขนส่ง") isDuplicate = true;
                                     else { linen.Status = "กำลังส่ง"; finalStatus = "กำลังส่ง"; linen.CurrentLocation = "ระหว่างขนส่ง"; LogMovement(context, linen.LinenId, "Dispatch", "กำลังขนส่งไปยังปลายทาง", prevLoc, "ระหว่างขนส่ง"); shouldSave = true; }
                                     break;
 
-                                default: // โหมดปกติ (Normal Mode)
+                                default: 
                                     if (linen.CurrentLocation != targetLocation) {
-                                        linen.CurrentLocation = targetLocation; // ✅ อัปเดต Location ตาม Reader 
+                                        linen.CurrentLocation = targetLocation;  
                                         shouldSave = true;
                                         if(linen.Status == "กำลังส่ง" || linen.Status == "Dispatch" || linen.Status == "ระหว่างขนส่ง") {
                                             linen.Status = "ถูกใช้งาน"; finalStatus = "ถูกใช้งาน (รับเข้า)"; LogMovement(context, linen.LinenId, "Receive", "รับผ้าจากการขนส่ง (Auto)", prevLoc, targetLocation);
@@ -315,7 +355,6 @@ namespace Backend.Services
                                     break;
                             }
 
-                            // แจ้งเตือนหน้าเว็บ
                             if (isDuplicate) {
                                 Console.WriteLine($"🔁 [Duplicate] {rfid}");
                                 await _hubContext.Clients.All.SendAsync("OnScan", new { rfid, reader = readerName, mode = currentMode, status = finalStatus, productName = linen.Product?.ProductName, timestamp = ThaiTime(), isDuplicate = true });
@@ -334,7 +373,6 @@ namespace Backend.Services
                         }
                     }
 
-                    // ✅ จบการลูป (สแกน Batch เสร็จหมด) -> สั่งไฟเขียว (Ready) 
                     await TriggerLed(readerName, "GREEN");
                 }
             }
@@ -380,6 +418,7 @@ namespace Backend.Services
                                 Console.WriteLine($"🔌 Reader {reader.ReaderName} is OFFLINE (No Heartbeat > 15s)");
                             }
                             await context.SaveChangesAsync(stoppingToken);
+                            await _hubContext.Clients.All.SendAsync("OnModeChanged");
                         }
 
                         var sleepThreshold = now.AddSeconds(-30);
@@ -396,6 +435,7 @@ namespace Backend.Services
                                 Console.WriteLine($"💤 Reader {reader.ReaderName} Timeout (30s) -> SLEEP MODE");
                             }
                             await context.SaveChangesAsync(stoppingToken);
+                            await _hubContext.Clients.All.SendAsync("OnModeChanged");
                         }
                     }
                 }
@@ -418,12 +458,10 @@ namespace Backend.Services
         }
     }
 
-    // ✅ คลาส DTO สำหรับรับข้อมูลแบบเดิม (1 Tag ต่อข้อความ)
     public class ScanPayload { 
         public string? rfid { get; set; } 
     }
     
-    // 🚀 [NEW] คลาส DTO สำหรับรับข้อมูลแบบ Array (Batch Processing จาก ESP32 ล่าสุด)
     public class ScanBatchPayload {
         public string? reader_id { get; set; }
         public List<string>? rfid_tags { get; set; }

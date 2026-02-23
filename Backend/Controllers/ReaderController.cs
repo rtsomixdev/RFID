@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using System.Linq;
 using System;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.SignalR;
+using Backend.Hubs;
 
 namespace Backend.Controllers
 {
@@ -15,11 +17,13 @@ namespace Backend.Controllers
     {
         private readonly LinenDbContext _context;
         private readonly MqttPublisherService _mqttPublisher;
+        private readonly IHubContext<NotificationHub> _hubContext;
 
-        public ReaderController(LinenDbContext context, MqttPublisherService mqttPublisher)
+        public ReaderController(LinenDbContext context, MqttPublisherService mqttPublisher, IHubContext<NotificationHub> hubContext)
         {
             _context = context;
             _mqttPublisher = mqttPublisher;
+            _hubContext = hubContext;
         }
 
         private DateTime ThaiTime() => DateTime.UtcNow.AddHours(7);
@@ -44,11 +48,11 @@ namespace Backend.Controllers
                 return BadRequest(new { message = $"ชื่อเครื่อง '{reader.ReaderName}' มีอยู่ในระบบแล้ว" });
             }
 
-            // ✅ บังคับตั้งค่าเริ่มต้นให้เป็น "Offline" เสมอเมื่อเพิ่งสร้างใหม่
+            // บังคับตั้งค่าเริ่มต้นให้เป็น "Offline" เสมอเมื่อเพิ่งสร้างใหม่
             reader.IsActive = false; 
-            reader.CurrentMode = "Offline"; 
+            reader.CurrentMode = "โหมดปกติ (Normal)"; // ตั้งเป็นโหมดปกติไว้ก่อน
             
-            // ✅ ถ้าไม่มีการส่ง IP มา ให้ใส่ขีดแดชไว้ก่อน (เดี๋ยวฮาร์ดแวร์ต่อเน็ตแล้วมันจะส่ง IP มาอัปเดตเอง)
+            // ถ้าไม่มีการส่ง IP มา ให้ใส่ขีดแดชไว้ก่อน 
             if (string.IsNullOrEmpty(reader.IpAddress))
             {
                 reader.IpAddress = "-";
@@ -120,7 +124,9 @@ namespace Backend.Controllers
             return Ok();
         }
 
-        // POST: api/Reader/Config
+        // =============================================
+        // POST: api/Reader/Config (สั่งงานอุปกรณ์ WAKE / SLEEP)
+        // =============================================
         [HttpPost("Config")]
         public async Task<IActionResult> SendConfig([FromBody] ReaderConfigDto request)
         {
@@ -129,20 +135,27 @@ namespace Backend.Controllers
 
             try
             {
-                await _mqttPublisher.PublishAsync($"cmd/{request.ReaderId}", request.Command.ToUpper());
+                // ส่งคำสั่ง WAKE หรือ SLEEP ผ่าน MQTT ไปให้ ESP32
+                await _mqttPublisher.PublishCommandAsync(request.ReaderId, request.Command.ToUpper(), "", false);
 
                 string title = "สั่งงานอุปกรณ์";
                 string msg = $"ส่งคำสั่ง {request.Command} ไปที่ {request.ReaderId}";
                 string type = "INFO";
 
-                if (request.Command == "SHUTDOWN")
+                // จัดการสถานะในระบบ (เปลี่ยนแค่โหมด ห้ามยุ่งกับ IsActive)
+                if (request.Command.ToUpper() == "SLEEP")
                 {
-                    reader.IsActive = false;
-                    reader.UpdatedAt = ThaiTime();
-                    
-                    title = "อุปกรณ์ออฟไลน์ (Shutdown)";
-                    msg = $"⛔ สั่งปิดเครื่อง: {request.ReaderId}";
-                    type = "DANGER"; 
+                    reader.CurrentMode = "โหมดหลับ (SLEEP)";
+                    reader.UpdatedAt = ThaiTime(); // ต่อเวลาให้มันด้วย ป้องกันโดนเตะออฟไลน์
+                    msg = $"💤 สั่งเข้าโหมดหลับ: {request.ReaderId}";
+                    type = "WARNING"; 
+                }
+                else if (request.Command.ToUpper() == "WAKE")
+                {
+                    reader.CurrentMode = "โหมดปกติ (Normal)";
+                    reader.UpdatedAt = ThaiTime(); // ต่อเวลาให้มันด้วย
+                    msg = $"☀️ สั่งปลุกเครื่อง: {request.ReaderId}";
+                    type = "SUCCESS"; 
                 }
 
                 _context.Notifications.Add(new Notification 
@@ -157,42 +170,15 @@ namespace Backend.Controllers
                 });
 
                 await _context.SaveChangesAsync();
+                
+                // ส่ง SignalR ไปบอกหน้าเว็บให้ขยับป้ายโหมดตามคำสั่ง
+                await _hubContext.Clients.All.SendAsync("OnModeChanged");
+
                 return Ok(new { message = "Success" });
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "MQTT Error: " + ex.Message });
-            }
-        }
-
-        // ✅ POST: api/Reader/Wake/{readerName}
-        // สั่งปลุกเครื่อง (Wake Up) และรีเซ็ตเวลา + โหมด
-        [HttpPost("Wake/{readerName}")]
-        public async Task<IActionResult> WakeReader(string readerName)
-        {
-            Console.WriteLine($"🔔 Waking up reader: {readerName}");
-            
-            try 
-            {
-                // 1. ส่งคำสั่ง WAKE ไปทาง MQTT
-                // Hardware จะรับคำสั่งนี้ -> เปิดเสา RFID -> เปิดไฟเขียว
-                await _mqttPublisher.PublishCommandAsync(readerName, "WAKE", "1", true);
-
-                // 2. อัปเดต DB (รีเซ็ตเวลา + เปลี่ยนโหมดกลับเป็น Normal)
-                var reader = await _context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
-                if (reader != null)
-                {
-                    reader.IsActive = true;       // สถานะ Online
-                    reader.UpdatedAt = ThaiTime(); // รีเซ็ตเวลานับถอยหลัง (30 วิ)
-                    reader.CurrentMode = "Normal"; // ✅ แก้ตรงนี้: ปรับกลับเป็น Normal เพื่อให้พร้อมทำงานและหยุด Loop Sleep
-                    await _context.SaveChangesAsync();
-                }
-
-                return Ok(new { message = $"Sent WAKE command to {readerName} and reset timer." });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Error waking reader: " + ex.Message });
             }
         }
     }

@@ -37,24 +37,24 @@ interface SpecialTag {
   isActive?: boolean;
 }
 
-// ✅ ฟังก์ชันสำหรับแปลงข้อความโหมด ให้มีสีสันสวยงาม (ใช้ทั้งภาษาไทยและอังกฤษเผื่อไว้)
+// ✅ ฟังก์ชันสำหรับแปลงข้อความโหมด ให้ตรงกับ Database เป๊ะๆ
 const getModeDisplay = (mode: string) => {
-  const safeMode = mode || "โหมดปกติ (Normal)";
+  const safeMode = mode || "Normal";
   
-  if (safeMode.includes("ส่งซัก") || safeMode.includes("WASH")) {
-      return { label: "โหมดส่งซัก", color: "primary" as const }; 
+  if (safeMode.includes("ส่งผ้าซัก") || safeMode.includes("ส่งซัก") || safeMode.includes("WASH")) {
+      return { label: "โหมดส่งซัก (Wash)", color: "primary" as const }; 
   }
-  if (safeMode.includes("รับผ้าซัก") || safeMode.includes("RECEIVE")) {
-      return { label: "โหมดรับผ้าซัก", color: "info" as const }; 
+  if (safeMode.includes("กำลังซัก") || safeMode.includes("รับผ้าซัก") || safeMode.includes("RECEIVE")) {
+      return { label: "โหมดรับผ้าซัก (Receive)", color: "info" as const }; 
   }
-  if (safeMode.includes("รับเข้าคลัง") || safeMode.includes("RESTOCK")) {
-      return { label: "โหมดรับเข้าคลัง", color: "success" as const }; 
+  if (safeMode.includes("รับกลับเข้าคลัง") || safeMode.includes("รับเข้าคลัง") || safeMode.includes("RESTOCK")) {
+      return { label: "โหมดรับเข้าคลัง (Restock)", color: "success" as const }; 
   }
   if (safeMode.includes("จำหน่าย") || safeMode.includes("DISCARD")) {
-      return { label: "โหมดจำหน่ายออก", color: "error" as const }; 
+      return { label: "โหมดจำหน่ายออก (Discard)", color: "error" as const }; 
   }
-  if (safeMode.includes("ส่งไป") || safeMode.includes("DISPATCH")) {
-      return { label: "โหมดส่งไปยังวอร์ด", color: "warning" as const }; 
+  if (safeMode.includes("กำลังจัดส่ง") || safeMode.includes("ส่งไป") || safeMode.includes("DISPATCH")) {
+      return { label: "โหมดกำลังส่ง (Dispatch)", color: "warning" as const }; 
   }
   if (safeMode.includes("SLEEP") || safeMode.includes("หลับ")) {
       return { label: "โหมดหลับ (SLEEP)", color: "default" as const }; 
@@ -81,30 +81,28 @@ const RfidConnect: React.FC = () => {
   const [isEditingReader, setIsEditingReader] = useState(false);
   const [editingReaderId, setEditingReaderId] = useState<number | null>(null);
 
-  // ✅ แก้ไขค่า Default ให้ตรงกับภาษาไทย
-  const [tagForm, setTagForm] = useState({ rfid: '', action: 'โหมดส่งซัก', desc: '' });
+  // ✅ เปลี่ยนค่า Default ให้ตรงกับ Value ของ actionOptions
+  const [tagForm, setTagForm] = useState({ rfid: '', action: 'ส่งผ้าซัก', desc: '' });
   const rfidInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Action Options (เปลี่ยน value เป็นภาษาไทยให้ตรงกับ Database และ Backend)
+  // ✅ Action Options ปรับ Value ให้ตรงกับคำใน Database (ตาราง special_tags) 100%
   const actionOptions = [
-    { value: 'โหมดปกติ (Normal)', label: '🟢 โหมดปกติ (Tracking Only)', color: '#10b981' }, 
-    { value: 'โหมดส่งซัก', label: '🔵 โหมดส่งซัก (Send to Laundry)', color: '#3b82f6' }, 
-    { value: 'โหมดรับผ้าซัก', label: '🧺 โหมดรับผ้าเข้าโรงซัก (Receive at Laundry)', color: '#9333ea' }, 
-    { value: 'โหมดรับเข้าคลัง', label: '🟡 โหมดรับคืน/เติมสต็อก (Restock)', color: '#f59e0b' }, 
-    { value: 'โหมดจำหน่ายออก', label: '🔴 โหมดจำหน่าย/ทิ้ง (Discard)', color: '#ef4444' }, 
-    { value: 'โหมดส่งไปยังวอร์ด', label: '🚚 โหมดกำลังส่ง (In Transit)', color: '#0ea5e9' }, 
+    { value: 'Normal', label: '🟢 โหมดปกติ (Tracking Only)', color: '#10b981' }, 
+    { value: 'ส่งผ้าซัก', label: '🔵 โหมดส่งซัก (Send to Laundry)', color: '#3b82f6' }, 
+    { value: 'กำลังซัก', label: '🧺 โหมดรับผ้าเข้าโรงซัก (Receive at Laundry)', color: '#9333ea' }, 
+    { value: 'รับกลับเข้าคลัง', label: '🟡 โหมดรับคืน/เติมสต็อก (Restock)', color: '#f59e0b' }, 
+    { value: 'จำหน่ายออก', label: '🔴 โหมดจำหน่าย/ทิ้ง (Discard)', color: '#ef4444' }, 
+    { value: 'กำลังจัดส่ง', label: '🚚 โหมดกำลังส่ง (In Transit)', color: '#0ea5e9' }, 
   ];
 
-  // ✅ Initial Load & Real-time (SignalR)
+  // Initial Load & Real-time (SignalR)
   useEffect(() => {
     fetchData();
 
-    // Polling สำรองเผื่อ SignalR หลุด
     const interval = setInterval(fetchData, 5000);
 
-    // 🔥🔥🔥 2. Setup SignalR เพื่อรับค่า Scan แบบ Real-time 🔥🔥🔥
     const connection = new HubConnectionBuilder()
-      .withUrl("http://localhost:5134/hubs/notification") // ตรวจสอบ Port Backend ให้ถูกต้อง
+      .withUrl("http://localhost:5134/hubs/notification") 
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Information)
       .build();
@@ -113,21 +111,16 @@ const RfidConnect: React.FC = () => {
       .then(() => {
         console.log("✅ SignalR Connected (RfidConnect)");
 
-        // เมื่อมีการสแกนเกิดขึ้น (OnScan event จาก Backend)
         connection.on("OnScan", (data: any) => {
           console.log("📡 Scan Received:", data);
-
-          // ถ้าอยู่หน้า Tab 2 (Special Tags) ให้ Auto-fill ช่อง RFID
           setTagForm(prev => ({ ...prev, rfid: data.rfid }));
 
-          // แจ้งเตือนเล็กๆ (Toast) ว่ารับค่าแล้ว
           const Toast = Swal.mixin({
             toast: true, position: 'top-end', showConfirmButton: false, timer: 1500, timerProgressBar: true
           });
           Toast.fire({ icon: 'info', title: `รับค่า Tag: ${data.rfid}` });
         });
 
-        // เมื่อโหมดเปลี่ยน ให้รีเฟรชตาราง Reader
         connection.on("OnModeChanged", () => {
           fetchReaders();
         });
@@ -171,7 +164,7 @@ const RfidConnect: React.FC = () => {
       location: readerForm.location,
       readerFunction: readerForm.func,
       isActive: true,
-      currentMode: 'โหมดปกติ (Normal)' // ✅ แก้ตอนสร้างใหม่ให้เป็นภาษาไทย
+      currentMode: 'Normal' 
     };
 
     try {
@@ -233,22 +226,23 @@ const RfidConnect: React.FC = () => {
     setEditingReaderId(null);
   };
 
-  // --- Remote Config Handler ---
+  // ✅ --- Remote Config Handler (เหลือแค่ WAKE และ SLEEP) ---
   const handleConfigReader = (r: Reader) => {
     Swal.fire({
       title: `ตั้งค่าอุปกรณ์: ${r.readerName}`,
       html: `
         <div style="text-align:left; margin-bottom: 10px;">
-          <label>คำสั่ง (Command):</label>
-          <select id="swal-cmd" class="swal2-input" style="margin-top:5px;">
-            <option value="CHECK_STATUS">เช็คสถานะ (Ping)</option>
-            <option value="REBOOT">รีสตาร์ทเครื่อง (Reboot)</option>
-            <option value="SHUTDOWN" style="color:red; font-weight:bold;">⛔ สั่งปิดเครื่อง (Shutdown)</option>
+          <label style="font-weight:bold; color:#555;">เลือกคำสั่งควบคุม:</label>
+          <select id="swal-cmd" class="swal2-input" style="margin-top:10px; width:90%;">
+            <option value="WAKE">☀️ สั่งให้ตื่น (Wake Up)</option>
+            <option value="SLEEP" style="color:orange; font-weight:bold;">💤 สั่งให้หลับ (Sleep)</option>
           </select>
         </div>
       `,
       showCancelButton: true,
       confirmButtonText: 'ส่งคำสั่ง',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: theme.palette.primary.main,
       preConfirm: () => {
         const cmd = (document.getElementById('swal-cmd') as HTMLSelectElement).value;
         return { cmd };
@@ -256,10 +250,20 @@ const RfidConnect: React.FC = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          // จำลองการส่งคำสั่ง (ในอนาคตเชื่อม API Publisher)
-          Swal.fire('ส่งคำสั่งเรียบร้อย', `Command sent to ${r.readerName}`, 'success');
+          await axiosClient.post('/Reader/Config', {
+            readerId: r.readerName,
+            command: result.value?.cmd
+          });
+          
+          Swal.fire({
+            title: 'ส่งคำสั่งเรียบร้อย', 
+            text: `ส่งคำสั่ง ${result.value?.cmd === 'WAKE' ? 'ปลุกเครื่อง' : 'ให้เครื่องหลับ'} ไปยัง ${r.readerName} แล้ว`, 
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+          });
         } catch (err) {
-          Swal.fire('Error', 'เชื่อมต่ออุปกรณ์ไม่ได้', 'error');
+          Swal.fire('Error', 'ไม่สามารถเชื่อมต่ออุปกรณ์ได้', 'error');
         }
       }
     });
@@ -278,8 +282,7 @@ const RfidConnect: React.FC = () => {
         isActive: true
       });
       Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
-      // ✅ หลังเซฟเสร็จ คืนค่าเป็นตัวตั้งต้นภาษาไทย
-      setTagForm({ rfid: '', action: 'โหมดส่งซัก', desc: '' });
+      setTagForm({ rfid: '', action: 'ส่งผ้าซัก', desc: '' });
       setTimeout(() => rfidInputRef.current?.focus(), 100);
       fetchSpecialTags();
     } catch (err: any) {
@@ -428,7 +431,6 @@ const RfidConnect: React.FC = () => {
                             sx={{ fontWeight: 'bold', minWidth: 90 }}
                           />
                         </TableCell>
-                        {/* ✅ อัปเดตคอลัมน์ Mode ให้ใช้ฟังก์ชันแต่งสี */}
                         <TableCell>
                           {(() => {
                             const display = getModeDisplay(r.currentMode || "");
@@ -445,7 +447,7 @@ const RfidConnect: React.FC = () => {
                         </TableCell>
                         <TableCell align="center">
                           <Stack direction="row" spacing={1} justifyContent="center">
-                            <Tooltip title="ตั้งค่า">
+                            <Tooltip title="ตั้งค่า/ควบคุม">
                               <IconButton size="small" onClick={() => handleConfigReader(r)} sx={{ color: 'secondary.main', bgcolor: alpha(theme.palette.secondary.main, 0.1) }}>
                                 <SettingsInputComponent fontSize="small" />
                               </IconButton>
