@@ -237,8 +237,7 @@ namespace Backend.Services
                     string currentMode = readerDB?.CurrentMode ?? "โหมดปกติ (Normal)";
 
                     // 🔥🔥🔥 สเต็ปที่ 1: Pre-scan (กวาดสายตาหา Special Tag ในกอง) 🔥🔥🔥
-                    // ถ้าเจอ Special Tag ให้ Override โหมดสำหรับทั้ง Batch นี้เลย
-                    string overrideModeForBatch = null;
+                    string? overrideModeForBatch = null;
                     List<string> regularTagsInBatch = new List<string>();
 
                     foreach (var rfid in rfidTagsToProcess)
@@ -249,16 +248,13 @@ namespace Backend.Services
                         if (specialTag != null)
                         {
                             overrideModeForBatch = specialTag.CommandType;
-                            // เจออันเดียว ถือว่าครอบคลุมทั้งกอง (ใช้เพื่อประหยัดเวลาลูป)
                         }
                         else
                         {
-                            // ถ้าไม่ใช่ป้ายพิเศษ ให้เก็บไว้รอประมวลผลตามปกติ
                             regularTagsInBatch.Add(rfid);
                         }
                     }
 
-                    // ⚙️ ถ้ามีการ Override ให้ตั้งโหมดและจับเวลาใหม่
                     if (overrideModeForBatch != null)
                     {
                         currentMode = overrideModeForBatch;
@@ -274,7 +270,6 @@ namespace Backend.Services
                     }
                     else
                     {
-                        // ถ้าไม่มีป้ายพิเศษเลยในกอง ให้เช็คว่าโหมดเดิมหมดเวลาหรือยัง (Logic เดิม 100%)
                         if (currentMode != "โหมดปกติ (Normal)" && currentMode != "Normal" && state.ScanningUntil.HasValue && !state.IsScanningActive)
                         {
                             currentMode = "โหมดปกติ (Normal)";
@@ -285,7 +280,7 @@ namespace Backend.Services
                         }
                     }
 
-                    // 🔥🔥🔥 สเต็ปที่ 2: วนลูปประมวลผลเฉพาะ Tag ปกติ (Logic เดิมเป๊ะๆ แค่ตัด Special Tag ออกไปแล้ว) 🔥🔥🔥
+                    // 🔥🔥🔥 สเต็ปที่ 2: วนลูปประมวลผล Tag ด้วยชื่อสถานที่แบบ Master Data 🔥🔥🔥
                     foreach (var rfid in regularTagsInBatch)
                     {
                         var linen = await context.Linens.Include(l => l.Product).FirstOrDefaultAsync(l => l.RfidCode == rfid);
@@ -295,10 +290,11 @@ namespace Backend.Services
                             bool isDuplicate = false;
                             bool shouldSave = false;
                             string prevLoc = linen.CurrentLocation ?? "ไม่ระบุ";
-                            string finalStatus = TranslateStatus(linen.Status); 
+                            string finalStatus = TranslateStatus(linen.Status ?? ""); 
 
                             Console.WriteLine($"🔍 Processing {rfid} | Reader: '{readerName}' | Mode: {currentMode} | Status: {linen.Status}");
 
+                            // 📍 โหมดปกติ จะดึงชื่อสถานที่จาก Master Data ตามที่ตั้งค่าไว้ใน Reader เป๊ะๆ
                             string targetLocation = readerName; 
                             if (readerDB != null && !string.IsNullOrEmpty(readerDB.Location)) {
                                 targetLocation = readerDB.Location; 
@@ -310,27 +306,84 @@ namespace Backend.Services
                                 case "โหมดส่งซัก": 
                                 case "MODE_WASH": 
                                     if (linen.Status == "ส่งซัก" || linen.Status == "SendingToLaundry") isDuplicate = true;
-                                    else { linen.Status = "ส่งซัก"; finalStatus = "ส่งซัก"; linen.CurrentLocation = "จุดรอรับ (Transit)"; LogMovement(context, linen.LinenId, "SendToWash", "ส่งผ้าออกจากวอร์ด (รอรับ)", prevLoc, "จุดรอรับ (Transit)"); shouldSave = true; }
+                                    else { linen.Status = "ส่งซัก"; finalStatus = "ส่งซัก"; linen.CurrentLocation = "จุดพักผ้ารอซัก"; LogMovement(context, linen.LinenId, "SendToWash", "ส่งผ้าออกจากวอร์ด (รอรับ)", prevLoc, "จุดพักผ้ารอซัก"); shouldSave = true; }
+                                    break;
+
+                                case "ส่งซักซ้ำ":
+                                case "โหมดส่งซักซ้ำ":
+                                case "MODE_REWASH":
+                                    if (linen.Status == "ส่งซักซ้ำ" || linen.Status == "ReWash") isDuplicate = true;
+                                    else { linen.Status = "ส่งซักซ้ำ"; finalStatus = "ส่งซักซ้ำ"; linen.CurrentLocation = "จุดพักผ้ารอซัก"; LogMovement(context, linen.LinenId, "ReWash", "ส่งผ้ากลับไปซักใหม่ (พบรอยเปื้อน)", prevLoc, "จุดพักผ้ารอซัก"); shouldSave = true; }
                                     break;
 
                                 case "กำลังซัก": 
                                 case "รับผ้าซัก":
                                 case "MODE_RECEIVE_LAUNDRY": 
                                     if (linen.Status == "กำลังซัก" || linen.Status == "Washing") isDuplicate = true;
-                                    else { linen.Status = "กำลังซัก"; finalStatus = "กำลังซัก"; linen.CurrentLocation = "โรงซัก (Laundry)"; linen.WashCount++; linen.LastWashDate = ThaiTime(); LogMovement(context, linen.LinenId, "ReceiveWash", "รับผ้าเข้าเครื่องซัก", prevLoc, "โรงซัก (Laundry)"); shouldSave = true; }
+                                    else { 
+                                        linen.Status = "กำลังซัก"; 
+                                        finalStatus = "กำลังซัก"; 
+                                        linen.CurrentLocation = "โรงซัก"; 
+                                        linen.WashCount++; 
+                                        linen.LastWashDate = ThaiTime(); 
+                                        LogMovement(context, linen.LinenId, "ReceiveWash", "รับผ้าเข้าเครื่องซัก", prevLoc, "โรงซัก"); 
+                                        shouldSave = true; 
+
+                                        // ✅ แจ้งเตือนเมื่อรอบซักครบ/เกินกำหนด
+                                        if (linen.Product != null && linen.Product.MaxWashCount > 0 && linen.WashCount >= linen.Product.MaxWashCount)
+                                        {
+                                            var noti = new Notification
+                                            {
+                                                RoleId = 1, // 1 = ส่งหา Admin/หัวหน้าห้องผ้า
+                                                Title = "⚠️ ผ้าครบกำหนดรอบซัก",
+                                                Message = $"รหัส {linen.RfidCode} ({linen.Product?.ProductName}) ซักครบ {linen.WashCount}/{linen.Product?.MaxWashCount} รอบแล้ว แนะนำให้พิจารณาตัดจำหน่าย",
+                                                Type = "WARNING",
+                                                IsRead = false,
+                                                LinkUrl = "/search-linen",
+                                                CreatedAt = ThaiTime()
+                                            };
+                                            context.Notifications.Add(noti);
+                                        }
+                                    }
                                     break;
 
                                 case "รับกลับเข้าคลัง": 
                                 case "โหมดรับเข้าคลัง": 
                                 case "MODE_RESTOCK":
-                                    if ((linen.Status == "พร้อมใช้" || linen.Status == "Available") && linen.CurrentLocation == "คลังผ้า (Stock)") isDuplicate = true;
-                                    else { linen.Status = "พร้อมใช้"; finalStatus = "พร้อมใช้"; linen.CurrentLocation = "คลังผ้า (Stock)"; LogMovement(context, linen.LinenId, "Restock", "รับเข้าคลัง (Auto)", prevLoc, "คลังผ้า (Stock)"); shouldSave = true; }
+                                    if ((linen.Status == "พร้อมใช้" || linen.Status == "Available") && linen.CurrentLocation == "คลังผ้าสะอาด") isDuplicate = true;
+                                    else { 
+                                        linen.Status = "พร้อมใช้"; 
+                                        finalStatus = "พร้อมใช้"; 
+                                        linen.CurrentLocation = "คลังผ้าสะอาด"; 
+                                        LogMovement(context, linen.LinenId, "Restock", "รับเข้าคลัง (Auto)", prevLoc, "คลังผ้าสะอาด"); 
+                                        shouldSave = true; 
+
+                                        // ✅ แจ้งเตือน: เช็คอายุการใช้งานของผ้า (ดึงวันที่จาก RegisteredAt ใน DB)
+                                        if (linen.Product != null && linen.Product.MaxLifespanDays > 0)
+                                        {
+                                            var daysUsed = (ThaiTime() - linen.RegisteredAt).TotalDays;
+                                            if (daysUsed >= linen.Product.MaxLifespanDays)
+                                            {
+                                                var noti = new Notification
+                                                {
+                                                    RoleId = 1, 
+                                                    Title = "⏰ ผ้าหมดอายุการใช้งาน",
+                                                    Message = $"รหัส {linen.RfidCode} ({linen.Product?.ProductName}) ใช้งานเกินกำหนด ({Math.Floor(daysUsed)}/{linen.Product?.MaxLifespanDays} วัน) แนะนำให้พิจารณาตัดจำหน่าย",
+                                                    Type = "DANGER",
+                                                    IsRead = false,
+                                                    LinkUrl = "/search-linen",
+                                                    CreatedAt = ThaiTime()
+                                                };
+                                                context.Notifications.Add(noti);
+                                            }
+                                        }
+                                    }
                                     break;
 
                                 case "จำหน่ายออก": 
                                 case "MODE_DISCARD":
                                     if (linen.IsActive == false) isDuplicate = true;
-                                    else { linen.Status = "จำหน่ายออก"; finalStatus = "จำหน่ายออก"; linen.IsActive = false; linen.CurrentLocation = "จุดจำหน่าย (Disposal)"; LogMovement(context, linen.LinenId, "Discard", "จำหน่ายออก (Auto)", prevLoc, "จุดจำหน่าย (Disposal)"); shouldSave = true; }
+                                    else { linen.Status = "จำหน่ายออก"; finalStatus = "จำหน่ายออก"; linen.IsActive = false; linen.CurrentLocation = "จุดจำหน่าย"; LogMovement(context, linen.LinenId, "Discard", "จำหน่ายออก (Auto)", prevLoc, "จุดจำหน่าย"); shouldSave = true; }
                                     break;
 
                                 case "กำลังจัดส่ง": 
@@ -385,6 +438,7 @@ namespace Backend.Services
                 case "Available": return "พร้อมใช้";
                 case "In Use": return "ถูกใช้งาน";
                 case "SendingToLaundry": return "ส่งซัก";
+                case "ReWash": return "ส่งซักซ้ำ"; 
                 case "Washing": return "กำลังซัก";
                 case "Discarded": return "จำหน่ายออก";
                 case "Dispatch": return "กำลังส่ง";

@@ -473,12 +473,12 @@ namespace Backend.Controllers
             linen.IsActive = true;
             linen.Status = "พร้อมใช้"; 
             linen.WashCount = 0; 
-            linen.CurrentLocation = "คลังผ้า";
+            linen.CurrentLocation = "คลังผ้าสะอาด";
             
             _context.Linens.Add(linen);
             await _context.SaveChangesAsync(); 
 
-            CreateLinenLog(linen.LinenId, "Add", "เพิ่มรายชิ้น", "-", "คลังผ้า");
+            CreateLinenLog(linen.LinenId, "Add", "เพิ่มรายชิ้น", "-", "คลังผ้าสะอาด");
             await _context.SaveChangesAsync();
 
             return CreatedAtAction("GetLinens", new { id = linen.LinenId }, linen);
@@ -521,11 +521,11 @@ namespace Backend.Controllers
                 linen.HospitalId = request.HospitalId;
                 linen.VendorId = request.VendorId;
                 linen.WashCount = 0; 
-                linen.CurrentLocation = "คลังผ้า";
+                linen.CurrentLocation = "คลังผ้าสะอาด";
                 linen.UpdatedAt = now;
                 linen.RegisteredAt = now; 
 
-                CreateLinenLog(linen.LinenId, "REUSE", $"นำกลับมาใช้ใหม่ (เดิม: {oldStatus})", "จำหน่ายออก", "คลังผ้า");
+                CreateLinenLog(linen.LinenId, "REUSE", $"นำกลับมาใช้ใหม่ (เดิม: {oldStatus})", "จำหน่ายออก", "คลังผ้าสะอาด");
             }
 
             // 4. Logic NEW
@@ -542,7 +542,7 @@ namespace Backend.Controllers
                     IsActive = true,
                     WashCount = 0,
                     MaxWashCount = 100, 
-                    CurrentLocation = "คลังผ้า",
+                    CurrentLocation = "คลังผ้าสะอาด",
                     RegisteredAt = now,
                     UpdatedAt = now
                 };
@@ -554,7 +554,7 @@ namespace Backend.Controllers
 
             foreach (var item in newLinens)
             {
-                CreateLinenLog(item.LinenId, "Add", "ลงทะเบียนใหม่ (Batch)", "-", "คลังผ้า");
+                CreateLinenLog(item.LinenId, "Add", "ลงทะเบียนใหม่ (Batch)", "-", "คลังผ้าสะอาด");
             }
             await _context.SaveChangesAsync(); 
 

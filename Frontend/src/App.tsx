@@ -21,6 +21,7 @@ import Transport from './pages/Transport';
 import Settings from './pages/Settings';
 import NotificationsPage from './pages/Notifications';
 import RfidConnect from './pages/RfidConnect';
+import SearchLinen from './pages/SearchLinen'; // ✅ นำเข้า SearchLinen ที่สร้างใหม่
 
 import MainLayout from './layouts/MainLayout';
 
@@ -161,6 +162,9 @@ function App() {
             <Route path="/laundry" element={<PermissionGuard requiredPerm="MANAGE_LAUNDRY"><Laundry /></PermissionGuard>} />
             <Route path="/discard" element={<PermissionGuard requiredPerm="MANAGE_DISCARD"><Discard /></PermissionGuard>} />
             
+            {/* ✅ กลุ่มค้นหาข้อมูลผ้า (อนุญาตให้ทุกคนที่ล็อกอินเข้ามาใช้งานได้ ไม่บังคับสิทธิ์เฉพาะเจาะจง) */}
+            <Route path="/search-linen" element={<PermissionGuard><SearchLinen /></PermissionGuard>} />
+
             {/* กลุ่มอื่นๆ */}
             <Route path="/reports" element={<PermissionGuard requiredPerm="VIEW_REPORT"><Reports /></PermissionGuard>} />
             <Route path="/transport" element={<PermissionGuard requiredPerm="MANAGE_TRANSPORT"><Transport /></PermissionGuard>} />

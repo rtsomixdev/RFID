@@ -28,10 +28,9 @@ import buddhistEra from 'dayjs/plugin/buddhistEra';
 dayjs.extend(buddhistEra);
 dayjs.locale('th');
 
-// 🌟 2. พระเอกของเรา: Custom Adapter หลอกให้หน้าจอโชว์เป็น พ.ศ.
+// 🌟 2. Custom Adapter หลอกให้หน้าจอโชว์เป็น พ.ศ.
 class AdapterDayjsBuddhist extends AdapterDayjs {
     formatByString = (date: Dayjs, formatString: string) => {
-        // ดักจับคำว่า YYYY เปลี่ยนเป็น BBBB (พ.ศ.) อัตโนมัติเฉพาะตอนโชว์บนจอ
         return dayjs(date).format(formatString.replace(/YYYY/g, 'BBBB'));
     };
 }
@@ -67,12 +66,18 @@ interface StockItem {
     countedQty?: number; 
 }
 
+interface LocationItem {
+    locationId: number;
+    locationName: string;
+}
+
 // --- Helper Functions ---
 const getActivityLabel = (type: string) => {
     const t = type || '';
     if (t === 'Add' || t === 'New') return 'เพิ่มเข้าระบบ';
     if (t === 'Restock') return 'รับเข้าคลัง';
     if (t === 'SendToWash' || t === 'Wash' || t === 'ส่งซัก') return 'ส่งซัก';
+    if (t === 'ReWash' || t === 'ส่งซักซ้ำ') return 'ส่งซักซ้ำ'; // ✅ เพิ่ม ส่งซักซ้ำ
     if (t === 'ReceiveWash' || t === 'Clean') return 'รับผ้าสะอาด';
     if (t === 'Discard' || t === 'Lost') return 'จำหน่าย/ชำรุด';
     if (t === 'Move') return 'ย้ายสถานที่';
@@ -85,6 +90,7 @@ const getActivityLabel = (type: string) => {
 const getActivityColor = (type: string) => {
     const t = type || '';
     if (['Add', 'New', 'Restock', 'Reuse', 'พร้อมใช้'].some(k => t.includes(k))) return 'success';
+    if (['ReWash', 'ส่งซักซ้ำ'].some(k => t.includes(k))) return 'secondary'; // ✅ สีของส่งซักซ้ำ
     if (['SendToWash', 'Wash', 'ReceiveWash', 'Move', 'Dispatch', 'ส่งซัก'].some(k => t.includes(k))) return 'info';
     if (['Discard', 'Lost', 'Damaged', 'จำหน่าย'].some(k => t.includes(k))) return 'error';
     if (['Check', 'ตรวจสอบ'].some(k => t.includes(k))) return 'warning';
@@ -94,18 +100,21 @@ const getActivityColor = (type: string) => {
 const Reports: React.FC = () => {
     const theme = useTheme();
     
-    // ✅ 3. ใช้ Dayjs เป็น State 
+    // ✅ 3. States 
     const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().startOf('month'));
     const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
     
     const [selectedType, setSelectedType] = useState('All');
+    const [selectedLocation, setSelectedLocation] = useState('All'); 
+
     const [reportData, setReportData] = useState<MovementItem[]>([]);
+    const [stockData, setStockData] = useState<StockItem[]>([]);
+    
+    // 🔥 State สำหรับเก็บ Master Data สถานที่ทั้งหมด (วอร์ด/แผนก)
+    const [locations, setLocations] = useState<LocationItem[]>([]);
     
     const [currentTab, setCurrentTab] = useState(0); 
-    const [stockData, setStockData] = useState<StockItem[]>([]);
-
     const [loading, setLoading] = useState(false);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [error, setError] = useState<string | null>(null);
 
     // Filter Options
@@ -113,6 +122,7 @@ const Reports: React.FC = () => {
         { value: 'All', label: 'ทั้งหมด (All Activities)' },
         { value: 'Add', label: 'เพิ่มเข้าระบบ (Add New)' },
         { value: 'SendToWash', label: 'ส่งซัก (Send to Wash)' },
+        { value: 'ReWash', label: 'ส่งซักซ้ำ (Re-wash)' }, // ✅ เพิ่มตัวกรอง ส่งซักซ้ำ
         { value: 'Restock', label: 'รับเข้าคลัง (Restock)' },
         { value: 'Discard', label: 'ตัดจำหน่าย (Discard)' },
         { value: 'Move', label: 'ย้ายตำแหน่ง (Move)' },
@@ -120,10 +130,41 @@ const Reports: React.FC = () => {
     ];
 
     useEffect(() => {
+        fetchLocations(); // ดึงรายชื่อแผนก/สถานที่ตอนเปิดหน้าครั้งแรก
         if (currentTab === 0) handleFetchReport();
         else handleFetchStock();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTab]); 
+
+    // 🔥 API ดึงข้อมูลรายชื่อ วอร์ด/สถานที่ จากฐานข้อมูลจริงๆ
+    const fetchLocations = async () => {
+        try {
+            // ดึงจาก API Ward (เปลี่ยนชื่อ Endpoint ให้ตรงกับ Backend ของคุณถ้าจำเป็น)
+            const res = await axios.get(`${BASE_URL}/Ward`); 
+            const data = res.data || [];
+            
+            const formattedLocations = data.map((item: any, index: number) => ({
+                locationId: item.wardId || item.id || index,
+                locationName: item.wardName || item.name || ''
+            }));
+            
+            setLocations(formattedLocations);
+        } catch (err) {
+            console.error("Failed to load Wards, trying Location endpoint...", err);
+            // Fallback เผื่อ API ชื่อ /Location
+            try {
+                const res2 = await axios.get(`${BASE_URL}/Location`);
+                const data2 = res2.data || [];
+                const formattedFallback = data2.map((item: any, index: number) => ({
+                    locationId: item.locationId || item.id || index,
+                    locationName: item.locationName || item.name || ''
+                }));
+                setLocations(formattedFallback);
+            } catch (fallbackErr) {
+                 console.error("Fallback failed.");
+            }
+        }
+    };
 
     // --- API Handlers ---
     const handleFetchReport = async () => {
@@ -132,7 +173,6 @@ const Reports: React.FC = () => {
         try {
             const reqReport = axios.get(`${BASE_URL}/Report/Movement`, {
                 params: { 
-                    // ✅ เวลาส่ง API ส่งเป็น YYYY (ค.ศ.) ตามปกติ Backend จะได้อ่านออก
                     start: startDate?.format('YYYY-MM-DD'), 
                     end: endDate?.format('YYYY-MM-DD'), 
                     type: selectedType 
@@ -226,12 +266,22 @@ const Reports: React.FC = () => {
         ));
     };
 
+    // 🔥 Filter ข้อมูล: ถ้าเป็น Report เช็คว่าชื่อสถานที่อยู่ในเส้นทาง (Flow) ไหม, ถ้าเป็นสต็อก เช็คชื่อสถานที่ตรงๆ
+    const filteredReportData = selectedLocation === 'All' 
+        ? reportData 
+        : reportData.filter(item => item.flow.includes(selectedLocation));
+
+    const filteredStockData = selectedLocation === 'All'
+        ? stockData
+        : stockData.filter(item => item.location === selectedLocation);
+
+
     // --- Export Handlers ---
     const handleExportExcel = () => {
         if (currentTab === 0) {
-            if (reportData.length === 0) return alert("ไม่มีข้อมูล");
+            if (filteredReportData.length === 0) return alert("ไม่มีข้อมูล");
             
-            const data = reportData.map(item => ({
+            const data = filteredReportData.map(item => ({
                 "วัน/เวลา": new Date(item.date).toLocaleString('th-TH'),
                 "ประเภท": getActivityLabel(item.type),
                 "หมวดหมู่": item.categoryName,
@@ -256,8 +306,8 @@ const Reports: React.FC = () => {
             XLSX.writeFile(wb, `Movement_${startDate?.format('YYYY-MM-DD')}.xlsx`);
 
         } else {
-            if (stockData.length === 0) return alert("ไม่มีข้อมูล");
-            const data = stockData.map(item => ({
+            if (filteredStockData.length === 0) return alert("ไม่มีข้อมูล");
+            const data = filteredStockData.map(item => ({
                 "สถานที่เก็บปัจจุบัน": item.location,
                 "หมวดหมู่": item.categoryName,
                 "ชื่อสินค้า": item.productName + (item.isDisposable ? ' (ใช้แล้วทิ้ง)' : ''),
@@ -317,21 +367,20 @@ const Reports: React.FC = () => {
         doc.setFontSize(18);
         
         if (currentTab === 0) {
-            if (reportData.length === 0) return alert("ไม่มีข้อมูล");
+            if (filteredReportData.length === 0) return alert("ไม่มีข้อมูล");
             
             doc.text("รายงานสรุปความเคลื่อนไหว (Movement Logs)", 14, 20);
             doc.setFontSize(10);
             
-            // ✅ เวลาพิมพ์ออก PDF สั่งให้ฟอร์แมตเป็น พ.ศ. (BBBB) ได้เลย
             const startStr = startDate ? startDate.format('DD/MM/BBBB') : '';
             const endStr = endDate ? endDate.format('DD/MM/BBBB') : '';
             doc.text(`ช่วงเวลา: ${startStr} ถึง ${endStr}`, 14, 28);
-            doc.text(`ประเภท: ${selectedType}`, 14, 34);
+            doc.text(`สถานที่: ${selectedLocation === 'All' ? 'ทั้งหมด' : selectedLocation}   |   ประเภท: ${selectedType}`, 14, 34);
 
             autoTable(doc, {
                 startY: 40,
                 head: [['เวลา', 'ประเภท', 'หมวดหมู่', 'สินค้า', 'ขนาด', 'สี', 'เส้นทาง', 'จำนวน', 'ผู้ทำรายการ']],
-                body: reportData.map(item => [
+                body: filteredReportData.map(item => [
                     new Date(item.date).toLocaleString('th-TH'),
                     getActivityLabel(item.type),
                     item.categoryName,
@@ -350,16 +399,16 @@ const Reports: React.FC = () => {
             doc.save(`Movement_${startDate?.format('YYYY-MM-DD')}.pdf`);
 
         } else {
-            if (stockData.length === 0) return alert("ไม่มีข้อมูล");
+            if (filteredStockData.length === 0) return alert("ไม่มีข้อมูล");
             
             doc.text("รายงานยอดคงเหลือและตรวจสอบสต็อก (Stock Audit)", 14, 20);
             doc.setFontSize(10);
-            doc.text(`ข้อมูล ณ วันที่: ${new Date().toLocaleDateString('th-TH')}`, 14, 28);
+            doc.text(`ข้อมูล ณ วันที่: ${new Date().toLocaleDateString('th-TH')}   |   สถานที่: ${selectedLocation === 'All' ? 'ทั้งหมด' : selectedLocation}`, 14, 28);
 
             autoTable(doc, {
                 startY: 35,
                 head: [['สถานที่', 'สินค้า', 'ขนาด', 'สี', 'ยอดระบบ', 'หน่วย', 'นับจริง', 'ผลต่าง', 'สถานะ']],
-                body: stockData.map(item => [
+                body: filteredStockData.map(item => [
                     item.location,
                     item.productName + (item.isDisposable ? ' (ทิ้ง)' : ''),
                     item.sizeSpec,
@@ -388,7 +437,6 @@ const Reports: React.FC = () => {
     };
 
     return (
-        // ✅ 4. ใช้ AdapterDayjsBuddhist ที่เราสร้างขึ้นมาใหม่ครอบไว้
         <LocalizationProvider dateAdapter={AdapterDayjsBuddhist} adapterLocale="th">
             <Box sx={{ pb: 5 }}>
                 <PageHeader
@@ -399,7 +447,7 @@ const Reports: React.FC = () => {
                 />
 
                 <Paper elevation={0} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
-                    <Tabs value={currentTab} onChange={(_, v) => setCurrentTab(v)} aria-label="report tabs">
+                    <Tabs value={currentTab} onChange={(_, v) => { setCurrentTab(v); setSelectedLocation('All'); }} aria-label="report tabs">
                         <Tab icon={<History />} label="ประวัติความเคลื่อนไหว (Movement Logs)" iconPosition="start" />
                         <Tab icon={<Inventory />} label="ตรวจสอบสต็อก (Stock Audit)" iconPosition="start" />
                     </Tabs>
@@ -408,10 +456,9 @@ const Reports: React.FC = () => {
                 {currentTab === 0 && (
                     <>
                         <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
-                            <Grid container spacing={3} alignItems="flex-end">
-                                <Grid item xs={6} md={3}>
+                            <Grid container spacing={2} alignItems="flex-end">
+                                <Grid item xs={6} md={2.5}>
                                     <FormLabel label="วันที่เริ่มต้น">
-                                        {/* ✅ 5. ใส่ format เป็น YYYY ไปเลย แต่ Adapter จะจัดการแอบแปลงให้เป็น พ.ศ. บนหน้าจอเอง */}
                                         <DatePicker
                                             format="DD/MM/YYYY"
                                             value={startDate}
@@ -420,7 +467,7 @@ const Reports: React.FC = () => {
                                         />
                                     </FormLabel>
                                 </Grid>
-                                <Grid item xs={6} md={3}>
+                                <Grid item xs={6} md={2.5}>
                                     <FormLabel label="วันที่สิ้นสุด">
                                         <DatePicker
                                             format="DD/MM/YYYY"
@@ -430,14 +477,25 @@ const Reports: React.FC = () => {
                                         />
                                     </FormLabel>
                                 </Grid>
-                                <Grid item xs={12} md={3}>
+                                <Grid item xs={12} md={2.5}>
                                     <FormLabel label="ประเภทรายการ">
                                         <Select fullWidth size="small" value={selectedType} onChange={(e) => setSelectedType(e.target.value)} displayEmpty>
                                             {activityTypes.map((type) => (<MenuItem key={type.value} value={type.value}>{type.label}</MenuItem>))}
                                         </Select>
                                     </FormLabel>
                                 </Grid>
-                                <Grid item xs={12} md={3}>
+                                {/* 🔥 ใช้รายชื่อวอร์ด/สถานที่ จาก Master Data ของระบบมาโชว์ */}
+                                <Grid item xs={12} md={2.5}>
+                                    <FormLabel label="สถานที่ (Location)">
+                                        <Select fullWidth size="small" value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} displayEmpty>
+                                            <MenuItem value="All">ทั้งหมด (All Locations)</MenuItem>
+                                            {locations.map((loc) => (
+                                                <MenuItem key={loc.locationId} value={loc.locationName}>{loc.locationName}</MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormLabel>
+                                </Grid>
+                                <Grid item xs={12} md={2}>
                                     <Button variant="contained" fullWidth startIcon={<Search />} onClick={handleFetchReport} sx={{ height: 40 }}>ค้นหา</Button>
                                 </Grid>
                             </Grid>
@@ -463,10 +521,10 @@ const Reports: React.FC = () => {
                                 <TableBody>
                                     {loading ? (
                                         <TableRow><TableCell colSpan={7} align="center" sx={{ py: 8 }}><CircularProgress /><Typography variant="body2" sx={{ mt: 2 }}>กำลังโหลด...</Typography></TableCell></TableRow>
-                                    ) : reportData.length === 0 ? (
+                                    ) : filteredReportData.length === 0 ? (
                                         <TableRow><TableCell colSpan={7} align="center" sx={{ py: 8, color: 'text.disabled' }}>ไม่พบข้อมูล</TableCell></TableRow>
                                     ) : (
-                                        reportData.map((row, idx) => (
+                                        filteredReportData.map((row, idx) => (
                                             <TableRow key={idx} hover>
                                                 <TableCell>{new Date(row.date).toLocaleString('th-TH')}</TableCell>
                                                 <TableCell>
@@ -501,16 +559,20 @@ const Reports: React.FC = () => {
 
                 {currentTab === 1 && (
                     <>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                            <Typography variant="body2" color="text.secondary">
-                                * กรอกยอดที่นับได้จริงในช่องขวาสุด ระบบจะคำนวณผลต่างให้อัตโนมัติ
-                            </Typography>
-                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                <Button variant="outlined" startIcon={<Refresh />} onClick={handleFetchStock}>รีเฟรชข้อมูล</Button>
-                                <Button variant="outlined" color="error" startIcon={<PictureAsPdf />} onClick={handleExportPDF}>Export PDF</Button>
-                                <Button variant="contained" color="success" startIcon={<TableView />} onClick={handleExportExcel}>Export Stock Sheet</Button>
-                            </Box>
-                        </Box>
+                        <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <FormLabel label="กรองตามสถานที่ (Location)" />
+                            {/* 🔥 ใช้รายชื่อวอร์ด/สถานที่ จาก Master Data ของระบบมาโชว์ */}
+                            <Select size="small" value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} displayEmpty sx={{ width: 300 }}>
+                                <MenuItem value="All">แสดงทั้งหมด (All Locations)</MenuItem>
+                                {locations.map((loc) => (
+                                    <MenuItem key={loc.locationId} value={loc.locationName}>{loc.locationName}</MenuItem>
+                                ))}
+                            </Select>
+                            <Box sx={{ flexGrow: 1 }} />
+                            <Button variant="outlined" startIcon={<Refresh />} onClick={handleFetchStock}>รีเฟรชข้อมูล</Button>
+                            <Button variant="outlined" color="error" startIcon={<PictureAsPdf />} onClick={handleExportPDF}>Export PDF</Button>
+                            <Button variant="contained" color="success" startIcon={<TableView />} onClick={handleExportExcel}>Export Stock Sheet</Button>
+                        </Paper>
                         
                         <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 3 }}>
                             <Table size="small">
@@ -528,10 +590,10 @@ const Reports: React.FC = () => {
                                 <TableBody>
                                     {loading ? (
                                         <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5 }}><CircularProgress /></TableCell></TableRow>
-                                    ) : stockData.length === 0 ? (
+                                    ) : filteredStockData.length === 0 ? (
                                         <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.disabled' }}>ไม่พบข้อมูลสต็อก</TableCell></TableRow>
                                     ) : (
-                                        stockData.map((item) => {
+                                        filteredStockData.map((item) => {
                                             const status = getStockStatus(item.totalQty, item.countedQty);
                                             return (
                                                 <TableRow key={item.id} hover>

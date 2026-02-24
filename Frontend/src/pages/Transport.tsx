@@ -1,40 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-    Box, Typography, Grid, Paper, TextField, Button,
-    MenuItem, Select, FormControl, InputLabel,
+    Box, Paper, Typography, Card, CardContent,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Chip, Alert, Stack, Card, CardContent, Tabs, Tab, Divider, Autocomplete,
-    Tooltip, useTheme, alpha, IconButton, Menu, CircularProgress
+    Chip, CircularProgress, Button, Stack, useTheme, alpha
 } from '@mui/material';
 import {
-    LocalShipping, QrCodeScanner, CheckCircle, ErrorOutline,
-    Delete, Send, Cancel, CallMade, CallReceived, AccessTime,
-    Description, RestartAlt, MoreVert, Place
+    LocalShipping, History, Refresh, Room, Place
 } from '@mui/icons-material';
 import axiosClient from '../api/axiosClient';
-import Swal from 'sweetalert2';
-import { sendNotification } from '../utils/notificationUtil';
 import PageHeader from '../components/ui/PageHeader';
-import FormLabel from '../components/ui/FormLabel';
-import ReaderWakeButton from '../components/ReaderWakeButton'; // ✅ Import ปุ่ม Wake
 
 // --- Interfaces ---
-interface Reader {
-    readerId: number;
-    readerName: string;
-    location: string;
-    isActive?: boolean;
-}
-
-interface ScannedItem {
-    rfid: string;
-    productName?: string;
-    productId?: number;
-    status: 'pending' | 'success' | 'error';
-    message?: string;
-}
-
-// Interface สำหรับข้อมูลขนส่งรายชิ้น (เหมือนหน้า Home)
 interface TransportMonitorItem {
     rfid: string;
     productName: string;
@@ -43,126 +19,26 @@ interface TransportMonitorItem {
     updatedAt: string;
 }
 
-// Interface สำหรับใบงาน (ใช้ใน Dropdown)
-interface TransportRequestItem {
-    requestId: number;
-    requestCode: string;
-    targetWard: { wardId: number; wardName: string };
-    currentStatusId: number;
-}
-
 const Transport: React.FC = () => {
     const theme = useTheme();
-    // --- States ---
-    const [readers, setReaders] = useState<Reader[]>([]);
-    const [selectedReader, setSelectedReader] = useState<string>('');
-    // ✅ เพิ่ม State เช็คสถานะ Reader ว่า Online ไหม
-    const [isReaderOnline, setIsReaderOnline] = useState(false);
-
-    // Request States (สำหรับ Dropdown เลือกใบงาน)
-    const [pendingRequests, setPendingRequests] = useState<TransportRequestItem[]>([]);
-    const [selectedRequest, setSelectedRequest] = useState<TransportRequestItem | null>(null);
-
-    // Transport List States (สำหรับตารางด้านล่าง - โชว์รายชิ้นที่กำลังส่ง)
+    
+    // Transport List States
     const [transportList, setTransportList] = useState<TransportMonitorItem[]>([]);
-    const [loadingTable, setLoadingTable] = useState(false);
-
-    const [inputRfid, setInputRfid] = useState('');
-    const [scannedList, setScannedList] = useState<ScannedItem[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [tabValue, setTabValue] = useState(0);
-
-    const inputRef = useRef<HTMLInputElement>(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetchInitialData();
-        fetchTransportList(); // ดึงข้อมูลเข้าตารางล่างตอนโหลดหน้า
+        fetchTransportList();
 
-        // Auto Refresh Table ทุก 5 วินาที (เพื่อให้ Realtime เหมือนหน้า Home)
+        // Auto Refresh ทุก 5 วินาที
         const interval = setInterval(() => {
             fetchTransportList();
-            fetchInitialData(); // Refresh Reader Status ด้วย
         }, 5000);
         return () => clearInterval(interval);
     }, []);
 
-    useEffect(() => {
-        if (tabValue === 0) {
-            fetchPendingRequests(); // ดึงเฉพาะใบที่รอส่ง
-        } else {
-            setSelectedRequest(null);
-        }
-        setScannedList([]);
-        setInputRfid('');
-    }, [tabValue]);
-
-    // ✅ อัปเดตสถานะ Online เมื่อเปลี่ยน Reader หรือ Fetch ใหม่
-    useEffect(() => {
-        if (selectedReader && readers.length > 0) {
-            const reader = readers.find(r => r.readerId.toString() === selectedReader);
-            setIsReaderOnline(reader ? !!reader.isActive : false);
-        }
-    }, [selectedReader, readers]);
-
-    // ✅ Real-time Auto Scan Listener
-    useEffect(() => {
-        const handleAutoScan = (e: any) => {
-            const incomingData = e.detail;
-            const rfid = typeof incomingData === 'object' ? incomingData.rfid : incomingData;
-            const readerName = typeof incomingData === 'object' ? incomingData.reader : null;
-
-            console.log(`📡 Transport Auto Scan: ${rfid} from ${readerName}`);
-
-            if (!selectedReader) {
-                Swal.fire({ icon: 'warning', title: 'กรุณาเลือก Reader', timer: 1500, showConfirmButton: false });
-                return;
-            }
-            if (tabValue === 0 && !selectedRequest) {
-                Swal.fire({ icon: 'warning', title: 'กรุณาเลือกใบคำร้อง', timer: 1500, showConfirmButton: false });
-                return;
-            }
-
-            const currentReaderObj = readers.find(r => r.readerId === parseInt(selectedReader));
-            // if (currentReaderObj && readerName && currentReaderObj.readerName !== readerName) {
-            //     console.warn(`⚠️ Ignore scan from ${readerName}`);
-            //     return;
-            // }
-
-            if (rfid) handleAddRfidLogic(rfid);
-        };
-
-        window.addEventListener("RFID_SCANNED", handleAutoScan);
-        return () => window.removeEventListener("RFID_SCANNED", handleAutoScan);
-    }, [selectedReader, selectedRequest, tabValue, readers]);
-
-    const fetchInitialData = async () => {
-        try {
-            const readerRes = await axiosClient.get('/Reader');
-            setReaders(readerRes.data);
-
-            // ถ้ายังไม่ได้เลือก Reader ให้เลือกตัวแรกที่ Online
-            if (!selectedReader && readerRes.data.length > 0) {
-                const online = readerRes.data.find((r: any) => r.isActive);
-                const defaultId = online ? online.readerId.toString() : readerRes.data[0].readerId.toString();
-                setSelectedReader(defaultId);
-            }
-        } catch (err) { console.error(err); }
-    };
-
-    const fetchPendingRequests = async () => {
-        try {
-            const res = await axiosClient.get('/Request');
-            // สมมติ Status 2 = Approved พร้อมส่ง
-            const approved = res.data.filter((r: any) => r.currentStatusId === 2 || r.currentStatusId === 3);
-            setPendingRequests(approved);
-        } catch (err) { console.error(err); }
-    };
-
-    // ✅ ฟังก์ชันดึงข้อมูลตารางด้านล่าง (ดึงจาก Linen Monitor เหมือนหน้า Home)
+    // ✅ ฟังก์ชันดึงข้อมูลตาราง (ดึงจาก Linen Monitor เหมือนหน้า Home แต่เอามา Filter)
     const fetchTransportList = async () => {
-        setLoadingTable(true);
         try {
-            // ใช้ API เดียวกับหน้า Home
             const res = await axiosClient.get('/Linen/Monitor/Latest');
             const data = res.data || [];
 
@@ -170,313 +46,95 @@ const Transport: React.FC = () => {
             const filtered = data.filter((item: any) =>
                 item.status === 'กำลังส่ง' ||
                 item.status === 'ระหว่างขนส่ง' ||
+                item.status === 'Dispatch' ||
                 item.location === 'ระหว่างขนส่ง'
             );
 
             // Map ให้ตรง Interface
             const mappedData: TransportMonitorItem[] = filtered.map((item: any) => ({
-                rfid: item.rfid,
-                productName: item.productName,
-                location: item.location,
-                status: item.status,
-                updatedAt: item.updatedAt
+                rfid: item.RfidCode || item.rfidCode || item.rfid || '-',
+                productName: item.ItemName || item.productName || item.product_name || '-',
+                location: item.CurrentLocation || item.currentLocation || item.location || '-',
+                status: item.Status || item.status || '-',
+                updatedAt: item.UpdatedAt || item.updatedAt || item.registeredAt
             }));
 
             setTransportList(mappedData);
+            setLoading(false);
         } catch (err) {
             console.error("Error fetching transport list:", err);
-        } finally {
-            setLoadingTable(false);
-        }
-    };
-
-    const handleAddRfidLogic = (code: string) => {
-        const cleanCode = code.trim();
-        if (!cleanCode) return;
-        if (scannedList.some(item => item.rfid === cleanCode)) return;
-
-        setScannedList(prev => [{
-            rfid: cleanCode,
-            productName: '-',
-            status: 'pending'
-        }, ...prev]);
-    };
-
-    const handleManualSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedReader) return Swal.fire('เตือน', 'เลือก Reader ก่อน', 'warning');
-        if (tabValue === 0 && !selectedRequest) return Swal.fire('เตือน', 'เลือกใบคำร้องก่อน', 'warning');
-        handleAddRfidLogic(inputRfid);
-        setInputRfid('');
-        setTimeout(() => inputRef.current?.focus(), 100);
-    };
-
-    const handleDelete = (rfid: string) => {
-        setScannedList(prev => prev.filter(item => item.rfid !== rfid));
-    };
-
-    const handleClear = () => {
-        setScannedList([]);
-        setInputRfid('');
-        inputRef.current?.focus();
-    };
-
-    const handleSubmit = async () => {
-        if (scannedList.length === 0) return;
-        if (!selectedReader) return Swal.fire('เตือน', 'กรุณาเลือกจุดสแกน', 'warning');
-        if (tabValue === 0 && !selectedRequest) return Swal.fire('เตือน', 'กรุณาเลือกใบคำร้อง', 'warning');
-
-        setLoading(true);
-
-        try {
-            const rfidsToSend = scannedList.map(item => item.rfid);
-            const actionType = tabValue === 0 ? "DISPATCH" : "RECEIVE";
-
-            const payload = {
-                rfidCodes: rfidsToSend,
-                readerId: parseInt(selectedReader),
-                actionType: actionType,
-                requestId: selectedRequest?.requestId || null
-            };
-
-            const res = await axiosClient.post('/Linen/Scan', payload);
-
-            if (!res.data || !res.data.registered) throw new Error("Invalid response");
-
-            const { registered, unknown, invalid } = res.data;
-            const registeredSet = new Set(registered.map((r: any) => r.rfidCode));
-            const unknownSet = new Set(unknown);
-            const invalidMap = new Map(invalid?.map((i: any) => [i.rfidCode, i.message]) || []);
-
-            const updatedList = scannedList.map(item => {
-                const regItem = registered.find((r: any) => r.rfidCode === item.rfid);
-                const realProductName = regItem?.productName || item.productName;
-
-                if (registeredSet.has(item.rfid)) return { ...item, productName: realProductName, status: 'success', message: 'สำเร็จ' };
-                if (unknownSet.has(item.rfid)) return { ...item, status: 'error', message: 'ไม่พบในระบบ' };
-                if (invalidMap.has(item.rfid)) return { ...item, status: 'error', message: invalidMap.get(item.rfid) };
-                return item;
-            });
-
-            setScannedList(updatedList as ScannedItem[]);
-
-            const successCount = registered.length;
-
-            if (successCount > 0) {
-                if (tabValue === 0) {
-                    await sendNotification("กำลังส่งผ้า (In Transit)", `ส่งผ้า ${successCount} ชิ้น ตามคำร้อง ${selectedRequest?.requestCode}`, "WARNING", "/transport", undefined, 1);
-                    await fetchTransportList(); // รีเฟรชตาราง
-                    await fetchPendingRequests();
-                } else {
-                    await sendNotification("รับผ้าเข้าคลัง", `รับผ้า ${successCount} ชิ้น เรียบร้อย`, "SUCCESS", "/transport", undefined, 1);
-                    await fetchTransportList();
-                }
-            }
-
-            Swal.fire({
-                icon: successCount > 0 ? 'success' : 'warning',
-                title: 'บันทึกผลการสแกน',
-                text: `สำเร็จ ${successCount} รายการ`,
-                timer: 1500, showConfirmButton: false
-            });
-
-        } catch (err: any) {
-            Swal.fire('Error', err.response?.data?.message || 'เกิดข้อผิดพลาด', 'error');
-        } finally {
             setLoading(false);
         }
     };
 
+    const getStatusColor = (status: string) => {
+        const s = status ? status.toLowerCase() : '';
+        if (s === 'กำลังส่ง' || s === 'ระหว่างขนส่ง' || s === 'dispatch') return 'warning';
+        return 'default';
+    };
+
     return (
-        <Box sx={{ pb: 5 }}>
+        <Box sx={{ pb: 5, height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc', overflow: 'hidden' }}>
             <PageHeader
-                title="ระบบขนส่ง (Transport Logistics)"
-                subtitle="จัดการการรับ-ส่งผ้า ตามใบคำร้อง (Request Based)"
+                title="ติดตามสถานะขนส่ง (Transport Monitor)"
+                subtitle="ตรวจสอบรายการผ้าที่อยู่ระหว่างการขนส่งไปยังวอร์ดหรือโรงซักแบบเรียลไทม์"
                 icon={<LocalShipping fontSize="large" />}
-                breadcrumbs={[{ label: 'หน้าหลัก', href: '/' }, { label: 'ขนส่ง' }]}
+                breadcrumbs={[
+                    { label: 'หน้าหลัก', href: '/' },
+                    { label: 'ติดตามขนส่ง' }
+                ]}
             />
 
-            {/* Tab Selection */}
-            <Paper elevation={0} sx={{ mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
-                <Tabs
-                    value={tabValue}
-                    onChange={(e, v) => setTabValue(v)}
-                    variant="fullWidth"
-                    indicatorColor={tabValue === 0 ? "primary" : "success"}
-                    textColor={tabValue === 0 ? "primary" : "inherit"}
-                    sx={{ bgcolor: alpha(tabValue === 0 ? theme.palette.primary.main : theme.palette.success.main, 0.05) }}
-                >
-                    <Tab icon={<CallMade />} label="1. ส่งของออก (DISPATCH)" />
-                    <Tab icon={<CallReceived />} label="2. รับของเข้า (RECEIVE)" />
-                </Tabs>
-            </Paper>
-
-            <Grid container spacing={3}>
-                {/* Left Panel: Controls */}
-                <Grid item xs={12} md={4}>
-                    <Card elevation={0} sx={{ borderRadius: 3, mb: 3, borderTop: tabValue === 0 ? `5px solid ${theme.palette.primary.main}` : `5px solid ${theme.palette.success.main}`, border: `1px solid ${theme.palette.divider}`, height: '100%' }}>
-                        <CardContent>
-                            <Typography variant="h6" fontWeight="bold" gutterBottom color={tabValue === 0 ? "primary" : "success.main"}>
-                                {tabValue === 0 ? "เตรียมส่งของ (ตามใบเบิก)" : "เตรียมรับของเข้า"}
-                            </Typography>
-                            <Divider sx={{ mb: 3 }} />
-
-                            {/* ✅ ส่วนเลือก Reader และปุ่ม Wake Up */}
-                            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                                <FormLabel label="จุดสแกน (Reader)" required />
-                                {/* ปุ่ม Wake Up */}
-                                {selectedReader && (
-                                    <ReaderWakeButton
-                                        readerName={readers.find(r => r.readerId.toString() === selectedReader)?.readerName || 'Reader1'}
-                                        isOnline={isReaderOnline}
-                                    />
-                                )}
+            <Box sx={{ flexGrow: 1, p: 3, pt: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <Card elevation={0} sx={{ flex: 1, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', flexDirection: 'column' }}>
+                    <CardContent sx={{ p: 0, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                        
+                        <Box sx={{ p: 2, px: 3, bgcolor: alpha(theme.palette.warning.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Stack direction="row" alignItems="center" gap={1.5}>
+                                <History color="warning" />
+                                <Typography variant="h6" fontWeight="bold" color="warning.dark">รายการผ้ากำลังขนส่ง (In Transit List)</Typography>
+                                <Chip label={`${transportList.length} รายการ`} size="small" color="warning" sx={{ fontWeight: 'bold', ml: 1 }} />
                             </Stack>
-
-                            <Select
-                                value={selectedReader}
-                                displayEmpty
-                                onChange={(e) => setSelectedReader(e.target.value)}
-                                fullWidth
-                                sx={{ mb: 2 }}
-                            >
-                                <MenuItem value="" disabled>เลือกจุดสแกน</MenuItem>
-                                {readers.map((r) => (
-                                    <MenuItem key={r.readerId} value={r.readerId}>
-                                        <Stack direction="row" justifyContent="space-between" width="100%">
-                                            {r.readerName}
-                                            {r.isActive ? <CheckCircle fontSize="small" color="success" /> : <ErrorOutline fontSize="small" style={{ color: '#ccc' }} />}
-                                        </Stack>
-                                    </MenuItem>
-                                ))}
-                            </Select>
-
-                            {/* Request Selection */}
-                            {tabValue === 0 && (
-                                <Box sx={{ mb: 2 }}>
-                                    <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2, border: `1px dashed ${theme.palette.primary.light}`, mb: 2 }}>
-                                        <Typography variant="caption" fontWeight="bold" color="primary" sx={{ mb: 1, display: 'block' }}>
-                                            <Description sx={{ fontSize: 14, verticalAlign: 'middle', mr: 0.5 }} />
-                                            เลือกใบคำร้องที่อนุมัติแล้ว *
-                                        </Typography>
-                                        <Autocomplete
-                                            options={pendingRequests}
-                                            getOptionLabel={(option) => `${option.requestCode} - ${option.targetWard?.wardName}`}
-                                            value={selectedRequest}
-                                            onChange={(e, newVal) => setSelectedRequest(newVal)}
-                                            size="medium"
-                                            renderInput={(params) => (
-                                                <TextField {...params} variant="standard" placeholder="ค้นหาใบคำร้อง..." />
-                                            )}
-                                            noOptionsText="ไม่มีรายการรอส่ง"
-                                        />
-                                        {selectedRequest && (
-                                            <Alert severity="info" sx={{ mt: 1, py: 0, fontSize: '0.85rem' }}>
-                                                ปลายทาง: <strong>{selectedRequest.targetWard?.wardName}</strong>
-                                            </Alert>
-                                        )}
-                                    </Box>
-                                </Box>
-                            )}
-
-                            {/* Manual Input */}
-                            <form onSubmit={handleManualSubmit}>
-                                <FormLabel label="SCAN AREA">
-                                    <TextField
-                                        inputRef={inputRef}
-                                        fullWidth
-                                        size="medium"
-                                        variant="outlined"
-                                        value={inputRfid}
-                                        onChange={(e) => setInputRfid(e.target.value)}
-                                        placeholder="RFID Code / Barcode"
-                                        InputProps={{ endAdornment: <QrCodeScanner color="action" /> }}
-                                        autoComplete="off"
-                                        disabled={tabValue === 0 && !selectedRequest}
-                                    />
-                                </FormLabel>
-                            </form>
-
-                            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-                                <Button variant="outlined" color="error" onClick={handleClear} disabled={loading}>
-                                    <RestartAlt />
-                                </Button>
-                                <Button
-                                    variant="contained"
-                                    color={tabValue === 0 ? "primary" : "success"}
-                                    fullWidth
-                                    size="large"
-                                    startIcon={tabValue === 0 ? <Send /> : <CheckCircle />}
-                                    onClick={handleSubmit}
-                                    disabled={loading || scannedList.length === 0}
-                                >
-                                    {tabValue === 0 ? "ยืนยันส่งออก" : "ยืนยันรับของ"}
-                                </Button>
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                </Grid>
-
-                {/* Right Panel: Scan List */}
-                <Grid item xs={12} md={8}>
-                    <Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden', border: `1px solid ${theme.palette.divider}`, height: '100%' }}>
-                        <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="h6" fontWeight="bold" color="text.primary">
-                                รายการสแกน ({scannedList.length})
-                            </Typography>
-                            {tabValue === 0
-                                ? <Chip label="Mode: Dispatch" size="small" color="primary" variant="filled" />
-                                : <Chip label="Mode: Receive" size="small" color="success" variant="filled" />
-                            }
+                            <Button startIcon={<Refresh />} size="small" variant="outlined" color="warning" onClick={() => { setLoading(true); fetchTransportList(); }}>
+                                อัปเดตข้อมูล
+                            </Button>
                         </Box>
 
-                        <TableContainer sx={{ maxHeight: 400 }}>
-                            <Table stickyHeader>
+                        <TableContainer sx={{ flexGrow: 1, overflowY: 'auto' }}>
+                            <Table stickyHeader size="medium">
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell sx={{ fontWeight: 'bold' }}>#</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold' }}>RFID Code</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold' }}>สินค้า</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold' }}>สถานะ</TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>ลบ</TableCell>
+                                        <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc', width: '20%' }}>RFID Code</TableCell>
+                                        <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc', width: '30%' }}>ชื่อสินค้า</TableCell>
+                                        <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc', width: '20%' }}>ตำแหน่งล่าสุด</TableCell>
+                                        <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc', width: '15%' }}>เวลาทำรายการ</TableCell>
+                                        <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc', width: '15%' }} align="center">สถานะ</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {scannedList.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={5} align="center" sx={{ py: 8, color: 'text.secondary' }}>
-                                                <AccessTime sx={{ fontSize: 40, mb: 1, opacity: 0.5 }} />
-                                                <Typography>รอสแกน...</Typography>
-                                            </TableCell>
-                                        </TableRow>
+                                    {loading ? (
+                                        <TableRow><TableCell colSpan={5} align="center" sx={{ py: 10 }}><CircularProgress /></TableCell></TableRow>
+                                    ) : transportList.length === 0 ? (
+                                        <TableRow><TableCell colSpan={5} align="center" sx={{ py: 10, color: 'text.secondary' }}>ไม่พบรายการผ้าที่กำลังขนส่ง</TableCell></TableRow>
                                     ) : (
-                                        scannedList.map((item, index) => (
-                                            <TableRow key={index} hover>
-                                                <TableCell>{scannedList.length - index}</TableCell>
-                                                <TableCell sx={{ maxWidth: 150 }}>
-                                                    <Tooltip title={item.rfid}>
-                                                        <Typography variant="body2" fontFamily="monospace" fontWeight="bold" noWrap color="primary">
-                                                            {item.rfid}
-                                                        </Typography>
-                                                    </Tooltip>
+                                        transportList.map((item, index) => (
+                                            <TableRow key={`${item.rfid}-${index}`} hover sx={{ '& td': { py: 1.5 } }}>
+                                                <TableCell sx={{ fontFamily: 'monospace', fontWeight: 'bold', color: 'primary.main' }}>
+                                                    {item.rfid}
                                                 </TableCell>
-                                                <TableCell sx={{ maxWidth: 200, color: 'text.secondary' }}>
-                                                    <Tooltip title={item.productName || '-'}>
-                                                        <Typography variant="body2" noWrap>
-                                                            {item.productName || '-'}
-                                                        </Typography>
-                                                    </Tooltip>
+                                                <TableCell sx={{ fontWeight: 500 }}>
+                                                    {item.productName}
                                                 </TableCell>
-                                                <TableCell>
-                                                    {item.status === 'pending' && <Chip label="รอ..." size="small" />}
-                                                    {item.status === 'success' && <Chip label="สำเร็จ" size="small" color="success" icon={<CheckCircle />} />}
-                                                    {item.status === 'error' && <Chip label="Error" size="small" color="error" icon={<ErrorOutline />} />}
-                                                    {item.message && item.status === 'error' && <Typography variant="caption" color="error" display="block">{item.message}</Typography>}
+                                                <TableCell sx={{ color: 'text.secondary' }}>
+                                                    {item.location !== '-' ? (
+                                                        <Chip icon={<Place style={{ fontSize: 14 }} />} label={item.location} size="small" variant="outlined" sx={{ height: 24, fontSize: '0.75rem', borderColor: '#e2e8f0' }} />
+                                                    ) : '-'}
+                                                </TableCell>
+                                                <TableCell sx={{ fontFamily: 'monospace', color: 'text.secondary', fontSize: '0.9rem' }}>
+                                                    {item.updatedAt ? new Date(item.updatedAt).toLocaleString('th-TH') : '-'}
                                                 </TableCell>
                                                 <TableCell align="center">
-                                                    {item.status === 'pending' && (
-                                                        <Button size="small" color="error" onClick={() => handleDelete(item.rfid)}><Cancel fontSize="small" /></Button>
-                                                    )}
+                                                    <Chip label={item.status} color={getStatusColor(item.status) as any} size="small" variant="filled" sx={{ fontWeight: 600, minWidth: 90 }} />
                                                 </TableCell>
                                             </TableRow>
                                         ))
@@ -484,61 +142,10 @@ const Transport: React.FC = () => {
                                 </TableBody>
                             </Table>
                         </TableContainer>
-                    </Paper>
-                </Grid>
-            </Grid>
 
-            {/* ✅ 2. Transport Status Table (ดึงรายการผ้าที่กำลังส่ง มาโชว์เหมือนหน้า Home) */}
-            <Box sx={{ mt: 5 }}>
-                <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
-                    <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <LocalShipping /> รายการผ้าที่อยู่ระหว่างขนส่ง (In Transit Items)
-                    </Typography>
-
-                    <TableContainer>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>เวลา</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>RFID Code</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>ชื่อสินค้า</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>ตำแหน่งปัจจุบัน</TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 'bold' }}>สถานะ</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {transportList.length === 0 ? (
-                                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.disabled' }}>ไม่พบรายการที่กำลังขนส่ง</TableCell></TableRow>
-                                ) : (
-                                    transportList.map((row, idx) => (
-                                        <TableRow key={idx} hover>
-                                            <TableCell>
-                                                <Typography variant="body2">{new Date(row.updatedAt).toLocaleString('th-TH')}</Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Typography variant="subtitle2" fontFamily="monospace" fontWeight="bold" color="primary">{row.rfid}</Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Typography variant="body2">{row.productName}</Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                    <Place color="action" fontSize="small" />
-                                                    <Typography variant="body2">{row.location}</Typography>
-                                                </Box>
-                                            </TableCell>
-                                            <TableCell align="center">
-                                                <Chip label={row.status} color="warning" size="small" sx={{ minWidth: 100, fontWeight: 'bold' }} />
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Paper>
+                    </CardContent>
+                </Card>
             </Box>
-
         </Box>
     );
 };

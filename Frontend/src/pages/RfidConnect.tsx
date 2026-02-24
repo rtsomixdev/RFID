@@ -23,7 +23,6 @@ interface Reader {
   readerName: string;
   ipAddress: string;
   location: string;
-  readerFunction?: string;
   isActive?: boolean;
   currentMode?: string;
   updatedAt?: string;
@@ -37,15 +36,24 @@ interface SpecialTag {
   isActive?: boolean;
 }
 
-// ✅ ฟังก์ชันสำหรับแปลงข้อความโหมด ให้ตรงกับ Database เป๊ะๆ
+// เพิ่ม Interface สำหรับ Location Master Data
+interface LocationItem {
+  locationId: number;
+  locationName: string;
+}
+
+// ฟังก์ชันสำหรับแปลงข้อความโหมด ให้ตรงกับ Database เป๊ะๆ
 const getModeDisplay = (mode: string) => {
   const safeMode = mode || "Normal";
   
+  if (safeMode.includes("ส่งซักซ้ำ") || safeMode.includes("REWASH")) { // ✅ เพิ่มเงื่อนไขส่งซักซ้ำ
+      return { label: "โหมดส่งซักซ้ำ (Re-wash)", color: "secondary" as const }; 
+  }
   if (safeMode.includes("ส่งผ้าซัก") || safeMode.includes("ส่งซัก") || safeMode.includes("WASH")) {
       return { label: "โหมดส่งซัก (Wash)", color: "primary" as const }; 
   }
   if (safeMode.includes("กำลังซัก") || safeMode.includes("รับผ้าซัก") || safeMode.includes("RECEIVE")) {
-      return { label: "โหมดรับผ้าซัก (Receive)", color: "info" as const }; 
+      return { label: "โหมดกำลังซัก (Washing)", color: "info" as const }; 
   }
   if (safeMode.includes("รับกลับเข้าคลัง") || safeMode.includes("รับเข้าคลัง") || safeMode.includes("RESTOCK")) {
       return { label: "โหมดรับเข้าคลัง (Restock)", color: "success" as const }; 
@@ -70,33 +78,35 @@ const RfidConnect: React.FC = () => {
   // --- States ---
   const [readers, setReaders] = useState<Reader[]>([]);
   const [specialTags, setSpecialTags] = useState<SpecialTag[]>([]);
+  // State สำหรับเก็บรายชื่อสถานที่จาก Master Data
+  const [locations, setLocations] = useState<LocationItem[]>([]);
 
-  // Form States
+  // Form States (เอา func ออกแล้ว)
   const [readerForm, setReaderForm] = useState({
     name: '',
     ip: '',
-    location: '',
-    func: 'CHECK'
+    location: ''
   });
   const [isEditingReader, setIsEditingReader] = useState(false);
   const [editingReaderId, setEditingReaderId] = useState<number | null>(null);
 
-  // ✅ เปลี่ยนค่า Default ให้ตรงกับ Value ของ actionOptions
   const [tagForm, setTagForm] = useState({ rfid: '', action: 'ส่งผ้าซัก', desc: '' });
   const rfidInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Action Options ปรับ Value ให้ตรงกับคำใน Database (ตาราง special_tags) 100%
+  // Action Options ปรับ Value ให้ตรงกับคำใน Database
   const actionOptions = [
     { value: 'Normal', label: '🟢 โหมดปกติ (Tracking Only)', color: '#10b981' }, 
     { value: 'ส่งผ้าซัก', label: '🔵 โหมดส่งซัก (Send to Laundry)', color: '#3b82f6' }, 
-    { value: 'กำลังซัก', label: '🧺 โหมดรับผ้าเข้าโรงซัก (Receive at Laundry)', color: '#9333ea' }, 
-    { value: 'รับกลับเข้าคลัง', label: '🟡 โหมดรับคืน/เติมสต็อก (Restock)', color: '#f59e0b' }, 
+    { value: 'ส่งซักซ้ำ', label: '🔄 โหมดส่งซักซ้ำ (Re-wash)', color: '#9c27b0' }, // ✅ เพิ่มส่งซักซ้ำ
+    { value: 'กำลังซัก', label: '🧺 โหมดกำลังซัก (Washing)', color: '#9333ea' }, 
+    { value: 'รับกลับเข้าคลัง', label: '🟡 โหมดรับเข้าคลัง (Restock)', color: '#f59e0b' }, 
     { value: 'จำหน่ายออก', label: '🔴 โหมดจำหน่าย/ทิ้ง (Discard)', color: '#ef4444' }, 
     { value: 'กำลังจัดส่ง', label: '🚚 โหมดกำลังส่ง (In Transit)', color: '#0ea5e9' }, 
   ];
 
   // Initial Load & Real-time (SignalR)
   useEffect(() => {
+    fetchLocations(); // ดึงรายชื่อสถานที่เมื่อเปิดหน้า
     fetchData();
 
     const interval = setInterval(fetchData, 5000);
@@ -133,6 +143,31 @@ const RfidConnect: React.FC = () => {
     };
   }, []);
 
+  // ฟังก์ชันดึงข้อมูล Master Data ของวอร์ด/สถานที่
+  const fetchLocations = async () => {
+      try {
+          const res = await axiosClient.get('/Ward'); 
+          const data = res.data || [];
+          const formattedLocations = data.map((item: any, index: number) => ({
+              locationId: item.wardId || item.id || index,
+              locationName: item.wardName || item.name || ''
+          }));
+          setLocations(formattedLocations);
+      } catch (err) {
+          try {
+              const resFallback = await axiosClient.get('/Location');
+              const dataFallback = resFallback.data || [];
+              const formattedFallback = dataFallback.map((item: any, index: number) => ({
+                  locationId: item.locationId || item.id || index,
+                  locationName: item.locationName || item.name || ''
+              }));
+              setLocations(formattedFallback);
+          } catch (fallbackErr) {
+               console.error("Failed to fetch locations", fallbackErr);
+          }
+      }
+  };
+
   const fetchData = () => {
     fetchReaders();
     fetchSpecialTags();
@@ -155,14 +190,14 @@ const RfidConnect: React.FC = () => {
   // --- Handlers: Reader ---
   const handleSaveReader = async () => {
     if (!readerForm.name || !readerForm.location) {
-      return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อและสถานที่ติดตั้ง', 'warning');
+      return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อและเลือกจุดติดตั้งจากระบบ', 'warning');
     }
 
     const payload = {
       readerName: readerForm.name,
       ipAddress: readerForm.ip || '-',
       location: readerForm.location,
-      readerFunction: readerForm.func,
+      readerFunction: 'CHECK', // ส่งค่า Default กลับไปให้ Database เฉยๆ เพื่อไม่ให้ Error
       isActive: true,
       currentMode: 'Normal' 
     };
@@ -176,7 +211,7 @@ const RfidConnect: React.FC = () => {
         Swal.fire('สำเร็จ', 'เพิ่มอุปกรณ์เรียบร้อย', 'success');
       }
 
-      setReaderForm({ name: '', ip: '', location: '', func: 'CHECK' });
+      setReaderForm({ name: '', ip: '', location: '' });
       setIsEditingReader(false);
       setEditingReaderId(null);
       fetchReaders();
@@ -212,8 +247,7 @@ const RfidConnect: React.FC = () => {
     setReaderForm({
       name: r.readerName,
       ip: r.ipAddress === '-' ? '' : r.ipAddress,
-      location: r.location || '',
-      func: r.readerFunction || 'CHECK'
+      location: r.location || ''
     });
     setIsEditingReader(true);
     setEditingReaderId(r.readerId);
@@ -221,12 +255,12 @@ const RfidConnect: React.FC = () => {
   };
 
   const handleCancelEdit = () => {
-    setReaderForm({ name: '', ip: '', location: '', func: 'CHECK' });
+    setReaderForm({ name: '', ip: '', location: '' });
     setIsEditingReader(false);
     setEditingReaderId(null);
   };
 
-  // ✅ --- Remote Config Handler (เหลือแค่ WAKE และ SLEEP) ---
+  // Remote Config Handler
   const handleConfigReader = (r: Reader) => {
     Swal.fire({
       title: `ตั้งค่าอุปกรณ์: ${r.readerName}`,
@@ -346,7 +380,8 @@ const RfidConnect: React.FC = () => {
                   </Typography>
                 </Grid>
 
-                <Grid item xs={12} md={4}>
+                {/* ขยายขนาดช่องกรอกเป็น 50% */}
+                <Grid item xs={12} md={6}>
                   <FormLabel label="ชื่อจุดติดตั้ง (Reader Name)" required>
                     <TextField
                       fullWidth placeholder="ex: Reader1"
@@ -356,31 +391,25 @@ const RfidConnect: React.FC = () => {
                     />
                   </FormLabel>
                 </Grid>
-                <Grid item xs={12} md={4}>
+
+                {/* ขยายขนาดช่อง Location เป็น 50% และดึงจาก Master Data */}
+                <Grid item xs={12} md={6}>
                   <FormLabel label="จุดติดตั้ง (Location)">
-                    <TextField
-                      fullWidth placeholder="เช่น หน้าห้องซัก"
-                      value={readerForm.location} onChange={e => setReaderForm({ ...readerForm, location: e.target.value })}
-                      InputProps={{ startAdornment: <InputAdornment position="start"><Router fontSize="small" /></InputAdornment> }}
-                    />
-                  </FormLabel>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormLabel label="หน้าที่ (Function)">
                     <Select
                       fullWidth
-                      value={readerForm.func}
-                      onChange={(e) => setReaderForm({ ...readerForm, func: e.target.value })}
+                      value={readerForm.location}
+                      onChange={(e) => setReaderForm({ ...readerForm, location: e.target.value })}
                       displayEmpty
                     >
-                      <MenuItem value="CHECK">จุดตรวจเช็ค (Check)</MenuItem>
-                      <MenuItem value="WASH">ส่งซัก (Wash)</MenuItem>
-                      <MenuItem value="RECEIVE">รับผ้า (Restock)</MenuItem>
+                      <MenuItem value="" disabled>เลือกสถานที่จากระบบ</MenuItem>
+                      {locations.map((loc) => (
+                          <MenuItem key={loc.locationId} value={loc.locationName}>{loc.locationName}</MenuItem>
+                      ))}
                     </Select>
                   </FormLabel>
                 </Grid>
 
-                <Grid item xs={12} sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                <Grid item xs={12} sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 1 }}>
                   {isEditingReader && (
                     <Button variant="outlined" color="inherit" onClick={handleCancelEdit}>ยกเลิก</Button>
                   )}
@@ -404,7 +433,6 @@ const RfidConnect: React.FC = () => {
                       <TableCell sx={{ fontWeight: 'bold' }}>Reader Name</TableCell>
                       <TableCell sx={{ fontWeight: 'bold' }}>IP Address</TableCell>
                       <TableCell sx={{ fontWeight: 'bold' }}>Location</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>Function</TableCell>
                       <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
                       <TableCell sx={{ fontWeight: 'bold' }}>Mode</TableCell>
                       <TableCell align="center" sx={{ fontWeight: 'bold' }}>Action</TableCell>
@@ -412,7 +440,7 @@ const RfidConnect: React.FC = () => {
                   </TableHead>
                   <TableBody>
                     {readers.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>ไม่พบข้อมูล Reader</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3, color: 'text.secondary' }}>ไม่พบข้อมูล Reader</TableCell></TableRow>
                     ) : readers.map((r) => (
                       <TableRow key={r.readerId} hover selected={editingReaderId === r.readerId}>
                         <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>{r.readerName}</TableCell>
@@ -420,7 +448,6 @@ const RfidConnect: React.FC = () => {
                           {r.ipAddress && r.ipAddress !== '-' ? <Chip label={r.ipAddress} size="small" variant="outlined" /> : '-'}
                         </TableCell>
                         <TableCell>{r.location || '-'}</TableCell>
-                        <TableCell><Chip label={r.readerFunction || 'CHECK'} size="small" color="info" variant="outlined" /></TableCell>
                         <TableCell>
                           <Chip
                             label={r.isActive ? 'Online' : 'Offline'}

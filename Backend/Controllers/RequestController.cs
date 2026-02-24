@@ -181,17 +181,31 @@ namespace Backend.Controllers
         {
             if (id != request.RequestId) return BadRequest("ID ไม่ตรงกัน");
 
-            var existingRequest = await _context.Requests.FindAsync(id);
+            // ✅ Include TargetWard เพื่อให้ดึงชื่อวอร์ดเป้าหมายไปอัปเดตใส่ Location ได้
+            var existingRequest = await _context.Requests
+                .Include(r => r.TargetWard)
+                .FirstOrDefaultAsync(r => r.RequestId == id);
+                
             if (existingRequest == null) return NotFound();
 
             var oldStatusId = existingRequest.CurrentStatusId;
             var newStatusId = request.CurrentStatusId;
 
             existingRequest.CurrentStatusId = newStatusId;
-            existingRequest.Status = newStatusId == 2 ? "Approved" : (newStatusId == 3 ? "Rejected" : "Pending"); // แก้ 3=Rejected
+            // แมป Status ให้ตรงกับ 1=Pending, 2=Approved, 3=Rejected, 4=Dispatched
+            existingRequest.Status = newStatusId switch
+            {
+                1 => "Pending",
+                2 => "Approved",
+                3 => "Rejected",
+                4 => "Dispatched",
+                _ => "Unknown"
+            };
             existingRequest.UpdatedAt = ThaiTime(); 
 
-            // กรณีเปลี่ยนเป็น Approved (2) -> ตัดสต็อก (เปลี่ยน Linen เป็น In Use)
+            string targetWardName = existingRequest.TargetWard?.WardName ?? "ไม่ระบุแผนก";
+
+            // กรณีเปลี่ยนเป็น Approved (2) -> ตัดสต็อก (เปลี่ยน Linen เป็น "ถูกใช้งาน")
             if (newStatusId == 2 && oldStatusId != 2)
             {
                 var requestItems = await _context.RequestItems
@@ -228,17 +242,20 @@ namespace Backend.Controllers
 
                     foreach (var linen in availableLinens)
                     {
-                        linen.Status = "In Use"; // สถานะ "ถูกใช้งาน"
-                        linen.CurrentLocation = "In Use"; // หรือชื่อ Ward ปลายทาง
+                        string previousLocation = linen.CurrentLocation ?? "คลังผ้าสะอาด";
+
+                        // ✅ เปลี่ยนสถานะและสถานที่ให้เป็นภาษาไทย ตาม Master Data
+                        linen.Status = "ถูกใช้งาน"; 
+                        linen.CurrentLocation = targetWardName; 
                         linen.UpdatedAt = ThaiTime();
 
                         _context.LinenLogs.Add(new LinenLog
                         {
                             LinenId = linen.LinenId,
-                            ActivityType = "ISSUE", 
-                            Description = $"อนุมัติคำร้อง {existingRequest.RequestCode} (จ่ายออก)",
-                            FromLocation = "Stock",
-                            ToLocation = "In Use",
+                            ActivityType = "Dispatch", // ใช้ Dispatch จะได้แปลในหน้าเว็บเป็น "เบิกจ่าย"
+                            Description = $"จ่ายผ้าตามคำร้อง {existingRequest.RequestCode}",
+                            FromLocation = previousLocation,
+                            ToLocation = targetWardName,
                             Timestamp = ThaiTime(),
                             CreatedAt = ThaiTime()
                         });
@@ -272,7 +289,14 @@ namespace Backend.Controllers
             // System Log
             if (oldStatusId != newStatusId)
             {
-                var statusText = newStatusId == 2 ? "อนุมัติ" : (newStatusId == 3 ? "ปฏิเสธ" : "รออนุมัติ");
+                string statusText = newStatusId switch
+                {
+                    2 => "อนุมัติ",
+                    3 => "ปฏิเสธ",
+                    4 => "จัดส่งเรียบร้อย",
+                    _ => "รออนุมัติ"
+                };
+
                 var log = new SystemLog
                 {
                     UserId = request.RequestedByUserId, 
@@ -305,8 +329,8 @@ namespace Backend.Controllers
             var request = await _context.Requests.FindAsync(id);
             if (request == null) return NotFound();
 
-            // ถ้าเคยอนุมัติไปแล้ว (Status = 2) ต้องคืนของเข้าระบบ
-            if (request.CurrentStatusId == 2)
+            // ถ้าเคยอนุมัติไปแล้ว (Status = 2 หรือ 4) ต้องคืนของเข้าระบบ
+            if (request.CurrentStatusId == 2 || request.CurrentStatusId == 4)
             {
                 var items = await _context.RequestItems
                     .Where(ri => ri.RequestId == id)
@@ -323,17 +347,19 @@ namespace Backend.Controllers
 
                     foreach (var linen in linensToReturn)
                     {
-                        linen.Status = "Available"; // คืนสถานะพร้อมใช้
-                        linen.CurrentLocation = "Stock";
+                        string previousLocation = linen.CurrentLocation ?? "ไม่ระบุ";
+
+                        linen.Status = "พร้อมใช้"; // คืนสถานะภาษาไทย
+                        linen.CurrentLocation = "คลังผ้าสะอาด";
                         linen.UpdatedAt = ThaiTime();
 
                         _context.LinenLogs.Add(new LinenLog
                         {
                             LinenId = linen.LinenId,
                             ActivityType = "RETURN_STOCK",
-                            Description = $"ยกเลิกคำร้อง {request.RequestCode} (Auto Return)",
-                            FromLocation = "In Use",
-                            ToLocation = "Stock",
+                            Description = $"ยกเลิกคำร้อง {request.RequestCode} (คืนสต็อก)",
+                            FromLocation = previousLocation,
+                            ToLocation = "คลังผ้าสะอาด",
                             Timestamp = ThaiTime(),
                             CreatedAt = ThaiTime()
                         });

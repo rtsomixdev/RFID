@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import {
-    Grid, Paper, Typography, Box, CircularProgress, Card, CardContent, Stack, Avatar, Container, useTheme, Tooltip as MuiTooltip, alpha
+    Grid, Paper, Typography, Box, CircularProgress, Card, CardContent, Stack, Avatar, Container, useTheme, alpha,
+    List, ListItem, Divider, Chip
 } from '@mui/material';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import {
-    Inventory, ShoppingCart, Warning, CheckCircle, TrendingUp, Assessment, DonutLarge, InsertChartOutlined, DashboardCustomize, NewReleases, LocalLaundryService
+    Inventory, ShoppingCart, Warning, CheckCircle, TrendingUp, Assessment, DonutLarge, InsertChartOutlined, NewReleases, LocalLaundryService, Room
 } from '@mui/icons-material';
 import axiosClient from '../api/axiosClient';
 import PageHeader from '../components/ui/PageHeader';
 
-// --- Theme Colors (Adapted to use Theme) ---
-// We will use theme.palette where possible, but keep these for chart specific colors
+// --- Theme Colors ---
 const CHART_COLORS = {
     purple: '#8b5cf6',
     new: '#0ea5e9',
@@ -49,14 +49,18 @@ const Dashboard: React.FC = () => {
     const [requestData, setRequestData] = useState<any[]>([]);
     const [damagedData, setDamagedData] = useState<any[]>([]);
     const [yearlyData, setYearlyData] = useState<any[]>([]);
+    
+    // สเตทใหม่ สำหรับเก็บข้อมูล Stock แยกตามสถานที่
+    const [locationStock, setLocationStock] = useState<Record<string, Record<string, number>>>({});
 
     useEffect(() => {
         fetchDashboardData();
-        const interval = setInterval(fetchDashboardData, 30000);
+        const interval = setInterval(fetchDashboardData, 30000); 
         return () => clearInterval(interval);
     }, []);
 
     const fetchDashboardData = async () => {
+        // 🔥 1. ดึงข้อมูลกราฟและสถิติเดิม (แยกไว้ ไม่ให้กระทบกัน)
         try {
             const [statRes, chartRes] = await Promise.all([
                 axiosClient.get('/Dashboard/Stats'),
@@ -71,11 +75,35 @@ const Dashboard: React.FC = () => {
             setRequestData(data.requestData || []);
             setDamagedData(data.damagedData || []);
             setYearlyData(data.yearlyData || []);
-
         } catch (error) {
-            console.error("Dashboard Fetch Error:", error);
+            console.error("Dashboard Charts Fetch Error:", error);
+        }
+
+        // 🔥 2. ดึงข้อมูลสถานที่แยกต่างหาก (ถึง Error กราฟด้านบนก็จะไม่หาย)
+        try {
+            const linenRes = await axiosClient.get('/Linen');
+            const allLinens = linenRes.data?.data || linenRes.data || []; 
+            const groupedStock: Record<string, Record<string, number>> = {};
+
+            allLinens.forEach((item: any) => {
+                const status = (item.status || '').toLowerCase();
+                // ข้ามผ้าที่ชำรุดหรือจำหน่ายออก
+                if (status.includes('discard') || status.includes('จำหน่าย') || status.includes('alien') || status.includes('ชำรุด')) return;
+
+                const loc = item.currentLocation || item.CurrentLocation || 'ไม่ระบุสถานที่';
+                const prodName = item.product?.productName || item.ItemName || item.productName || 'ไม่ระบุชื่อผ้า';
+
+                if (!groupedStock[loc]) groupedStock[loc] = {};
+                if (!groupedStock[loc][prodName]) groupedStock[loc][prodName] = 0;
+                
+                groupedStock[loc][prodName]++; 
+            });
+
+            setLocationStock(groupedStock);
+        } catch (error) {
+            console.error("Dashboard Location Stock Fetch Error:", error);
         } finally {
-            setLoading(false);
+            setLoading(false); // ปิด Loading เมื่อทำเสร็จทั้ง 2 ส่วน
         }
     };
 
@@ -233,14 +261,13 @@ const Dashboard: React.FC = () => {
                 </Box>
 
                 {/* SECTION 2: Charts */}
-                <Box>
+                <Box sx={{ mb: 5 }}>
                     <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, color: theme.palette.text.primary, display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Box component="span" sx={{ width: 4, height: 24, bgcolor: theme.palette.secondary.main, borderRadius: 1 }} />
                         การวิเคราะห์เชิงลึก
                     </Typography>
 
                     <Grid container spacing={3}>
-                        {/* ROW 1: Bar Chart & Pie Chart */}
                         <Grid item xs={12} lg={8}>
                             <ChartContainer title="การเคลื่อนไหวของผ้า (7 วันล่าสุด)" subtitle="เปรียบเทียบยอดเบิกใช้ vs ส่งซัก" icon={<Assessment fontSize="small" />}>
                                 <ResponsiveContainer width="100%" height="100%">
@@ -306,7 +333,6 @@ const Dashboard: React.FC = () => {
                             </ChartContainer>
                         </Grid>
 
-                        {/* ROW 2: Additional Charts */}
                         <Grid item xs={12} md={6}>
                             <ChartContainer title="สถิติคำร้องรายเดือน" subtitle="ปริมาณคำร้องเบิกผ้าตลอดปี" icon={<InsertChartOutlined fontSize="small" />}>
                                 <ResponsiveContainer width="100%" height="100%">
@@ -341,7 +367,6 @@ const Dashboard: React.FC = () => {
                             </ChartContainer>
                         </Grid>
 
-                        {/* ROW 3: Yearly Overview */}
                         <Grid item xs={12}>
                             <ChartContainer title="ภาพรวมการหมุนเวียนตลอดปี" subtitle="ปริมาณธุรกรรมทั้งหมด (Transaction Volume)" icon={<TrendingUp fontSize="small" />}>
                                 <ResponsiveContainer width="100%" height="100%">
@@ -361,9 +386,80 @@ const Dashboard: React.FC = () => {
                                 </ResponsiveContainer>
                             </ChartContainer>
                         </Grid>
-
                     </Grid>
                 </Box>
+
+                {/* ✅ SECTION 3: ยอดคงเหลือจำแนกตามสถานที่ (Stock by Location) */}
+                <Box sx={{ mt: 4 }}>
+                    <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, color: theme.palette.text.primary, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box component="span" sx={{ width: 4, height: 24, bgcolor: theme.palette.success.main, borderRadius: 1 }} />
+                        ยอดผ้าคงเหลือจำแนกตามสถานที่ (Stock by Location)
+                    </Typography>
+                    
+                    <Grid container spacing={3}>
+                        {Object.keys(locationStock).length === 0 ? (
+                            <Grid item xs={12}>
+                                <Paper elevation={0} sx={{ p: 4, textAlign: 'center', color: 'text.secondary', borderRadius: 3, border: `1px dashed ${theme.palette.divider}` }}>
+                                    <Inventory sx={{ fontSize: 40, opacity: 0.2, mb: 1 }} />
+                                    <Typography>ไม่พบข้อมูลสถานที่ที่มีผ้าค้างอยู่</Typography>
+                                </Paper>
+                            </Grid>
+                        ) : (
+                            Object.entries(locationStock).map(([location, items]) => (
+                                <Grid item xs={12} sm={6} lg={4} key={location}>
+                                    <Card 
+                                        elevation={0} 
+                                        sx={{ 
+                                            height: '100%', 
+                                            borderRadius: 3, 
+                                            border: `1px solid ${theme.palette.divider}`, 
+                                            display: 'flex', 
+                                            flexDirection: 'column',
+                                            transition: 'all 0.2s ease-in-out',
+                                            '&:hover': {
+                                                boxShadow: `0 4px 20px 0px ${alpha(theme.palette.success.main, 0.15)}`,
+                                                borderColor: alpha(theme.palette.success.main, 0.3)
+                                            }
+                                        }}
+                                    >
+                                        <Box sx={{ p: 2, bgcolor: alpha(theme.palette.success.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                            <Room color="success" />
+                                            <Typography variant="subtitle1" fontWeight="bold" color="success.dark">
+                                                {location}
+                                            </Typography>
+                                        </Box>
+                                        <CardContent sx={{ flexGrow: 1, p: 0, '&:last-child': { pb: 0 } }}>
+                                            <List sx={{ width: '100%', p: 0 }}>
+                                                {Object.entries(items).map(([itemName, qty], idx) => (
+                                                    <React.Fragment key={itemName}>
+                                                        <ListItem sx={{ py: 1.5, px: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                                                                {itemName}
+                                                            </Typography>
+                                                            <Chip 
+                                                                label={`${qty} ชิ้น`} 
+                                                                size="small" 
+                                                                sx={{ 
+                                                                    fontWeight: 'bold', 
+                                                                    bgcolor: alpha(theme.palette.success.main, 0.1), 
+                                                                    color: 'success.dark',
+                                                                    minWidth: '60px'
+                                                                }} 
+                                                            />
+                                                        </ListItem>
+                                                        {idx < Object.keys(items).length - 1 && <Divider component="li" />}
+                                                    </React.Fragment>
+                                                ))}
+                                            </List>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                            ))
+                        )}
+                    </Grid>
+                </Box>
+                {/* จบ SECTION 3 */}
+
             </Container>
         </Box>
     );

@@ -125,7 +125,7 @@ namespace Backend.Controllers
         }
 
         // =============================================
-        // POST: api/Reader/Config (สั่งงานอุปกรณ์ WAKE / SLEEP)
+        // POST: api/Reader/Config (สั่งงานอุปกรณ์ WAKE / SLEEP จากหน้าตั้งค่า)
         // =============================================
         [HttpPost("Config")]
         public async Task<IActionResult> SendConfig([FromBody] ReaderConfigDto request)
@@ -179,6 +179,38 @@ namespace Backend.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "MQTT Error: " + ex.Message });
+            }
+        }
+
+        // =============================================
+        // POST: api/Reader/Wake/{readerName} (รองรับปุ่ม Wake จากหน้าอื่นๆ)
+        // =============================================
+        [HttpPost("Wake/{readerName}")]
+        public async Task<IActionResult> WakeReader(string readerName)
+        {
+            Console.WriteLine($"🔔 Waking up reader: {readerName} (via direct API)");
+            
+            try 
+            {
+                var reader = await _context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
+                if (reader == null) return NotFound(new { message = "Reader not found" });
+
+                // 1. ส่งคำสั่ง WAKE ไปทาง MQTT
+                await _mqttPublisher.PublishCommandAsync(readerName, "WAKE", "1", true);
+
+                // 2. อัปเดต DB (รีเซ็ตเวลา + เปลี่ยนโหมดกลับเป็น Normal)
+                reader.CurrentMode = "โหมดปกติ (Normal)"; // แค่ปลุกให้ตื่น เปลี่ยนโหมด
+                reader.UpdatedAt = ThaiTime(); // ต่อเวลาให้มันด้วย
+                await _context.SaveChangesAsync();
+
+                // 3. ยิง SignalR บอกหน้าเว็บให้อัปเดต UI ทันที
+                await _hubContext.Clients.All.SendAsync("OnModeChanged");
+
+                return Ok(new { message = $"Sent WAKE command to {readerName} and reset timer." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error waking reader: " + ex.Message });
             }
         }
     }

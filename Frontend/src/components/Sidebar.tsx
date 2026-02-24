@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import {
   Home, ShowChart, EditNote, ExpandLess, ExpandMore,
-  Assignment, Settings, Sensors,
+  Assignment, Settings, Sensors, FindInPage, // ✅ เพิ่ม FindInPage
   DeleteForever, Logout, ChevronRight, LocalLaundryService,
   Summarize, LocalShipping, Apartment, Inventory, Business, People,
   WifiTethering
@@ -54,7 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
       confirmButtonText: 'ใช่, ออกจากระบบ',
       cancelButtonText: 'ยกเลิก',
       customClass: {
-        popup: 'rounded-xl', // Helper utility logic if available, otherwise just nice to have
+        popup: 'rounded-xl', 
       }
     }).then((result) => {
       if (result.isConfirmed) {
@@ -106,10 +106,10 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
   const subMenuButtonStyle = (path: string) => {
     const active = isSelected(path);
     return {
-      pl: '52px', // Align with text of parent
+      pl: '52px', 
       py: 1,
       mx: 2,
-      mt: 0.2, // Tighter spacing
+      mt: 0.2, 
       borderRadius: '8px',
       color: active ? theme.palette.primary.main : theme.palette.text.secondary,
       bgcolor: active ? alpha(theme.palette.primary.main, 0.04) : 'transparent',
@@ -192,11 +192,16 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
 
           <SectionHeader title="Operations" />
 
-          {/* ใช้ MANAGE_REQUEST สำหรับเมนูเบิกผ้า */}
+          {/* ✅ เมนูค้นหาข้อมูลผ้า (ให้ทุกคนและพยาบาลเข้าถึงได้) */}
+          <ListItemButton sx={menuButtonStyle('/search-linen')} onClick={() => handleNavigate('/search-linen')}>
+            <ListItemIcon><FindInPage fontSize="small" /></ListItemIcon>
+            <ListItemText primary="ค้นหาข้อมูลผ้า" primaryTypographyProps={{ fontSize: '0.9rem' }} />
+          </ListItemButton>
+
           {hasPermission('MANAGE_REQUEST') && (
             <ListItemButton sx={menuButtonStyle('/requests')} onClick={() => handleNavigate('/requests')}>
               <ListItemIcon><Assignment fontSize="small" /></ListItemIcon>
-              <ListItemText primary="คำร้องเบิกผ้า" primaryTypographyProps={{ fontSize: '0.9rem' }} />
+              <ListItemText primary="คำร้องเบิก/คืนผ้า" primaryTypographyProps={{ fontSize: '0.9rem' }} />
             </ListItemButton>
           )}
 
@@ -246,8 +251,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
 
                   {hasPermission('MANAGE_HOSPITAL') && (
                     <ListItemButton sx={subMenuButtonStyle('/hospital')} onClick={() => handleNavigate('/hospital')}>
-                      {/* Optional: Add icon for clear hierarchy */}
-                      {/* <ListItemIcon sx={{ minWidth: 24, transform: 'scale(0.8)' }}><Apartment /></ListItemIcon> */}
                       <ListItemText primary="โรงพยาบาล" />
                     </ListItemButton>
                   )}
@@ -319,7 +322,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
               {user.firstName}
             </Typography>
             <Typography variant="caption" noWrap sx={{ color: theme.palette.text.secondary, fontSize: '0.75rem' }}>
-              {roleId === 1 ? 'Administrator' : (roleId === 2 ? 'Sub-Admin' : 'Staff')}
+              {roleId === 1 ? 'Administrator' : (roleId === 2 ? 'Sub-Admin' : 'Staff/Nurse')}
             </Typography>
           </Box>
           <Tooltip title="Logout">

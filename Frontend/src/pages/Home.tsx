@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
     Box, Paper, Typography, Card, CardContent,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Chip, CircularProgress, Button, Badge, List, ListItem, ListItemText, ListItemAvatar, Avatar, Divider,
-    useTheme, alpha, IconButton
+    Chip, CircularProgress, Button, useTheme, alpha, IconButton
 } from '@mui/material';
 import {
     WifiTethering, LocationOn, CheckCircle, Login, Dashboard as DashboardIcon,
-    Warning, HelpOutline, History, DeleteOutline, Build, Room, Refresh, SignalWifiOff
+    Warning, Room, Refresh, SignalWifiOff
 } from '@mui/icons-material';
 import axiosClient from '../api/axiosClient';
 
@@ -19,12 +18,6 @@ interface MonitorItem {
     location: string;
     status: string;
     timestamp: string;
-}
-
-interface SystemLogItem {
-    id: number;
-    item: string;
-    time: string;
 }
 
 // --- Helper Functions ---
@@ -43,8 +36,6 @@ const Home: React.FC = () => {
     const theme = useTheme();
     const navigate = useNavigate();
     const [registeredItems, setRegisteredItems] = useState<MonitorItem[]>([]);
-    const [unknownItems, setUnknownItems] = useState<MonitorItem[]>([]);
-    const [recentLogs, setRecentLogs] = useState<SystemLogItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [allItemsCount, setAllItemsCount] = useState(0);
     
@@ -73,28 +64,11 @@ const Home: React.FC = () => {
                 timestamp: new Date().toISOString()
             };
 
-            // ✅ เช็คเงื่อนไข Unknown ให้ครอบคลุมทุก case (ทั้งไทยและอังกฤษ)
-            const isUnknown = 
-                newItem.status.includes('ไม่พบ') || 
-                newItem.status.includes('Unknown') || 
-                newItem.status === 'Alien' || 
-                newItem.status === 'จำหน่ายแล้ว' || 
-                newItem.productName.includes('ไม่พบ') ||
-                newItem.productName.includes('Unknown') ||
-                newItem.productName.includes('Disposed');
-
-            if (isUnknown) {
-                setUnknownItems(prev => {
-                    // ป้องกันข้อมูลซ้ำในกล่องแดง (เช็ค rfid เดิม)
-                    const filtered = prev.filter(item => item.rfid !== newItem.rfid);
-                    return [newItem, ...filtered].slice(0, 20);
-                }); 
-            } else {
-                setRegisteredItems(prev => {
-                    const filtered = prev.filter(item => item.rfid !== newItem.rfid);
-                    return [newItem, ...filtered].slice(0, 50);
-                });
-            }
+            // อัปเดตข้อมูลเข้าตาราง (เอาข้อมูลใหม่ไว้บนสุด สูงสุด 50 รายการ)
+            setRegisteredItems(prev => {
+                const filtered = prev.filter(item => item.rfid !== newItem.rfid);
+                return [newItem, ...filtered].slice(0, 50);
+            });
             setAllItemsCount(prev => prev + 1);
         };
 
@@ -104,11 +78,12 @@ const Home: React.FC = () => {
             clearInterval(interval);
             window.removeEventListener("RFID_SCANNED", handleRealtimeScan);
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchData = async () => {
         try {
-            // 1. Fetch Monitor Data (รวมทั้ง Registered & Unknown)
+            // 1. Fetch Monitor Data
             const resMonitor = await axiosClient.get('/Linen/Monitor/Latest');
             const rawData = resMonitor.data || [];
 
@@ -139,36 +114,9 @@ const Home: React.FC = () => {
                 };
             });
 
-            // 4. ✅ Filter Data: แยกของในระบบ กับ ของแปลกปลอม (Alien / Disposed)
-            // แก้เงื่อนไขให้กว้างขึ้นเพื่อดักจับทุกกรณี ทั้งไทยและอังกฤษ
-            const unk = mappedData.filter(d => 
-                d.status.includes('ไม่พบ') ||
-                d.status.includes('Unknown') ||
-                d.status === 'Alien' || 
-                d.status === 'จำหน่ายแล้ว' || 
-                d.productName.includes('ไม่พบ') || 
-                d.productName.includes('Unknown') || 
-                d.productName.includes('Disposed')
-            );
-
-            // ข้อมูลปกติคือข้อมูลที่ไม่เข้าข่าย Unknown ข้างบน
-            const reg = mappedData.filter(d => 
-                !d.status.includes('ไม่พบ') &&
-                !d.status.includes('Unknown') &&
-                d.status !== 'Alien' && 
-                d.status !== 'จำหน่ายแล้ว' &&
-                !d.productName.includes('ไม่พบ') &&
-                !d.productName.includes('Unknown') && 
-                !d.productName.includes('Disposed')
-            );
-
-            setRegisteredItems(reg);
-            setUnknownItems(unk); // ใส่เข้า State เพื่อโชว์ในกล่องแดง
-            setAllItemsCount(rawData.length); // นับรวมทั้งหมด
-
-            // 5. Fetch Logs
-            const resLogs = await axiosClient.get('/Linen/DeleteHistory');
-            setRecentLogs(resLogs.data || []);
+            // แสดงข้อมูลทั้งหมดในตารางเดียวคลีนๆ
+            setRegisteredItems(mappedData);
+            setAllItemsCount(rawData.length); 
 
             setLoading(false);
         } catch (err) {
@@ -179,13 +127,13 @@ const Home: React.FC = () => {
     };
 
     // Determine Latest Location
-    const latestItem = registeredItems.length > 0 ? registeredItems[0] : (unknownItems.length > 0 ? unknownItems[0] : null);
+    const latestItem = registeredItems.length > 0 ? registeredItems[0] : null;
     const latestLocation = latestItem && latestItem.location !== '-' ? latestItem.location : "Waiting...";
 
     const getStatusColor = (status: string) => {
         const s = status ? status.toLowerCase() : '';
         if (s === 'available' || s === 'normal' || s === 'พร้อมใช้') return 'success';
-        if (s.includes('damage') || s === 'disposed' || s === 'lost' || s === 'alien' || s === 'จำหน่ายแล้ว' || s === 'จำหน่ายออก' || s === 'ชำรุด') return 'error';
+        if (s.includes('damage') || s === 'disposed' || s === 'lost' || s === 'alien' || s === 'จำหน่ายแล้ว' || s === 'จำหน่ายออก' || s === 'ชำรุด' || s.includes('ไม่พบ')) return 'error';
         if (s === 'in use' || s === 'borrowed' || s === 'ถูกใช้งาน') return 'primary';
         if (s === 'washing' || s === 'laundry' || s === 'กำลังซัก' || s === 'ส่งซัก') return 'info';
         if (s === 'dispatch' || s === 'กำลังส่ง' || s === 'ระหว่างขนส่ง') return 'warning';
@@ -208,7 +156,7 @@ const Home: React.FC = () => {
                         <Typography variant="h5" fontWeight="bold" sx={{ color: '#1e293b', display: 'flex', alignItems: 'center', gap: 1 }}>
                             <DashboardIcon color="primary" /> หน้าหลัก (Monitor)
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">ระบบติดตามผ้าและแจ้งเตือนวัตถุแปลกปลอม</Typography>
+                        <Typography variant="body2" color="text.secondary">ระบบติดตามผ้าแบบเรียลไทม์ (Real-time Tracking)</Typography>
                     </Box>
                     <Box sx={{ display: 'flex', gap: 2 }}>
                         <IconButton onClick={fetchData} title="Refresh Data">
@@ -251,7 +199,7 @@ const Home: React.FC = () => {
                         <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 3 }}>
                             <Box>
                                 <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>LATEST LOCATION</Typography>
-                                <Typography variant="h5" fontWeight="bold" color="text.primary" noWrap sx={{ maxWidth: 200, mt: 0.5 }}>{latestLocation}</Typography>
+                                <Typography variant="h5" fontWeight="bold" color="text.primary" noWrap sx={{ maxWidth: 300, mt: 0.5 }}>{latestLocation}</Typography>
                             </Box>
                             <Box sx={{ p: 1.5, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
                                 <LocationOn sx={{ fontSize: 32, color: 'primary.main' }} />
@@ -263,7 +211,7 @@ const Home: React.FC = () => {
                     <Card elevation={0} sx={{ flex: 1, bgcolor: alpha(theme.palette.info.main, 0.05), border: `1px solid ${theme.palette.info.light}`, borderRadius: 3 }}>
                         <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 3 }}>
                             <Box>
-                                <Typography variant="overline" color="info.main" fontWeight="bold" sx={{ letterSpacing: 1 }}>TOTAL SCAN</Typography>
+                                <Typography variant="overline" color="info.main" fontWeight="bold" sx={{ letterSpacing: 1 }}>TOTAL SCAN TODAY</Typography>
                                 <Typography variant="h5" fontWeight="bold" color="info.dark" sx={{ mt: 0.5 }}>{allItemsCount} Items</Typography>
                             </Box>
                             <Box sx={{ p: 1.5, borderRadius: '50%', bgcolor: alpha(theme.palette.info.main, 0.2) }}>
@@ -274,37 +222,34 @@ const Home: React.FC = () => {
                 </Box>
             </Box>
 
-            {/* --- Main Content --- */}
+            {/* --- Main Content (Full Width Table) --- */}
             <Box sx={{
                 flexGrow: 1,
                 p: 3,
                 pt: 2,
                 display: 'flex',
-                flexDirection: { xs: 'column', md: 'row' },
-                gap: 3,
+                flexDirection: 'column',
                 overflow: 'hidden',
                 minHeight: 0
             }}>
-
-                {/* 🟢 Left: Registered Items */}
+                {/* 🟢 Full Width: Scan Results */}
                 <Paper elevation={0} sx={{
-                    flex: { xs: 'none', md: 2 },
-                    height: '100%',
+                    flex: 1,
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
                     borderRadius: 3,
                     border: `1px solid ${theme.palette.divider}`,
                 }}>
-                    <Box sx={{ p: 2, px: 3, bgcolor: alpha(theme.palette.success.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                    <Box sx={{ p: 2, px: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <CheckCircle color="success" />
-                            <Typography variant="h6" fontWeight="bold" color="success.main">Registered Items</Typography>
+                            <CheckCircle color="primary" />
+                            <Typography variant="h6" fontWeight="bold" color="primary.main">Live Scan Results</Typography>
                         </Box>
-                        <Chip label={`${registeredItems.length}`} color="success" sx={{ fontWeight: 'bold' }} />
+                        <Chip label={`${registeredItems.length} items`} color="primary" sx={{ fontWeight: 'bold' }} />
                     </Box>
                     <TableContainer sx={{ flexGrow: 1, overflowY: 'auto' }}>
-                        <Table stickyHeader size="small">
+                        <Table stickyHeader size="medium">
                             <TableHead>
                                 <TableRow>
                                     <TableCell sx={{ fontWeight: '700', color: 'text.secondary', bgcolor: '#f8fafc' }}>TIME</TableCell>
@@ -321,17 +266,17 @@ const Home: React.FC = () => {
                                     <TableRow><TableCell colSpan={5} align="center" sx={{ py: 10, color: 'text.secondary' }}>Waiting for scan...</TableCell></TableRow>
                                 ) : (
                                     registeredItems.map((row, index) => (
-                                        <TableRow key={index} hover sx={{ '& td': { py: 1.5, fontSize: '0.9rem' } }}>
+                                        <TableRow key={index} hover sx={{ '& td': { py: 1.5, fontSize: '0.95rem' } }}>
                                             <TableCell sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>{formatDate(row.timestamp)}</TableCell>
                                             <TableCell sx={{ fontFamily: 'monospace', fontWeight: 'bold', color: 'primary.main' }}>{row.rfid}</TableCell>
                                             <TableCell sx={{ fontWeight: 500 }}>{row.productName}</TableCell>
                                             <TableCell sx={{ color: 'text.secondary' }}>
                                                 {row.location !== '-' && row.location ? (
-                                                    <Chip icon={<Room style={{ fontSize: 14 }} />} label={row.location} size="small" variant="outlined" sx={{ height: 24, fontSize: '0.75rem', borderColor: '#e2e8f0' }} />
+                                                    <Chip icon={<Room style={{ fontSize: 16 }} />} label={row.location} size="small" variant="outlined" sx={{ height: 26, fontSize: '0.8rem', borderColor: '#e2e8f0' }} />
                                                 ) : <Typography variant="caption" color="text.secondary">-</Typography>}
                                             </TableCell>
                                             <TableCell align="center">
-                                                <Chip label={row.status} size="small" color={getStatusColor(row.status) as any} sx={{ fontWeight: 600, minWidth: 80 }} variant="filled" />
+                                                <Chip label={row.status} size="small" color={getStatusColor(row.status) as any} sx={{ fontWeight: 600, minWidth: 90 }} variant="filled" />
                                             </TableCell>
                                         </TableRow>
                                     ))
@@ -340,112 +285,13 @@ const Home: React.FC = () => {
                         </Table>
                     </TableContainer>
                 </Paper>
-
-                {/* 🔴 Right Column: Unknown & Logs */}
-                <Box sx={{
-                    flex: { xs: 'none', md: 1 },
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 3,
-                    overflow: 'hidden'
-                }}>
-
-                    {/* Unknown Objects Card (รองรับของแปลกปลอมแล้ว) */}
-                    <Paper elevation={0} sx={{
-                        flexShrink: 0,
-                        minHeight: '300px',
-                        maxHeight: '50%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        bgcolor: '#fff1f2',
-                        border: `1px solid ${theme.palette.error.light}`,
-                        overflow: 'hidden',
-                        borderRadius: 3,
-                    }}>
-                        <Box sx={{ p: 2, px: 3, bgcolor: '#fef2f2', borderBottom: `1px solid ${theme.palette.error.light}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                <Badge badgeContent={unknownItems.length} color="error" variant="dot">
-                                    <Warning color="error" />
-                                </Badge>
-                                <Typography variant="h6" fontWeight="bold" color="error.main">Unknown Objects</Typography>
-                            </Box>
-                        </Box>
-                        <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}>
-                            {unknownItems.length === 0 ? (
-                                <Box sx={{ textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', color: '#fca5a5' }}>
-                                    <CheckCircle sx={{ fontSize: 48, mb: 1.5, opacity: 0.5, alignSelf: 'center' }} />
-                                    <Typography variant="subtitle1" fontWeight="bold">Secure Area</Typography>
-                                    <Typography variant="body2">No alien tags detected</Typography>
-                                </Box>
-                            ) : (
-                                unknownItems.map((item, index) => (
-                                    <Paper key={index} elevation={0} sx={{ p: 2, mb: 1.5, bgcolor: '#fff', border: `1px solid ${theme.palette.error.light}`, borderRadius: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', animation: 'pulse 2s infinite' }}>
-                                        <Box>
-                                            <Typography variant="subtitle2" fontWeight="bold" color="error.main" sx={{ fontFamily: 'monospace', fontSize: '1rem' }}>{item.rfid}</Typography>
-                                            <Typography variant="caption" color="text.secondary" display="block">{formatDate(item.timestamp)}</Typography>
-                                            <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 'bold' }}>{item.status}</Typography>
-                                        </Box>
-                                        <HelpOutline color="error" />
-                                    </Paper>
-                                ))
-                            )}
-                        </Box>
-                    </Paper>
-
-                    {/* System Activity */}
-                    <Paper elevation={0} sx={{
-                        flexGrow: 1,
-                        minHeight: '200px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        overflow: 'hidden',
-                        borderRadius: 3,
-                        border: `1px solid ${theme.palette.divider}`,
-                    }}>
-                        <Box sx={{ p: 2, px: 3, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
-                            <History color="primary" />
-                            <Typography variant="h6" fontWeight="bold" color="text.primary">System Activity</Typography>
-                        </Box>
-                        <List sx={{ flexGrow: 1, overflowY: 'auto', py: 0 }}>
-                            {recentLogs.length === 0 ? (
-                                <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
-                                    <Typography variant="body2">No recent activity</Typography>
-                                </Box>
-                            ) : (
-                                recentLogs.map((log, index) => (
-                                    <React.Fragment key={log.id}>
-                                        <ListItem alignItems="flex-start" sx={{ px: 3, py: 1.5 }}>
-                                            <ListItemAvatar sx={{ minWidth: 48 }}>
-                                                <Avatar sx={{ width: 36, height: 36, bgcolor: log.item.includes('ลบ') || log.item.includes('Alien') ? '#fee2e2' : '#e0f2fe' }}>
-                                                    {log.item.includes('ลบ') || log.item.includes('Alien') ? <DeleteOutline sx={{ fontSize: 20, color: '#ef4444' }} /> : <Build sx={{ fontSize: 20, color: '#0ea5e9' }} />}
-                                                </Avatar>
-                                            </ListItemAvatar>
-                                            <ListItemText
-                                                primary={<Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>{log.item}</Typography>}
-                                                secondary={<Typography variant="caption" color="text.secondary">{log.time}</Typography>}
-                                            />
-                                        </ListItem>
-                                        {index < recentLogs.length - 1 && <Divider component="li" variant="inset" />}
-                                    </React.Fragment>
-                                ))
-                            )}
-                        </List>
-                    </Paper>
-
-                </Box>
             </Box>
 
             <style>{`
-        @keyframes pulse {
-          0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-          70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-        }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-      `}</style>
+                ::-webkit-scrollbar { width: 8px; height: 8px; }
+                ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+                ::-webkit-scrollbar-track { background: transparent; }
+            `}</style>
         </Box>
     );
 };

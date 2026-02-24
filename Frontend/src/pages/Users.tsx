@@ -65,13 +65,20 @@ const Users: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [rolesList, setRolesList] = useState<any[]>([]); // For Dropdown
+  
+  // Master Data States
+  const [rolesList, setRolesList] = useState<any[]>([]); 
   const [titles, setTitles] = useState<any[]>([]);
+  const [hospitals, setHospitals] = useState<any[]>([]); // ✅ เพิ่ม State โรงพยาบาล
+  const [wards, setWards] = useState<any[]>([]); // ✅ เพิ่ม State วอร์ด
+
   const [isEditUser, setIsEditUser] = useState(false);
   const [editUserId, setEditUserId] = useState<number | null>(null);
+  
+  // ✅ แก้ไขค่าเริ่มต้นของ hospitalId และ wardId เป็น string ว่าง เพื่อบังคับให้เลือก
   const [userForm, setUserForm] = useState({
     username: '', passwordHash: '', firstName: '', lastName: '', email: '',
-    roleId: '', titleId: '', hospitalId: 1, wardId: 1
+    roleId: '', titleId: '', hospitalId: '', wardId: ''
   });
 
   // ==========================================
@@ -91,10 +98,12 @@ const Users: React.FC = () => {
     const userStr = localStorage.getItem('currentUser');
     if (userStr) setCurrentUser(JSON.parse(userStr));
     fetchInitialData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (tabIndex === 0) filterUsers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, users, tabIndex]);
 
   const fetchInitialData = async () => {
@@ -114,12 +123,17 @@ const Users: React.FC = () => {
 
   const fetchMasterData = async () => {
     try {
-      const [roleRes, titleRes] = await Promise.all([
-        axiosClient.get('/Role'), // Get simple list for dropdown
-        axiosClient.get('/Title')
+      // ✅ ดึงข้อมูล Hospital และ Ward เพิ่มเข้ามา
+      const [roleRes, titleRes, hospRes, wardRes] = await Promise.all([
+        axiosClient.get('/Role'),
+        axiosClient.get('/Title'),
+        axiosClient.get('/Hospital').catch(() => ({ data: [] })),
+        axiosClient.get('/Ward').catch(() => ({ data: [] }))
       ]);
       setRolesList(roleRes.data);
       setTitles(titleRes.data);
+      setHospitals(hospRes.data);
+      setWards(wardRes.data);
     } catch (err) { console.error(err); }
   };
 
@@ -159,8 +173,8 @@ const Users: React.FC = () => {
       email: user.email || '',
       roleId: user.roleId,
       titleId: user.titleId,
-      hospitalId: user.hospitalId || 1,
-      wardId: user.wardId || 1
+      hospitalId: user.hospitalId || '',
+      wardId: user.wardId || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -168,14 +182,17 @@ const Users: React.FC = () => {
   const handleCancelUserEdit = () => {
     setIsEditUser(false);
     setEditUserId(null);
-    setUserForm({ username: '', passwordHash: '', firstName: '', lastName: '', email: '', roleId: '', titleId: '', hospitalId: 1, wardId: 1 });
+    setUserForm({ username: '', passwordHash: '', firstName: '', lastName: '', email: '', roleId: '', titleId: '', hospitalId: '', wardId: '' });
   };
 
   const handleSubmitUser = async () => {
     try {
-      if (!userForm.username || !userForm.roleId) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลสำคัญให้ครบ', 'warning');
+      // ✅ เพิ่มการตรวจสอบว่าเลือกโรงพยาบาลและวอร์ดหรือยัง
+      if (!userForm.username || !userForm.roleId || !userForm.hospitalId || !userForm.wardId) {
+          return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลสำคัญและเลือกแผนกให้ครบถ้วน', 'warning');
+      }
 
-      let payload: any = {
+      const payload: any = {
         ...userForm,
         roleId: Number(userForm.roleId),
         titleId: Number(userForm.titleId),
@@ -371,7 +388,7 @@ const Users: React.FC = () => {
                   {isEditUser ? 'แก้ไขข้อมูลผู้ใช้งาน' : 'ลงทะเบียนผู้ใช้งานใหม่'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {isEditUser ? 'อัปเดตข้อมูลบัญชีผู้ใช้และสิทธิ์การเข้าถึง' : 'สร้างบัญชีผู้ใช้ใหม่เพื่อเข้าถึงระบบ'}
+                  {isEditUser ? 'อัปเดตข้อมูลบัญชีผู้ใช้ แผนก และสิทธิ์การเข้าถึง' : 'สร้างบัญชีผู้ใช้ใหม่และระบุแผนกประจำตัว'}
                 </Typography>
               </Box>
             </Box>
@@ -429,7 +446,8 @@ const Users: React.FC = () => {
                   </FormLabel>
                 </Box>
 
-                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 6' } }}>
+                {/* ✅ เพิ่ม Dropdown โรงพยาบาล และ วอร์ด แทนที่ Hardcode เดิม */}
+                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
                   <FormLabel label="อีเมล">
                     <TextField
                       fullWidth
@@ -440,14 +458,31 @@ const Users: React.FC = () => {
                     />
                   </FormLabel>
                 </Box>
-                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 6' }, display: 'flex', alignItems: 'flex-end', gap: 1 }}>
+                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
+                  <FormLabel label="สังกัดโรงพยาบาล" required>
+                    <Select value={userForm.hospitalId} displayEmpty onChange={e => setUserForm({ ...userForm, hospitalId: e.target.value })} fullWidth>
+                      <MenuItem value="" disabled>เลือกโรงพยาบาล</MenuItem>
+                      {hospitals.map((h) => <MenuItem key={h.hospitalId} value={h.hospitalId}>{h.hospitalName}</MenuItem>)}
+                    </Select>
+                  </FormLabel>
+                </Box>
+                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
+                  <FormLabel label="ประจำวอร์ด / แผนก" required>
+                    <Select value={userForm.wardId} displayEmpty onChange={e => setUserForm({ ...userForm, wardId: e.target.value })} fullWidth>
+                      <MenuItem value="" disabled>เลือกแผนก</MenuItem>
+                      {wards.map((w) => <MenuItem key={w.wardId} value={w.wardId}>{w.wardName}</MenuItem>)}
+                    </Select>
+                  </FormLabel>
+                </Box>
+
+                <Box sx={{ gridColumn: 'span 12', display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 1 }}>
                   {isEditUser ? (
                     <>
-                      <Button variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmitUser} fullWidth sx={{ height: 42 }}>บันทึกการแก้ไข</Button>
-                      <Button variant="outlined" color="inherit" onClick={handleCancelUserEdit} fullWidth sx={{ height: 42 }}>ยกเลิก</Button>
+                      <Button variant="outlined" color="inherit" onClick={handleCancelUserEdit} sx={{ height: 42, minWidth: 100 }}>ยกเลิก</Button>
+                      <Button variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmitUser} sx={{ height: 42, minWidth: 150 }}>บันทึกการแก้ไข</Button>
                     </>
                   ) : (
-                    <Button variant="contained" startIcon={<PersonAdd />} onClick={handleSubmitUser} fullWidth sx={{ height: 42 }}>เพิ่มผู้ใช้งาน</Button>
+                    <Button variant="contained" startIcon={<PersonAdd />} onClick={handleSubmitUser} sx={{ height: 42, minWidth: 150 }}>เพิ่มผู้ใช้งาน</Button>
                   )}
                 </Box>
               </Box>
@@ -484,7 +519,8 @@ const Users: React.FC = () => {
                     <TableCell>ข้อมูลผู้ใช้งาน</TableCell>
                     <TableCell>ช่องทางติดต่อ</TableCell>
                     <TableCell>บัญชี</TableCell>
-                    <TableCell>สิทธิ์การใช้งาน</TableCell>
+                    {/* ✅ เปลี่ยนหัวตารางและแสดงข้อมูลแผนก */}
+                    <TableCell>สิทธิ์และแผนก (Role & Ward)</TableCell>
                     <TableCell align="center">จัดการ</TableCell>
                   </TableRow>
                 </TableHead>
@@ -515,11 +551,17 @@ const Users: React.FC = () => {
                         <Chip label={u.username} size="small" variant="outlined" sx={{ borderRadius: 1, borderColor: theme.palette.divider, fontWeight: 500 }} />
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          label={rolesList.find(r => r.roleId === u.roleId)?.roleName || '-'}
-                          size="small"
-                          sx={{ fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main, borderRadius: 1 }}
-                        />
+                        {/* ✅ แสดงทั้ง Role และ Ward ที่สังกัด */}
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5 }}>
+                          <Chip
+                            label={rolesList.find(r => r.roleId === u.roleId)?.roleName || '-'}
+                            size="small"
+                            sx={{ fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main, borderRadius: 1 }}
+                          />
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            📍 {wards.find(w => w.wardId === u.wardId)?.wardName || 'ไม่ระบุแผนก'}
+                          </Typography>
+                        </Box>
                       </TableCell>
                       <TableCell align="center">
                         <Stack direction="row" spacing={1} justifyContent="center">
@@ -602,11 +644,6 @@ const Users: React.FC = () => {
                   </Stack>
                 </Box>
               </Paper>
-              {!isEditRole && (
-                <Button fullWidth variant="contained" startIcon={<AddModerator />} onClick={handleCreateRole} sx={{ mt: 2, py: 1.5, borderRadius: 2, boxShadow: 'none' }}>
-                  เพิ่มบทบาทใหม่
-                </Button>
-              )}
             </Box>
 
             {/* Role List */}

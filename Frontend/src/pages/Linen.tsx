@@ -32,8 +32,8 @@ interface Product {
     maxWashCount?: number;
     standardWeightKg?: number; 
     maxLifespanDays?: number;  
-    color?: string; // ✅ เพิ่ม color
-    isDisposable?: boolean; // ✅ เพิ่ม isDisposable
+    color?: string; 
+    isDisposable?: boolean; 
     [key: string]: any;
 }
 
@@ -41,8 +41,13 @@ interface Reader {
     readerId: number;
     readerName: string;
     isActive: boolean;
-    installedAtRoomId?: number;
-    installedAtRoom?: { roomId: number; roomName: string; };
+    location?: string;
+}
+
+// 🔥 Interface สำหรับ Location
+interface LocationItem {
+    roomId: number;
+    roomName: string;
 }
 
 const RegisterLinen: React.FC = () => {
@@ -52,7 +57,7 @@ const RegisterLinen: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [hospitals, setHospitals] = useState<any[]>([]);
     const [vendors, setVendors] = useState<any[]>([]);
-    const [rooms, setRooms] = useState<any[]>([]);
+    const [rooms, setRooms] = useState<LocationItem[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     const [readers, setReaders] = useState<Reader[]>([]);
 
@@ -69,7 +74,6 @@ const RegisterLinen: React.FC = () => {
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [isNewProduct, setIsNewProduct] = useState(false);
 
-    // ✅ เพิ่ม color และ isDisposable ใน State
     const [newProductData, setNewProductData] = useState({
         productName: '',
         productCode: '',
@@ -94,6 +98,7 @@ const RegisterLinen: React.FC = () => {
             fetchReadersOnly();
         }, 5000);
         return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -127,6 +132,7 @@ const RegisterLinen: React.FC = () => {
         return () => {
             window.removeEventListener("RFID_SCANNED", handleAutoScan);
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedReader, selectedHospital, scannedRfids]);
 
     const toastWarning = (msg: string) => {
@@ -162,8 +168,30 @@ const RegisterLinen: React.FC = () => {
 
         await fetchData('/Product', setProducts);
         await fetchData('/Vendor', setVendors);
-        await fetchData('/Room', setRooms);
         await fetchData('/Category', setCategories);
+
+        // 🔥 ดึงรายชื่อสถานที่ (รองรับทั้ง /Ward และ /Location)
+        try {
+            const resWard = await axiosClient.get('/Ward');
+            const dataWard = resWard.data || [];
+            const formattedRooms = dataWard.map((item: any, index: number) => ({
+                roomId: item.wardId || item.id || index,
+                roomName: item.wardName || item.name || ''
+            }));
+            setRooms(formattedRooms);
+        } catch (err) {
+            try {
+                const resLoc = await axiosClient.get('/Location');
+                const dataLoc = resLoc.data || [];
+                const formattedFallback = dataLoc.map((item: any, index: number) => ({
+                    roomId: item.locationId || item.id || index,
+                    roomName: item.locationName || item.name || ''
+                }));
+                setRooms(formattedFallback);
+            } catch (fallbackErr) {
+                 console.error("Failed to fetch locations", fallbackErr);
+            }
+        }
 
         const hospData = await fetchData('/Hospital', setHospitals);
         if (hospData.length > 0 && !selectedHospital) setSelectedHospital(hospData[0].hospitalId);
@@ -174,8 +202,13 @@ const RegisterLinen: React.FC = () => {
             const active = readerData.find((r: Reader) => r.isActive);
             if (active) {
                 setSelectedReader(active.readerName);
-                if (active.installedAtRoomId) {
-                    setSelectedLocation(active.installedAtRoomId.toString());
+                
+                // 🔥 ค้นหาสถานที่ใน Dropdown ให้ตรงกับ Location ของ Reader
+                if (active.location && rooms.length > 0) {
+                    const matchedRoom = rooms.find(r => r.roomName === active.location);
+                    if (matchedRoom) {
+                        setSelectedLocation(matchedRoom.roomId.toString());
+                    }
                 }
             }
         }
@@ -195,13 +228,14 @@ const RegisterLinen: React.FC = () => {
 
         const targetReader = readers.find(r => r.readerName === readerName);
 
-        if (targetReader && targetReader.installedAtRoomId) {
-            const roomIdStr = targetReader.installedAtRoomId.toString();
-            setSelectedLocation(roomIdStr);
-
-            const roomName = rooms.find(r => r.roomId === targetReader.installedAtRoomId)?.roomName;
-            const Toast = Swal.mixin({ toast: true, position: 'top', showConfirmButton: false, timer: 1500 });
-            Toast.fire({ icon: 'info', title: `ปรับสถานที่ตามเครื่องอ่าน: ${roomName}` });
+        // 🔥 เมื่อเปลี่ยน Reader ให้ Dropdown สถานที่เปลี่ยนตาม
+        if (targetReader && targetReader.location) {
+            const matchedRoom = rooms.find(r => r.roomName === targetReader.location);
+            if (matchedRoom) {
+                setSelectedLocation(matchedRoom.roomId.toString());
+                const Toast = Swal.mixin({ toast: true, position: 'top', showConfirmButton: false, timer: 1500 });
+                Toast.fire({ icon: 'info', title: `ปรับสถานที่ตามเครื่องอ่าน: ${matchedRoom.roomName}` });
+            }
         }
     };
 
@@ -271,7 +305,6 @@ const RegisterLinen: React.FC = () => {
                         catId = catRes.data.categoryId;
                     }
 
-                    // ✅ ส่ง Color และ IsDisposable ไปบันทึกที่ Backend
                     const prodRes = await axiosClient.post('/Product', {
                         productName: newProductData.productName,
                         productCode: newProductData.productCode,
@@ -281,29 +314,31 @@ const RegisterLinen: React.FC = () => {
                         maxWashCount: Number(maxWash),
                         standardWeightKg: newProductData.standardWeightKg ? Number(newProductData.standardWeightKg) : 0, 
                         maxLifespanDays: newProductData.maxLifespanDays ? Number(newProductData.maxLifespanDays) : 365,
-                        color: newProductData.color, // ส่งสี
-                        isDisposable: newProductData.isDisposable, // ส่งสถานะใช้แล้วทิ้ง
+                        color: newProductData.color, 
+                        isDisposable: newProductData.isDisposable, 
                         defaultRoomId: selectedLocation ? parseInt(selectedLocation) : 1
                     });
                     finalProductId = prodRes.data.productId;
                 }
             }
 
+            // 🔥 ดึงชื่อสถานที่ภาษาไทย จาก ID ที่ผู้ใช้เลือกใน Dropdown
             const locationObj = rooms.find(r => r.roomId === parseInt(selectedLocation));
+            const finalLocationName = locationObj ? locationObj.roomName : 'คลังผ้าสะอาด'; // Default กันเหนียว
 
             await axiosClient.post('/Linen/RegisterBatch', {
                 productId: finalProductId,
                 hospitalId: parseInt(selectedHospital),
                 vendorId: selectedVendor ? parseInt(selectedVendor) : null,
                 maxWashCount: Number(maxWash),
-                currentLocation: locationObj ? locationObj.roomName : 'Stock',
+                currentLocation: finalLocationName, // 🔥 ส่งชื่อวอร์ดภาษาไทยไปให้ Backend บันทึกตรงๆ
                 rfidCodes: scannedRfids
             });
 
             Swal.fire({
                 icon: 'success',
                 title: 'บันทึกสำเร็จ!',
-                text: `ลงทะเบียนผ้า ${scannedRfids.length} รายการ เรียบร้อย`,
+                text: `ลงทะเบียนผ้าเข้าสู่ "${finalLocationName}" เรียบร้อย`,
                 timer: 2000
             });
 
@@ -312,7 +347,6 @@ const RegisterLinen: React.FC = () => {
             setIsNewProduct(false);
             setSelectedProduct(null);
             
-            // ✅ Reset State คืนค่าทั้งหมดรวมถึงสีและ isDisposable
             setNewProductData({ 
                 productName: '', productCode: '', categoryName: '', sizeSpec: '', unitName: 'ชิ้น',
                 standardWeightKg: '', maxLifespanDays: '', color: '', isDisposable: false
@@ -586,7 +620,7 @@ const RegisterLinen: React.FC = () => {
                                                         type="number"
                                                         value={maxWash} 
                                                         onChange={e => setMaxWash(Number(e.target.value))} 
-                                                        disabled={newProductData.isDisposable} // ถ้าใช้แล้วทิ้ง ไม่ต้องซัก
+                                                        disabled={newProductData.isDisposable} 
                                                         InputProps={{ 
                                                             startAdornment: <LocalLaundryService fontSize="small" color={newProductData.isDisposable ? "disabled" : "action"} sx={{ mr: 1 }} />,
                                                             endAdornment: <Typography variant="caption">รอบ</Typography> 
@@ -625,7 +659,7 @@ const RegisterLinen: React.FC = () => {
                                                         type="number"
                                                         value={maxWash}
                                                         onChange={e => setMaxWash(Number(e.target.value))}
-                                                        disabled={selectedProduct?.isDisposable} // ถ้าใช้แล้วทิ้ง ไม่ต้องตั้งรอบซัก
+                                                        disabled={selectedProduct?.isDisposable}
                                                         InputProps={{ startAdornment: <InputAdornment position="start"><LocalLaundryService fontSize="small" /></InputAdornment>, endAdornment: <Typography variant="caption">รอบ</Typography> }}
                                                     />
                                                 </FormLabel>
@@ -681,8 +715,8 @@ const RegisterLinen: React.FC = () => {
                                     
                                     {selectedReader && (() => {
                                         const r = readers.find(x => x.readerName === selectedReader);
-                                        if (r?.installedAtRoom?.roomName) {
-                                            return <Chip icon={<Room />} label={`ติดตั้งที่: ${r.installedAtRoom.roomName}`} size="small" sx={{ mt: 1 }} />;
+                                        if (r?.location) {
+                                            return <Chip icon={<Room />} label={`ติดตั้งที่: ${r.location}`} size="small" sx={{ mt: 1 }} />;
                                         }
                                     })()}
                                 </Box>
