@@ -72,28 +72,29 @@ interface LocationItem {
 }
 
 // --- Helper Functions ---
+// ✅ แปลงคำภาษาอังกฤษเป็นไทย และรองรับทุก Case (ตัวเล็ก/ตัวใหญ่)
 const getActivityLabel = (type: string) => {
-    const t = type || '';
-    if (t === 'Add' || t === 'New') return 'เพิ่มเข้าระบบ';
-    if (t === 'Restock') return 'รับเข้าคลัง';
-    if (t === 'SendToWash' || t === 'Wash' || t === 'ส่งซัก') return 'ส่งซัก';
-    if (t === 'ReWash' || t === 'ส่งซักซ้ำ') return 'ส่งซักซ้ำ'; // ✅ เพิ่ม ส่งซักซ้ำ
-    if (t === 'ReceiveWash' || t === 'Clean') return 'รับผ้าสะอาด';
-    if (t === 'Discard' || t === 'Lost') return 'จำหน่าย/ชำรุด';
-    if (t === 'Move') return 'ย้ายสถานที่';
-    if (t === 'Check') return 'ตรวจสอบ';
-    if (t === 'Reuse') return 'นำกลับมาใช้ใหม่';
-    if (t === 'Dispatch') return 'เบิกจ่าย';
-    return t;
+    const t = type ? type.toUpperCase() : '';
+    if (t === 'ADD' || t === 'NEW') return 'เพิ่มเข้าระบบ';
+    if (t === 'RESTOCK') return 'รับเข้าคลัง';
+    if (t === 'SENDTOWASH' || t === 'WASH' || t === 'ส่งซัก') return 'ส่งซัก';
+    if (t === 'REWASH' || t === 'ส่งซักซ้ำ') return 'ส่งซักซ้ำ'; 
+    if (t === 'RECEIVEWASH' || t === 'CLEAN') return 'รับผ้าสะอาด';
+    if (t === 'DISCARD' || t === 'LOST' || t === 'DAMAGED' || t === 'จำหน่ายออก') return 'จำหน่ายออก'; // ✅ ให้แปลเป็น จำหน่ายออก ทั้งหมด
+    if (t === 'MOVE') return 'ย้ายสถานที่';
+    if (t === 'CHECK') return 'ตรวจสอบ';
+    if (t === 'REUSE') return 'นำกลับมาใช้ใหม่';
+    if (t === 'DISPATCH' || t === 'เบิกจ่าย') return 'เบิกจ่าย';
+    return type; 
 };
 
 const getActivityColor = (type: string) => {
-    const t = type || '';
-    if (['Add', 'New', 'Restock', 'Reuse', 'พร้อมใช้'].some(k => t.includes(k))) return 'success';
-    if (['ReWash', 'ส่งซักซ้ำ'].some(k => t.includes(k))) return 'secondary'; // ✅ สีของส่งซักซ้ำ
-    if (['SendToWash', 'Wash', 'ReceiveWash', 'Move', 'Dispatch', 'ส่งซัก'].some(k => t.includes(k))) return 'info';
-    if (['Discard', 'Lost', 'Damaged', 'จำหน่าย'].some(k => t.includes(k))) return 'error';
-    if (['Check', 'ตรวจสอบ'].some(k => t.includes(k))) return 'warning';
+    const t = type ? type.toUpperCase() : '';
+    if (['ADD', 'NEW', 'RESTOCK', 'REUSE', 'พร้อมใช้'].some(k => t.includes(k))) return 'success';
+    if (['REWASH', 'ส่งซักซ้ำ'].some(k => t.includes(k))) return 'secondary'; 
+    if (['SENDTOWASH', 'WASH', 'RECEIVEWASH', 'MOVE', 'DISPATCH', 'ส่งซัก', 'เบิกจ่าย'].some(k => t.includes(k))) return 'info';
+    if (['DISCARD', 'LOST', 'DAMAGED', 'จำหน่าย', 'ชำรุด'].some(k => t.includes(k))) return 'error';
+    if (['CHECK', 'ตรวจสอบ'].some(k => t.includes(k))) return 'warning';
     return 'default';
 };
 
@@ -122,15 +123,17 @@ const Reports: React.FC = () => {
         { value: 'All', label: 'ทั้งหมด (All Activities)' },
         { value: 'Add', label: 'เพิ่มเข้าระบบ (Add New)' },
         { value: 'SendToWash', label: 'ส่งซัก (Send to Wash)' },
-        { value: 'ReWash', label: 'ส่งซักซ้ำ (Re-wash)' }, // ✅ เพิ่มตัวกรอง ส่งซักซ้ำ
+        { value: 'ReWash', label: 'ส่งซักซ้ำ (Re-wash)' }, 
         { value: 'Restock', label: 'รับเข้าคลัง (Restock)' },
-        { value: 'Discard', label: 'ตัดจำหน่าย (Discard)' },
+        // ✅ เปลี่ยน value กลับเป็น DISCARD ให้เหมือน DB จะได้ Query เจอ
+        { value: 'DISCARD', label: 'ตัดจำหน่าย (Discard)' }, 
         { value: 'Move', label: 'ย้ายตำแหน่ง (Move)' },
-        { value: 'Reuse', label: 'นำกลับมาใช้ใหม่ (Reuse)' }
+        { value: 'Reuse', label: 'นำกลับมาใช้ใหม่ (Reuse)' },
+        { value: 'Dispatch', label: 'เบิกจ่าย (Dispatch)' }
     ];
 
     useEffect(() => {
-        fetchLocations(); // ดึงรายชื่อแผนก/สถานที่ตอนเปิดหน้าครั้งแรก
+        fetchLocations(); 
         if (currentTab === 0) handleFetchReport();
         else handleFetchStock();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,7 +142,6 @@ const Reports: React.FC = () => {
     // 🔥 API ดึงข้อมูลรายชื่อ วอร์ด/สถานที่ จากฐานข้อมูลจริงๆ
     const fetchLocations = async () => {
         try {
-            // ดึงจาก API Ward (เปลี่ยนชื่อ Endpoint ให้ตรงกับ Backend ของคุณถ้าจำเป็น)
             const res = await axios.get(`${BASE_URL}/Ward`); 
             const data = res.data || [];
             
@@ -151,7 +153,6 @@ const Reports: React.FC = () => {
             setLocations(formattedLocations);
         } catch (err) {
             console.error("Failed to load Wards, trying Location endpoint...", err);
-            // Fallback เผื่อ API ชื่อ /Location
             try {
                 const res2 = await axios.get(`${BASE_URL}/Location`);
                 const data2 = res2.data || [];
@@ -171,11 +172,15 @@ const Reports: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
+            // ✅ เปลี่ยนการส่ง Type ให้ Backend เข้าใจง่ายขึ้น
+            // ถ้าเลือก DISCARD เราจะส่งไปค้นหาตรงๆ หรือดึงมาทั้งหมดแล้วมา Filter หน้าบ้านก็ได้
+            // เพื่อความชัวร์ 100% ผมจะให้มันดึงมาหมด แล้วใช้ Frontend Filter คำว่า DISCARD เผื่อ Backend เขียนไม่รองรับครับ
             const reqReport = axios.get(`${BASE_URL}/Report/Movement`, {
                 params: { 
                     start: startDate?.format('YYYY-MM-DD'), 
                     end: endDate?.format('YYYY-MM-DD'), 
-                    type: selectedType 
+                    // ส่ง All ไปก่อน เพื่อความชัวร์ว่า Backend ไม่แอบตัดข้อมูลทิ้ง
+                    type: 'All' 
                 }
             });
             const reqProducts = axios.get(`${BASE_URL}/Product`);
@@ -192,7 +197,7 @@ const Reports: React.FC = () => {
                 };
             });
 
-            const enrichedData = resReport.data.map((item: any) => {
+            let enrichedData = resReport.data.map((item: any) => {
                 const pInfo = prodMap[item.productName] || {};
                 return {
                     ...item,
@@ -202,6 +207,19 @@ const Reports: React.FC = () => {
                     unitName: item.unitName || pInfo.unitName || 'ชิ้น' 
                 };
             });
+
+            // ✅ Filter หน้าบ้านแทน เพื่อให้ครอบคลุมและไม่ติดปัญหา Backend Case-sensitive
+            if (selectedType !== 'All') {
+                enrichedData = enrichedData.filter((item: any) => {
+                    const itemType = (item.type || '').toUpperCase();
+                    // ถ้าเลือก DISCARD ให้ครอบคลุมทุกคำที่เกี่ยวกับการจำหน่าย
+                    if (selectedType === 'DISCARD') {
+                        return itemType === 'DISCARD' || itemType === 'LOST' || itemType === 'DAMAGED' || itemType === 'จำหน่ายออก' || itemType === 'ชำรุด';
+                    }
+                    // ถ้าเลือกแบบอื่นก็เทียบปกติ (เผื่อเป็นตัวเล็ก/ใหญ่)
+                    return itemType.includes(selectedType.toUpperCase());
+                });
+            }
 
             setReportData(enrichedData);
         } catch (err) {
@@ -528,6 +546,7 @@ const Reports: React.FC = () => {
                                             <TableRow key={idx} hover>
                                                 <TableCell>{new Date(row.date).toLocaleString('th-TH')}</TableCell>
                                                 <TableCell>
+                                                    {/* ✅ เรียกใช้ getActivityLabel ตรงนี้ เพื่อแปลคำว่า DISCARD เป็น จำหน่ายออก */}
                                                     <Chip label={getActivityLabel(row.type)} size="small" color={getActivityColor(row.type) as any} variant="filled" sx={{ fontWeight: 'normal', minWidth: 90 }} />
                                                 </TableCell>
                                                 <TableCell sx={{ fontWeight: 'normal', color: 'text.primary' }}>

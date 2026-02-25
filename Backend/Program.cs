@@ -1,29 +1,43 @@
 using Backend.Models;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json.Serialization; // ✅ สำคัญมาก: สำหรับแก้ JSON Loop
+using System.Text.Json.Serialization; 
 using Backend.Services;
-using Backend.Hubs; // ✅ เพิ่ม: ถ้าคุณสร้างไฟล์ DbInitializer ตามที่คุยกัน
+using Backend.Hubs; 
+using Microsoft.AspNetCore.Authentication.Cookies; // ✅ เพิ่มบรรทัดนี้
 
 var builder = WebApplication.CreateBuilder(args);
 
 // --- 1. System Config ---
-// แก้ปัญหาวันที่ของ PostgreSQL (timestamp issue)
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 // --- 2. Services Registration ---
 
-// ✅ แก้ Error 500 (JSON Loop) ที่นี่
-// สั่งให้ JSON Serializer ข้าม object ที่มีความสัมพันธ์วนลูป (Circular Reference)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-        options.JsonSerializerOptions.WriteIndented = true; // (Optional) ให้อ่านง่ายขึ้น
+        options.JsonSerializerOptions.WriteIndented = true; 
     });
 
 // Database Connection
 builder.Services.AddDbContext<LinenDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// ✅ เพิ่ม Authentication แบบ Cookie-Based (Session)
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "LinenAuthSession"; // ชื่อคุกกี้
+        options.Cookie.HttpOnly = true; // ป้องกัน XSS
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; 
+        options.ExpireTimeSpan = TimeSpan.FromHours(8); // กำหนดเวลา Session
+        options.SlidingExpiration = true; 
+        options.Events.OnRedirectToLogin = context =>
+        {
+            context.Response.StatusCode = 401; // ถ้าไม่มีสิทธิ์ ให้ตอบกลับ 401 Unauthorized
+            return Task.CompletedTask;
+        };
+    });
 
 // Real-time (SignalR)
 builder.Services.AddSignalR();
@@ -41,29 +55,23 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp",
         policy => policy
-            .WithOrigins("http://localhost:5173") // เปลี่ยน Port ตาม Frontend จริง
+            .WithOrigins("http://localhost:5173") 
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials()); // ✅ สำคัญ: SignalR ต้องการ Credentials
+            .AllowCredentials()); 
 });
 
 // --- 3. Build App ---
 var app = builder.Build();
 
-// ✅✅✅ 4. Auto-Initialize Database (ส่วนสำคัญที่เพิ่มมา)
-// ส่วนนี้จะทำงานทุกครั้งที่รัน Backend เพื่อเช็คว่า DB พร้อมไหม
+// --- 4. Auto-Initialize Database ---
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
         var context = services.GetRequiredService<LinenDbContext>();
-        
-        // สร้าง Database ถ้ายังไม่มี
         context.Database.EnsureCreated();
-
-        // ถ้าคุณสร้างไฟล์ DbInitializer.cs ไว้ ให้ uncomment บรรทัดนี้
-        // DbInitializer.Initialize(context); 
     }
     catch (Exception ex)
     {
@@ -71,7 +79,6 @@ using (var scope = app.Services.CreateScope())
         logger.LogError(ex, "เกิดข้อผิดพลาดขณะสร้างฐานข้อมูล");
     }
 }
-// -----------------------------------------------------------
 
 // --- 5. Middleware Pipeline ---
 if (app.Environment.IsDevelopment())
@@ -82,9 +89,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("AllowReactApp");
 
+// ✅ เปิดใช้งานระบบ Auth
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<NotificationHub>("/hubs/notification"); // Endpoint สำหรับ SignalR
+app.MapHub<NotificationHub>("/hubs/notification"); 
 
 app.Run();

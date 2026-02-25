@@ -20,9 +20,21 @@ import FormLabel from '../components/ui/FormLabel';
 
 const Requests: React.FC = () => {
     const theme = useTheme();
+
+    // ✅ การเช็คสิทธิ์แบบละเอียด
+    const userStr = localStorage.getItem('currentUser');
+    const currentUser = userStr ? JSON.parse(userStr) : null;
+    const permissions = currentUser?.permissions || currentUser?.Permissions || [];
+    const roleId = currentUser?.roleId || currentUser?.RoleId || 0;
+    
+    // สิทธิ์การสร้างคำร้อง
+    const canWrite = roleId === 1 || permissions.includes('WRITE_REQUEST');
+    
+    // สิทธิ์ในการจัดการ/อนุมัติ (เห็นของทุกคน)
+    const isAdmin = roleId === 1 || permissions.includes('MANAGE_REQUEST') || permissions.includes('APPROVE_REQUEST');
+
     // --- States ---
     const [user, setUser] = useState<any>(null);
-    const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(false);
     const [tabValue, setTabValue] = useState(0);
 
@@ -51,20 +63,15 @@ const Requests: React.FC = () => {
     );
 
     useEffect(() => {
-        const userStr = localStorage.getItem('currentUser');
-        if (userStr) {
-            const currentUser = JSON.parse(userStr);
+        if (currentUser) {
             setUser(currentUser);
-            // Admin roleId = 1 or 2
-            const adminRole = currentUser.roleId === 1 || currentUser.roleId === 2;
-            setIsAdmin(adminRole);
-
             if (currentUser.wardId) {
                 setFormData(prev => ({ ...prev, wardId: currentUser.wardId }));
             }
         }
         fetchMasterData();
         fetchRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Check stock when product changes
@@ -105,7 +112,14 @@ const Requests: React.FC = () => {
         setLoading(true);
         try {
             const res = await axiosClient.get('/Request');
-            setRequests(res.data.sort((a: any, b: any) => b.requestId - a.requestId));
+            let data = res.data || [];
+            
+            // ถ้าไม่มีสิทธิ์ MANAGE_REQUEST ให้เห็นแค่คำร้องของตัวเองเท่านั้น
+            if (!isAdmin && currentUser) {
+                data = data.filter((r: any) => r.requestedByUserId === currentUser.userId);
+            }
+
+            setRequests(data.sort((a: any, b: any) => b.requestId - a.requestId));
         } catch (err) { 
             console.error(err); 
         } finally {
@@ -320,149 +334,147 @@ const Requests: React.FC = () => {
             <Box role="tabpanel" hidden={tabValue !== 0}>
                 {tabValue === 0 && (
                     <>
-                        {/* ส่วน Form (Create New Request) */}
-                        <Card elevation={0} sx={{ mb: 4, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
-                            <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Send color="primary" />
-                                <Typography variant="subtitle1" fontWeight="bold" color="primary.main">
-                                    แบบฟอร์มสร้างคำร้อง (ระบุตามลำดับ)
-                                </Typography>
-                            </Box>
-                            <CardContent sx={{ p: 4 }}>
-                                <Grid container spacing={3} alignItems="flex-start">
-                                    <Grid item xs={12} md={4}>
-                                        <FormLabel label="1. ประเภทคำร้อง">
-                                            <ToggleButtonGroup
-                                                color="primary"
-                                                value={requestType}
-                                                exclusive
-                                                onChange={(e, v) => {
-                                                    if(v) {
-                                                        setRequestType(v);
-                                                        setFormData({ ...formData, damageReasonId: '' });
-                                                    }
-                                                }}
-                                                fullWidth
-                                                size="small"
-                                            >
-                                                <ToggleButton value="1">เบิกใหม่</ToggleButton>
-                                                <ToggleButton value="2">เปลี่ยนชำรุด</ToggleButton>
-                                                <ToggleButton value="3">ส่งคืนผ้าส่วนเกิน</ToggleButton>
-                                            </ToggleButtonGroup>
-                                        </FormLabel>
-                                    </Grid>
-
-                                    <Grid item xs={12} md={4}>
-                                        <FormLabel label="2. วอร์ด/แผนก" required>
-                                            <Select
-                                                value={formData.wardId}
-                                                onChange={e => setFormData({ ...formData, wardId: e.target.value.toString(), categoryId: '', productId: '', quantity: '' })}
-                                                displayEmpty
-                                                fullWidth
-                                            >
-                                                <MenuItem value="" disabled>เลือกวอร์ด (Step 1)</MenuItem>
-                                                {wards.map((w) => <MenuItem key={w.wardId} value={w.wardId}>{w.wardName}</MenuItem>)}
-                                            </Select>
-                                        </FormLabel>
-                                    </Grid>
-
-                                    {/* ล็อค: ต้องเลือกวอร์ดก่อน */}
-                                    <Grid item xs={12} md={4}>
-                                        <FormLabel label="3. หมวดผ้า" required>
-                                            <Select
-                                                value={formData.categoryId}
-                                                onChange={e => setFormData({ ...formData, categoryId: e.target.value.toString(), productId: '', quantity: '' })}
-                                                displayEmpty
-                                                fullWidth
-                                                disabled={!formData.wardId} 
-                                            >
-                                                <MenuItem value="" disabled>เลือกหมวดผ้า (Step 2)</MenuItem>
-                                                {categories.map((c) => <MenuItem key={c.categoryId} value={c.categoryId}>{c.categoryName}</MenuItem>)}
-                                            </Select>
-                                        </FormLabel>
-                                    </Grid>
-
-                                    {/* ล็อค: ต้องเลือกหมวดหมู่ก่อน */}
-                                    <Grid item xs={12} md={4}>
-                                        <FormLabel label="4. รายการผ้า" required>
-                                            <Select 
-                                                value={formData.productId} 
-                                                onChange={e => setFormData({ ...formData, productId: e.target.value.toString(), quantity: '' })} 
-                                                displayEmpty
-                                                fullWidth
-                                                disabled={!formData.categoryId} 
-                                            >
-                                                <MenuItem value="" disabled>เลือกสินค้า (Step 3)</MenuItem>
-                                                {filteredProducts.map((p) => <MenuItem key={p.productId} value={p.productId}>{p.productName} ({p.sizeSpec})</MenuItem>)}
-                                            </Select>
-                                            
-                                            {/* โชว์จำนวนในคลังเฉพาะตอนเบิกกับเปลี่ยน / คืนผ้าไม่ต้องเช็ค */}
-                                            {currentStock !== null && requestType !== '3' && (
-                                                <FormHelperText sx={{ color: currentStock > 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
-                                                    <Inventory2 fontSize="inherit" sx={{ mr: 0.5, verticalAlign: 'middle' }} />
-                                                    คงเหลือที่เบิกได้: {currentStock} ชิ้น
-                                                </FormHelperText>
-                                            )}
-                                            {requestType === '3' && formData.productId && (
-                                                <FormHelperText sx={{ color: 'info.main', fontWeight: 'bold' }}>
-                                                    <Inventory2 fontSize="inherit" sx={{ mr: 0.5, verticalAlign: 'middle' }} />
-                                                    ระบุจำนวนผ้าส่วนเกินที่ต้องการส่งคืนคลัง
-                                                </FormHelperText>
-                                            )}
-                                        </FormLabel>
-                                    </Grid>
-
-                                    {/* ล็อค: ต้องเลือกสินค้าก่อน */}
-                                    <Grid item xs={12} md={4}>
-                                        <FormLabel label={requestType === '3' ? "5. จำนวนที่ส่งคืน (ชิ้น)" : "5. จำนวนที่เบิก (ชิ้น)"} required>
-                                            <TextField
-                                                fullWidth
-                                                type="number"
-                                                placeholder="ระบุจำนวน (Step 4)"
-                                                value={formData.quantity}
-                                                onChange={e => setFormData({ ...formData, quantity: e.target.value })}
-                                                disabled={!formData.productId} 
-                                                InputProps={{ inputProps: { min: 1, max: requestType === '3' ? 9999 : (currentStock || 999) } }}
-                                                error={requestType !== '3' && currentStock !== null && Number(formData.quantity) > currentStock}
-                                                helperText={requestType !== '3' && currentStock !== null && Number(formData.quantity) > currentStock ? "เกินจำนวนที่มีในคลัง" : ""}
-                                            />
-                                        </FormLabel>
-                                    </Grid>
-
-                                    {requestType === '2' && (
+                        {/* ✅ ซ่อนฟอร์มสร้างคำร้อง ถ้ายูสเซอร์ไม่มีสิทธิ์ WRITE_REQUEST */}
+                        {canWrite && (
+                            <Card elevation={0} sx={{ mb: 4, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
+                                <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Send color="primary" />
+                                    <Typography variant="subtitle1" fontWeight="bold" color="primary.main">
+                                        แบบฟอร์มสร้างคำร้อง (ระบุตามลำดับ)
+                                    </Typography>
+                                </Box>
+                                <CardContent sx={{ p: 4 }}>
+                                    <Grid container spacing={3} alignItems="flex-start">
                                         <Grid item xs={12} md={4}>
-                                            <FormLabel label="สาเหตุชำรุด (สำหรับเปลี่ยนผ้า)" required>
+                                            <FormLabel label="1. ประเภทคำร้อง">
+                                                <ToggleButtonGroup
+                                                    color="primary"
+                                                    value={requestType}
+                                                    exclusive
+                                                    onChange={(e, v) => {
+                                                        if(v) {
+                                                            setRequestType(v);
+                                                            setFormData({ ...formData, damageReasonId: '' });
+                                                        }
+                                                    }}
+                                                    fullWidth
+                                                    size="small"
+                                                >
+                                                    <ToggleButton value="1">เบิกใหม่</ToggleButton>
+                                                    <ToggleButton value="2">เปลี่ยนชำรุด</ToggleButton>
+                                                    <ToggleButton value="3">ส่งคืนผ้าส่วนเกิน</ToggleButton>
+                                                </ToggleButtonGroup>
+                                            </FormLabel>
+                                        </Grid>
+
+                                        <Grid item xs={12} md={4}>
+                                            <FormLabel label="2. วอร์ด/แผนก" required>
                                                 <Select
-                                                    value={formData.damageReasonId}
-                                                    onChange={e => setFormData({ ...formData, damageReasonId: e.target.value.toString() })}
+                                                    value={formData.wardId}
+                                                    onChange={e => setFormData({ ...formData, wardId: e.target.value.toString(), categoryId: '', productId: '', quantity: '' })}
                                                     displayEmpty
                                                     fullWidth
-                                                    disabled={!formData.productId}
-                                                    error={!formData.damageReasonId}
                                                 >
-                                                    <MenuItem value="" disabled>เลือกสาเหตุ</MenuItem>
-                                                    {reasons.map((r) => <MenuItem key={r.reasonId} value={r.reasonId}>{r.reasonName}</MenuItem>)}
+                                                    <MenuItem value="" disabled>เลือกวอร์ด (Step 1)</MenuItem>
+                                                    {wards.map((w) => <MenuItem key={w.wardId} value={w.wardId}>{w.wardName}</MenuItem>)}
                                                 </Select>
                                             </FormLabel>
                                         </Grid>
-                                    )}
 
-                                    <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
-                                        <Button variant="outlined" color="inherit" size="large" onClick={() => setFormData({ categoryId: '', productId: '', wardId: '', quantity: '', damageReasonId: '' })}>ล้างข้อมูล</Button>
-                                        <Button
-                                            variant="contained"
-                                            size="large"
-                                            onClick={handleSubmit}
-                                            startIcon={requestType === '1' ? <AddCircle /> : requestType === '2' ? <Autorenew /> : <KeyboardReturn />}
-                                            sx={{ px: 4 }}
-                                            disabled={requestType !== '3' && currentStock !== null && (currentStock === 0 || Number(formData.quantity) > currentStock)}
-                                        >
-                                            {requestType === '1' ? 'ส่งคำร้องเบิก' : requestType === '2' ? 'ส่งคำร้องเปลี่ยน' : 'ส่งคำร้องคืนผ้า'}
-                                        </Button>
+                                        <Grid item xs={12} md={4}>
+                                            <FormLabel label="3. หมวดผ้า" required>
+                                                <Select
+                                                    value={formData.categoryId}
+                                                    onChange={e => setFormData({ ...formData, categoryId: e.target.value.toString(), productId: '', quantity: '' })}
+                                                    displayEmpty
+                                                    fullWidth
+                                                    disabled={!formData.wardId} 
+                                                >
+                                                    <MenuItem value="" disabled>เลือกหมวดผ้า (Step 2)</MenuItem>
+                                                    {categories.map((c) => <MenuItem key={c.categoryId} value={c.categoryId}>{c.categoryName}</MenuItem>)}
+                                                </Select>
+                                            </FormLabel>
+                                        </Grid>
+
+                                        <Grid item xs={12} md={4}>
+                                            <FormLabel label="4. รายการผ้า" required>
+                                                <Select 
+                                                    value={formData.productId} 
+                                                    onChange={e => setFormData({ ...formData, productId: e.target.value.toString(), quantity: '' })} 
+                                                    displayEmpty
+                                                    fullWidth
+                                                    disabled={!formData.categoryId} 
+                                                >
+                                                    <MenuItem value="" disabled>เลือกสินค้า (Step 3)</MenuItem>
+                                                    {filteredProducts.map((p) => <MenuItem key={p.productId} value={p.productId}>{p.productName} ({p.sizeSpec})</MenuItem>)}
+                                                </Select>
+                                                
+                                                {currentStock !== null && requestType !== '3' && (
+                                                    <FormHelperText sx={{ color: currentStock > 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
+                                                        <Inventory2 fontSize="inherit" sx={{ mr: 0.5, verticalAlign: 'middle' }} />
+                                                        คงเหลือที่เบิกได้: {currentStock} ชิ้น
+                                                    </FormHelperText>
+                                                )}
+                                                {requestType === '3' && formData.productId && (
+                                                    <FormHelperText sx={{ color: 'info.main', fontWeight: 'bold' }}>
+                                                        <Inventory2 fontSize="inherit" sx={{ mr: 0.5, verticalAlign: 'middle' }} />
+                                                        ระบุจำนวนผ้าส่วนเกินที่ต้องการส่งคืนคลัง
+                                                    </FormHelperText>
+                                                )}
+                                            </FormLabel>
+                                        </Grid>
+
+                                        <Grid item xs={12} md={4}>
+                                            <FormLabel label={requestType === '3' ? "5. จำนวนที่ส่งคืน (ชิ้น)" : "5. จำนวนที่เบิก (ชิ้น)"} required>
+                                                <TextField
+                                                    fullWidth
+                                                    type="number"
+                                                    placeholder="ระบุจำนวน (Step 4)"
+                                                    value={formData.quantity}
+                                                    onChange={e => setFormData({ ...formData, quantity: e.target.value })}
+                                                    disabled={!formData.productId} 
+                                                    InputProps={{ inputProps: { min: 1, max: requestType === '3' ? 9999 : (currentStock || 999) } }}
+                                                    error={requestType !== '3' && currentStock !== null && Number(formData.quantity) > currentStock}
+                                                    helperText={requestType !== '3' && currentStock !== null && Number(formData.quantity) > currentStock ? "เกินจำนวนที่มีในคลัง" : ""}
+                                                />
+                                            </FormLabel>
+                                        </Grid>
+
+                                        {requestType === '2' && (
+                                            <Grid item xs={12} md={4}>
+                                                <FormLabel label="สาเหตุชำรุด (สำหรับเปลี่ยนผ้า)" required>
+                                                    <Select
+                                                        value={formData.damageReasonId}
+                                                        onChange={e => setFormData({ ...formData, damageReasonId: e.target.value.toString() })}
+                                                        displayEmpty
+                                                        fullWidth
+                                                        disabled={!formData.productId}
+                                                        error={!formData.damageReasonId}
+                                                    >
+                                                        <MenuItem value="" disabled>เลือกสาเหตุ</MenuItem>
+                                                        {reasons.map((r) => <MenuItem key={r.reasonId} value={r.reasonId}>{r.reasonName}</MenuItem>)}
+                                                    </Select>
+                                                </FormLabel>
+                                            </Grid>
+                                        )}
+
+                                        <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
+                                            <Button variant="outlined" color="inherit" size="large" onClick={() => setFormData({ categoryId: '', productId: '', wardId: '', quantity: '', damageReasonId: '' })}>ล้างข้อมูล</Button>
+                                            <Button
+                                                variant="contained"
+                                                size="large"
+                                                onClick={handleSubmit}
+                                                startIcon={requestType === '1' ? <AddCircle /> : requestType === '2' ? <Autorenew /> : <KeyboardReturn />}
+                                                sx={{ px: 4 }}
+                                                disabled={requestType !== '3' && currentStock !== null && (currentStock === 0 || Number(formData.quantity) > currentStock)}
+                                            >
+                                                {requestType === '1' ? 'ส่งคำร้องเบิก' : requestType === '2' ? 'ส่งคำร้องเปลี่ยน' : 'ส่งคำร้องคืนผ้า'}
+                                            </Button>
+                                        </Grid>
                                     </Grid>
-                                </Grid>
-                            </CardContent>
-                        </Card>
+                                </CardContent>
+                            </Card>
+                        )}
 
                         {/* ส่วน Table (History & Approve) */}
                         <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
@@ -544,7 +556,7 @@ const Requests: React.FC = () => {
                                                 </TableCell>
                                                 <TableCell align="center">
                                                     <Stack direction="row" spacing={1} justifyContent="center">
-                                                        {/* ปุ่มสำหรับ Admin: อนุมัติ / ปฏิเสธ (เมื่อสถานะ = 1 รออนุมัติ) */}
+                                                        {/* ✅ ให้เห็นปุ่มอนุมัติเฉพาะ Admin หรือคนที่มีสิทธิ์ MANAGE_REQUEST */}
                                                         {isAdmin && req.currentStatusId === 1 ? (
                                                             <>
                                                                 <Tooltip title="อนุมัติ">
@@ -635,16 +647,21 @@ const Requests: React.FC = () => {
                                                 ))}
                                             </TableCell>
                                             <TableCell align="center">
-                                                <Button 
-                                                    variant="contained" 
-                                                    color="info" 
-                                                    size="large" 
-                                                    startIcon={<LocalShipping />}
-                                                    onClick={() => handleConfirmDispatch(req.requestId)}
-                                                    sx={{ borderRadius: 2, fontWeight: 'bold', px: 3, py: 1 }}
-                                                >
-                                                    ส่งผ้าเรียบร้อย
-                                                </Button>
+                                                {/* ✅ ซ่อนปุ่มจัดส่ง ถ้าไม่ใช่ Admin หรือคนมีสิทธิ์ MANAGE */}
+                                                {isAdmin ? (
+                                                    <Button 
+                                                        variant="contained" 
+                                                        color="info" 
+                                                        size="large" 
+                                                        startIcon={<LocalShipping />}
+                                                        onClick={() => handleConfirmDispatch(req.requestId)}
+                                                        sx={{ borderRadius: 2, fontWeight: 'bold', px: 3, py: 1 }}
+                                                    >
+                                                        ส่งผ้าเรียบร้อย
+                                                    </Button>
+                                                ) : (
+                                                    <Typography variant="caption" color="textSecondary">รอเจ้าหน้าที่ดำเนินการ</Typography>
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     ))}

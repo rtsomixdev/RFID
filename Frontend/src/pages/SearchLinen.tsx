@@ -58,6 +58,25 @@ const SearchLinen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchTerm, selectedCategory, linens]);
 
+    // 🔥🔥🔥 เพิ่มการดักจับ Event จาก RFID Scanner 🔥🔥🔥
+    useEffect(() => {
+        const handleAutoScan = (e: any) => {
+            const incomingData = e.detail;
+            const rfid = typeof incomingData === 'object' ? incomingData.rfid : incomingData;
+
+            if (rfid) {
+                // เอารหัส RFID มาใส่ในช่องค้นหาทันที
+                setSearchTerm(rfid);
+            }
+        };
+
+        // เริ่มดักฟัง Event (ที่ส่งมาจาก App.tsx ผ่าน SignalR)
+        window.addEventListener("RFID_SCANNED", handleAutoScan);
+        return () => {
+            window.removeEventListener("RFID_SCANNED", handleAutoScan);
+        };
+    }, []);
+
     const fetchMasterData = async () => {
         setLoading(true);
         try {

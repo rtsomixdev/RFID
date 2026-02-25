@@ -4,12 +4,12 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Select, MenuItem, Chip, Stack,
   Avatar, InputAdornment, Tab, Tabs,
-  Checkbox, FormGroup, FormControlLabel, alpha, useTheme
+  Checkbox, FormGroup, FormControlLabel, alpha, useTheme, Grid, Divider, Tooltip
 } from '@mui/material';
 import {
   Delete, PersonAdd, Edit, Save, Mail,
   Search, VpnKey, Badge as BadgeIcon, AdminPanelSettings, AddModerator,
-  SupervisedUserCircle, VerifiedUser
+  SupervisedUserCircle, VerifiedUser, Security, CheckCircleOutline
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
@@ -53,10 +53,58 @@ function stringAvatar(name: string) {
   };
 }
 
+// 🌟 ฟังก์ชัน: แปลง Permission แบบแบนๆ ให้กลายเป็น Matrix (ตาราง)
+const buildPermissionMatrix = (permissions: Permission[]) => {
+  const matrix: Record<string, { READ: Permission[], WRITE: Permission[], EDIT: Permission[], DELETE: Permission[], MANAGE: Permission[] }> = {};
+
+  permissions.forEach(perm => {
+    const code = perm.permissionCode.toUpperCase();
+    
+    // 1. แยกประเภทแอคชัน (Action)
+    let actionType = 'MANAGE';
+    if (code.startsWith('VIEW') || code.startsWith('READ')) actionType = 'READ';
+    else if (code.startsWith('ADD') || code.startsWith('CREATE') || code.startsWith('INSERT')) actionType = 'WRITE';
+    else if (code.startsWith('EDIT') || code.startsWith('UPDATE')) actionType = 'EDIT';
+    else if (code.startsWith('DELETE') || code.startsWith('REMOVE')) actionType = 'DELETE';
+
+    // 2. แยกชื่อโมดูล (Module) ออกจาก Prefix
+    const parts = code.split('_');
+    const moduleName = parts.length > 1 ? parts.slice(1).join('_') : code;
+
+    if (!matrix[moduleName]) {
+      matrix[moduleName] = { READ: [], WRITE: [], EDIT: [], DELETE: [], MANAGE: [] };
+    }
+    
+    matrix[moduleName][actionType as keyof typeof matrix[string]].push(perm);
+  });
+
+  return matrix;
+};
+
+// 🌟 ฟังก์ชัน: แปลงชื่อโมดูลภาษาอังกฤษให้ดูสวยงาม
+const translateModule = (moduleCode: string) => {
+  const dict: Record<string, string> = {
+    'USER': 'ผู้ใช้งานระบบ',
+    'ROLE': 'บทบาทและสิทธิ์',
+    'LINEN': 'สต็อกผ้า',
+    'REQUEST': 'คำร้องขอเบิก/คืน',
+    'LAUNDRY': 'ระบบซักรีด',
+    'TRANSPORT': 'ระบบขนส่ง',
+    'DISCARD': 'จำหน่าย/ชำรุด',
+    'REPORT': 'รายงานและสถิติ',
+    'DASHBOARD': 'หน้าแดชบอร์ด',
+    'HOSPITAL': 'ข้อมูลโรงพยาบาล',
+    'WARD': 'ข้อมูลแผนก/วอร์ด',
+    'VENDOR': 'บริษัทคู่ค้า',
+    'RFID': 'อุปกรณ์ RFID',
+    'SETTING': 'ตั้งค่าระบบ'
+  };
+  return dict[moduleCode] || moduleCode;
+};
+
 const Users: React.FC = () => {
   const theme = useTheme();
-  // --- Global State ---
-  const [tabIndex, setTabIndex] = useState(0); // 0 = Users, 1 = Roles
+  const [tabIndex, setTabIndex] = useState(0); 
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // ==========================================
@@ -66,16 +114,14 @@ const Users: React.FC = () => {
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Master Data States
   const [rolesList, setRolesList] = useState<any[]>([]); 
   const [titles, setTitles] = useState<any[]>([]);
-  const [hospitals, setHospitals] = useState<any[]>([]); // ✅ เพิ่ม State โรงพยาบาล
-  const [wards, setWards] = useState<any[]>([]); // ✅ เพิ่ม State วอร์ด
+  const [hospitals, setHospitals] = useState<any[]>([]); 
+  const [wards, setWards] = useState<any[]>([]); 
 
   const [isEditUser, setIsEditUser] = useState(false);
   const [editUserId, setEditUserId] = useState<number | null>(null);
   
-  // ✅ แก้ไขค่าเริ่มต้นของ hospitalId และ wardId เป็น string ว่าง เพื่อบังคับให้เลือก
   const [userForm, setUserForm] = useState({
     username: '', passwordHash: '', firstName: '', lastName: '', email: '',
     roleId: '', titleId: '', hospitalId: '', wardId: ''
@@ -93,7 +139,6 @@ const Users: React.FC = () => {
     selectedPermissions: [] as number[]
   });
 
-  // --- Initialization ---
   useEffect(() => {
     const userStr = localStorage.getItem('currentUser');
     if (userStr) setCurrentUser(JSON.parse(userStr));
@@ -112,7 +157,6 @@ const Users: React.FC = () => {
     await fetchRolesAndPermissions();
   };
 
-  // --- API Calls ---
   const fetchUsers = async () => {
     try {
       const res = await axiosClient.get('/User');
@@ -123,7 +167,6 @@ const Users: React.FC = () => {
 
   const fetchMasterData = async () => {
     try {
-      // ✅ ดึงข้อมูล Hospital และ Ward เพิ่มเข้ามา
       const [roleRes, titleRes, hospRes, wardRes] = await Promise.all([
         axiosClient.get('/Role'),
         axiosClient.get('/Title'),
@@ -148,9 +191,6 @@ const Users: React.FC = () => {
     } catch (err) { console.error(err); }
   };
 
-  // ==========================================
-  // 🟢 LOGIC: USER MANAGEMENT
-  // ==========================================
   const filterUsers = () => {
     const lowerTerm = searchTerm.toLowerCase();
     const filtered = users.filter(u =>
@@ -187,7 +227,6 @@ const Users: React.FC = () => {
 
   const handleSubmitUser = async () => {
     try {
-      // ✅ เพิ่มการตรวจสอบว่าเลือกโรงพยาบาลและวอร์ดหรือยัง
       if (!userForm.username || !userForm.roleId || !userForm.hospitalId || !userForm.wardId) {
           return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลสำคัญและเลือกแผนกให้ครบถ้วน', 'warning');
       }
@@ -257,11 +296,34 @@ const Users: React.FC = () => {
     setRoleForm({ roleName: '', selectedPermissions: [] });
   };
 
+  // สลับสถานะของ Checkbox เดี่ยว
   const handlePermissionToggle = (permId: number) => {
     setRoleForm(prev => {
       const current = prev.selectedPermissions;
       if (current.includes(permId)) return { ...prev, selectedPermissions: current.filter(id => id !== permId) };
       return { ...prev, selectedPermissions: [...current, permId] };
+    });
+  };
+
+  // สลับสถานะของสิทธิ์ทั้งแถว (Toggle Row)
+  const handleToggleRow = (moduleActions: any) => {
+    const rowIds: number[] = [];
+    Object.values(moduleActions).forEach((permsArray: any) => {
+      permsArray.forEach((p: Permission) => rowIds.push(p.permissionId));
+    });
+
+    const allSelected = rowIds.length > 0 && rowIds.every(id => roleForm.selectedPermissions.includes(id));
+    
+    setRoleForm(prev => {
+      let newSelected = [...prev.selectedPermissions];
+      if (allSelected) {
+        newSelected = newSelected.filter(id => !rowIds.includes(id));
+      } else {
+        rowIds.forEach(id => {
+          if (!newSelected.includes(id)) newSelected.push(id);
+        });
+      }
+      return { ...prev, selectedPermissions: newSelected };
     });
   };
 
@@ -279,7 +341,7 @@ const Users: React.FC = () => {
       }
       handleCancelRole();
       fetchRolesAndPermissions();
-      fetchMasterData(); // Refresh dropdown list in User tab too
+      fetchMasterData(); 
     } catch (err: any) {
       Swal.fire('Error', err.response?.data?.message || 'บันทึกไม่สำเร็จ', 'error');
     }
@@ -301,13 +363,14 @@ const Users: React.FC = () => {
     });
   };
 
-  // --- Render ---
+  // สร้าง Matrix อัตโนมัติจากข้อมูลสิทธิ์ทั้งหมด
+  const permissionMatrix = buildPermissionMatrix(allPermissions);
+
   return (
     <Box sx={{ pb: 5 }}>
-      {/* Header */}
       <PageHeader
         title="จัดการผู้ใช้งานและสิทธิ์"
-        subtitle="ควบคุมการเข้าถึงระบบ จัดการบัญชีผู้ใช้ และกำหนดบทบาทหน้าที่"
+        subtitle="ควบคุมการเข้าถึงระบบ จัดการบัญชีผู้ใช้ และกำหนดบทบาทหน้าที่อย่างละเอียด"
         icon={<AdminPanelSettings fontSize="large" />}
         breadcrumbs={[
           { label: 'หน้าหลัก', href: '/' },
@@ -315,8 +378,6 @@ const Users: React.FC = () => {
           { label: 'ผู้ใช้งานและสิทธิ์' }
         ]}
       />
-
-      {/* Tabs */}
 
       <Tabs
         value={tabIndex}
@@ -348,39 +409,15 @@ const Users: React.FC = () => {
         }}
       >
         <Tab label="1. จัดการผู้ใช้งาน (Users)" icon={<SupervisedUserCircle fontSize="small" />} iconPosition="start" />
-        <Tab label="2. จัดการบทบาท (Roles)" icon={<VerifiedUser fontSize="small" />} iconPosition="start" />
+        <Tab label="2. กำหนดบทบาทและสิทธิ์ (Roles & Permissions)" icon={<Security fontSize="small" />} iconPosition="start" />
       </Tabs>
 
-      {/* ======================= TAB 1: USERS ======================= */}
+      {/* ======================= TAB 1: USERS (เหมือนเดิม) ======================= */}
       {tabIndex === 0 && (
         <Box sx={{ animation: 'fadeIn 0.3s ease-in-out', '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } } }}>
-
-          {/* User Form Card */}
-          <Paper
-            elevation={0}
-            sx={{
-              mb: 4,
-              borderRadius: 4,
-              border: `1px solid ${theme.palette.divider}`,
-              overflow: 'hidden',
-              bgcolor: '#fff',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
-            }}
-          >
-            <Box sx={{
-              p: 3,
-              bgcolor: isEditUser ? alpha(theme.palette.warning.main, 0.04) : alpha(theme.palette.primary.main, 0.04),
-              borderBottom: `1px solid ${theme.palette.divider}`,
-              display: 'flex', alignItems: 'center', gap: 2
-            }}>
-              <Avatar
-                variant="rounded"
-                sx={{
-                  bgcolor: isEditUser ? alpha(theme.palette.warning.main, 0.15) : alpha(theme.palette.primary.main, 0.15),
-                  color: isEditUser ? theme.palette.warning.main : theme.palette.primary.main,
-                  width: 48, height: 48
-                }}
-              >
+          <Paper elevation={0} sx={{ mb: 4, borderRadius: 4, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden', bgcolor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+            <Box sx={{ p: 3, bgcolor: isEditUser ? alpha(theme.palette.warning.main, 0.04) : alpha(theme.palette.primary.main, 0.04), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar variant="rounded" sx={{ bgcolor: isEditUser ? alpha(theme.palette.warning.main, 0.15) : alpha(theme.palette.primary.main, 0.15), color: isEditUser ? theme.palette.warning.main : theme.palette.primary.main, width: 48, height: 48 }}>
                 {isEditUser ? <Edit /> : <PersonAdd />}
               </Avatar>
               <Box>
@@ -416,13 +453,7 @@ const Users: React.FC = () => {
 
                 <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
                   <FormLabel label="Username" required>
-                    <TextField
-                      fullWidth
-                      placeholder="ตั้งชื่อผู้ใช้งาน"
-                      value={userForm.username}
-                      onChange={e => setUserForm({ ...userForm, username: e.target.value })}
-                      InputProps={{ startAdornment: <InputAdornment position="start"><BadgeIcon fontSize="small" color="action" /></InputAdornment> }}
-                    />
+                    <TextField fullWidth placeholder="ตั้งชื่อผู้ใช้งาน" value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} InputProps={{ startAdornment: <InputAdornment position="start"><BadgeIcon fontSize="small" color="action" /></InputAdornment> }} />
                   </FormLabel>
                 </Box>
                 <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
@@ -435,27 +466,13 @@ const Users: React.FC = () => {
                 </Box>
                 <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
                   <FormLabel label={isEditUser ? "รหัสผ่านใหม่ (ไม่เปลี่ยนเว้นว่าง)" : "รหัสผ่าน"} required={!isEditUser}>
-                    <TextField
-                      fullWidth
-                      type="password"
-                      placeholder="********"
-                      value={userForm.passwordHash}
-                      onChange={e => setUserForm({ ...userForm, passwordHash: e.target.value })}
-                      InputProps={{ startAdornment: <InputAdornment position="start"><VpnKey fontSize="small" color="action" /></InputAdornment> }}
-                    />
+                    <TextField fullWidth type="password" placeholder="********" value={userForm.passwordHash} onChange={e => setUserForm({ ...userForm, passwordHash: e.target.value })} InputProps={{ startAdornment: <InputAdornment position="start"><VpnKey fontSize="small" color="action" /></InputAdornment> }} />
                   </FormLabel>
                 </Box>
 
-                {/* ✅ เพิ่ม Dropdown โรงพยาบาล และ วอร์ด แทนที่ Hardcode เดิม */}
                 <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
                   <FormLabel label="อีเมล">
-                    <TextField
-                      fullWidth
-                      placeholder="example@email.com"
-                      value={userForm.email}
-                      onChange={e => setUserForm({ ...userForm, email: e.target.value })}
-                      InputProps={{ startAdornment: <InputAdornment position="start"><Mail fontSize="small" color="action" /></InputAdornment> }}
-                    />
+                    <TextField fullWidth placeholder="example@email.com" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} InputProps={{ startAdornment: <InputAdornment position="start"><Mail fontSize="small" color="action" /></InputAdornment> }} />
                   </FormLabel>
                 </Box>
                 <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
@@ -489,47 +506,29 @@ const Users: React.FC = () => {
             </Box>
           </Paper>
 
-          {/* User Table */}
+          {/* User Table (เหมือนเดิม) */}
           <Box>
             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
               <Typography variant="h6" fontWeight="700" color="text.primary">
                 ผู้ใช้งานทั้งหมด <Chip label={filteredUsers.length} color="primary" size="small" sx={{ ml: 1, fontWeight: 'bold', borderRadius: 1 }} />
               </Typography>
-              <TextField
-                size="small"
-                placeholder="ค้นหาชื่อ, Username..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }}
-                sx={{ width: 280, bgcolor: '#fff', borderRadius: 1 }}
-              />
+              <TextField size="small" placeholder="ค้นหาชื่อ, Username..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }} sx={{ width: 280, bgcolor: '#fff', borderRadius: 1 }} />
             </Stack>
 
             <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, maxHeight: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
               <Table stickyHeader>
                 <TableHead>
-                  <TableRow sx={{
-                    '& th': {
-                      bgcolor: alpha('#f8fafc', 0.95),
-                      fontWeight: 700,
-                      color: theme.palette.text.secondary,
-                      borderBottom: `1px solid ${theme.palette.divider}`
-                    }
-                  }}>
+                  <TableRow sx={{ '& th': { bgcolor: alpha('#f8fafc', 0.95), fontWeight: 700, color: theme.palette.text.secondary, borderBottom: `1px solid ${theme.palette.divider}` } }}>
                     <TableCell>ข้อมูลผู้ใช้งาน</TableCell>
                     <TableCell>ช่องทางติดต่อ</TableCell>
                     <TableCell>บัญชี</TableCell>
-                    {/* ✅ เปลี่ยนหัวตารางและแสดงข้อมูลแผนก */}
                     <TableCell>สิทธิ์และแผนก (Role & Ward)</TableCell>
                     <TableCell align="center">จัดการ</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {filteredUsers.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 8, color: 'text.disabled' }}>
-                      <SupervisedUserCircle sx={{ fontSize: 60, opacity: 0.2, mb: 2 }} />
-                      <Typography>ไม่พบข้อมูลผู้ใช้งาน</Typography>
-                    </TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 8, color: 'text.disabled' }}><SupervisedUserCircle sx={{ fontSize: 60, opacity: 0.2, mb: 2 }} /><Typography>ไม่พบข้อมูลผู้ใช้งาน</Typography></TableCell></TableRow>
                   ) : filteredUsers.map((u) => (
                     <TableRow key={u.userId} hover sx={{ '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) } }}>
                       <TableCell>
@@ -551,27 +550,16 @@ const Users: React.FC = () => {
                         <Chip label={u.username} size="small" variant="outlined" sx={{ borderRadius: 1, borderColor: theme.palette.divider, fontWeight: 500 }} />
                       </TableCell>
                       <TableCell>
-                        {/* ✅ แสดงทั้ง Role และ Ward ที่สังกัด */}
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5 }}>
-                          <Chip
-                            label={rolesList.find(r => r.roleId === u.roleId)?.roleName || '-'}
-                            size="small"
-                            sx={{ fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main, borderRadius: 1 }}
-                          />
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            📍 {wards.find(w => w.wardId === u.wardId)?.wardName || 'ไม่ระบุแผนก'}
-                          </Typography>
+                          <Chip label={rolesList.find(r => r.roleId === u.roleId)?.roleName || '-'} size="small" sx={{ fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main, borderRadius: 1 }} />
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>📍 {wards.find(w => w.wardId === u.wardId)?.wardName || 'ไม่ระบุแผนก'}</Typography>
                         </Box>
                       </TableCell>
                       <TableCell align="center">
                         <Stack direction="row" spacing={1} justifyContent="center">
-                          <IconButton size="small" onClick={() => handleEditUserClick(u)} sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
-                            <Edit fontSize="small" />
-                          </IconButton>
+                          <IconButton size="small" onClick={() => handleEditUserClick(u)} sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.05) }}><Edit fontSize="small" /></IconButton>
                           {currentUser?.userId !== u.userId && (
-                            <IconButton size="small" onClick={() => handleDeleteUser(u.userId)} sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.05) }}>
-                              <Delete fontSize="small" />
-                            </IconButton>
+                            <IconButton size="small" onClick={() => handleDeleteUser(u.userId)} sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.05) }}><Delete fontSize="small" /></IconButton>
                           )}
                         </Stack>
                       </TableCell>
@@ -584,109 +572,190 @@ const Users: React.FC = () => {
         </Box>
       )}
 
-      {/* ======================= TAB 2: ROLES ======================= */}
+      {/* ======================= TAB 2: ROLES & PERMISSIONS ======================= */}
       {tabIndex === 1 && (
         <Box sx={{ animation: 'fadeIn 0.3s ease-in-out', '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } } }}>
           <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} alignItems="stretch">
-            {/* Role Form */}
-            <Box sx={{ flex: { lg: 5 }, width: '100%' }}>
-              <Paper
-                elevation={0}
-                sx={{
-                  borderRadius: 4,
-                  border: `1px solid ${theme.palette.divider}`,
-                  height: '100%',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.02)',
-                  overflow: 'hidden'
-                }}
-              >
-                <Box sx={{ p: 3, bgcolor: isEditRole ? alpha(theme.palette.warning.main, 0.04) : alpha(theme.palette.primary.main, 0.04), borderBottom: `1px solid ${theme.palette.divider}` }}>
+            
+            {/* ✅ Role Matrix Form (อิงตามภาพตัวอย่าง) */}
+            <Box sx={{ flex: { lg: 12 }, width: '100%' }}>
+              <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${theme.palette.divider}`, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
+                <Box sx={{ p: 3, bgcolor: isEditRole ? alpha(theme.palette.warning.main, 0.05) : alpha(theme.palette.primary.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Stack direction="row" alignItems="center" spacing={2}>
-                    <Avatar variant="rounded" sx={{ bgcolor: isEditRole ? alpha(theme.palette.warning.main, 0.15) : alpha(theme.palette.primary.main, 0.15), color: isEditRole ? theme.palette.warning.main : theme.palette.primary.main }}>
-                      {isEditRole ? <Edit /> : <AddModerator />}
+                    <Avatar variant="rounded" sx={{ bgcolor: isEditRole ? alpha(theme.palette.warning.main, 0.2) : alpha(theme.palette.primary.main, 0.2), color: isEditRole ? theme.palette.warning.main : theme.palette.primary.main }}>
+                      {isEditRole ? <Edit /> : <Security />}
                     </Avatar>
                     <Box>
-                      <Typography variant="subtitle1" fontWeight="bold">{isEditRole ? 'แก้ไขบทบาท' : 'สร้างบทบาทใหม่'}</Typography>
-                      <Typography variant="caption" color="text.secondary">กำหนดชื่อและสิทธิ์การเข้าถึง</Typography>
+                      <Typography variant="subtitle1" fontWeight="bold">{isEditRole ? 'แก้ไขและกำหนดสิทธิ์ (Edit Role)' : 'สร้างบทบาทใหม่ (Create Role)'}</Typography>
+                      <Typography variant="caption" color="text.secondary">ออกแบบความสามารถให้กับตำแหน่งต่างๆ ในรูปแบบตาราง Matrix</Typography>
                     </Box>
                   </Stack>
+                  {!isEditRole && (
+                    <Button variant="outlined" startIcon={<AddModerator />} onClick={handleCreateRole}>
+                      เคลียร์ข้อมูล (Reset)
+                    </Button>
+                  )}
                 </Box>
-                <Box sx={{ p: 3 }}>
-                  <FormLabel label="ชื่อบทบาท (Role Name)" required>
-                    <TextField fullWidth placeholder="เช่น Admin, Staff..." value={roleForm.roleName} onChange={e => setRoleForm({ ...roleForm, roleName: e.target.value })} sx={{ mb: 3 }} />
-                  </FormLabel>
+                
+                <Box sx={{ p: 4 }}>
+                  <Box sx={{ width: { xs: '100%', md: '50%' }, mb: 4 }}>
+                    <FormLabel label="ชื่อตำแหน่ง (Role Name) *" required>
+                      <TextField 
+                        fullWidth 
+                        placeholder="เช่น ผู้จัดการแผนก, พยาบาลหัวหน้าเวร..." 
+                        value={roleForm.roleName} 
+                        onChange={e => setRoleForm({ ...roleForm, roleName: e.target.value })} 
+                      />
+                    </FormLabel>
+                  </Box>
 
-                  <FormLabel label="กำหนดสิทธิ์การใช้งาน (Permissions)">
-                    <Paper variant="outlined" sx={{ p: 2, maxHeight: 400, overflowY: 'auto', bgcolor: '#f8fafc', borderRadius: 2 }}>
-                      <FormGroup>
-                        {allPermissions.map((perm) => (
-                          <FormControlLabel
-                            key={perm.permissionId}
-                            control={<Checkbox checked={roleForm.selectedPermissions.includes(perm.permissionId)} onChange={() => handlePermissionToggle(perm.permissionId)} size="small" />}
-                            label={
-                              <Box sx={{ py: 0.5 }}>
-                                <Typography variant="body2" fontWeight="600">{perm.permissionCode}</Typography>
-                                <Typography variant="caption" color="text.secondary">{perm.description}</Typography>
-                              </Box>
-                            }
-                            sx={{ mb: 1, '&:last-child': { mb: 0 }, alignItems: 'flex-start' }}
-                          />
-                        ))}
-                      </FormGroup>
-                    </Paper>
-                  </FormLabel>
+                  {/* 🌟 ตาราง Matrix สิทธิ์ (ใช้ Checkbox) */}
+                  <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1, color: 'text.secondary' }}>กำหนดสิทธิ์การเข้าถึง (Permissions Matrix)</Typography>
+                  <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, mb: 4, boxShadow: 'none' }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
+                          <TableCell sx={{ fontWeight: 'bold', width: '30%', borderRight: `1px solid ${theme.palette.divider}` }}>หน้าต่างการทำงาน (MODULE)</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 'bold', width: '14%', color: 'success.main', borderRight: `1px solid ${theme.palette.divider}` }}>ดูข้อมูล (Read)</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 'bold', width: '14%', color: 'warning.main', borderRight: `1px solid ${theme.palette.divider}` }}>เพิ่ม (Write)</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 'bold', width: '14%', color: 'info.main', borderRight: `1px solid ${theme.palette.divider}` }}>แก้ไข (Edit)</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 'bold', width: '14%', color: 'error.main', borderRight: `1px solid ${theme.palette.divider}` }}>ลบ (Delete)</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 'bold', width: '14%', color: 'secondary.main' }}>จัดการ (Manage)</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {Object.entries(permissionMatrix).map(([moduleName, actions]) => {
+                          // เช็คว่าแถวนี้เลือกครบไหม (เพื่อทำปุ่ม Master Checkbox ด้านซ้าย)
+                          const allIdsInRow: number[] = [];
+                          Object.values(actions).forEach(arr => arr.forEach(p => allIdsInRow.push(p.permissionId)));
+                          const isRowAllSelected = allIdsInRow.length > 0 && allIdsInRow.every(id => roleForm.selectedPermissions.includes(id));
 
-                  <Stack direction="row" spacing={2} sx={{ mt: 3, justifyContent: 'flex-end' }}>
-                    <Button variant="outlined" color="inherit" onClick={handleCancelRole} fullWidth>ยกเลิก</Button>
-                    <Button variant="contained" color={isEditRole ? "warning" : "primary"} onClick={handleSubmitRole} startIcon={<Save />} fullWidth>
-                      {isEditRole ? "บันทึก" : "สร้างใหม่"}
+                          // ฟังก์ชันช่วยสร้าง Checkbox (สีตาม Action)
+                          const renderCheckbox = (permsArray: Permission[], colorStr: 'success' | 'warning' | 'info' | 'error' | 'secondary') => {
+                            if (permsArray.length === 0) return <Typography color="text.disabled">-</Typography>;
+                            
+                            return permsArray.map(perm => {
+                              const isChecked = roleForm.selectedPermissions.includes(perm.permissionId);
+                              return (
+                                <Tooltip title={perm.description || perm.permissionCode} key={perm.permissionId} arrow>
+                                  <Checkbox 
+                                    size="small" 
+                                    color={colorStr}
+                                    checked={isChecked}
+                                    onChange={() => handlePermissionToggle(perm.permissionId)}
+                                    sx={{
+                                      padding: '4px',
+                                      color: alpha(theme.palette[colorStr].main, 0.4),
+                                      '&.Mui-checked': { color: theme.palette[colorStr].main },
+                                    }}
+                                  />
+                                </Tooltip>
+                              );
+                            });
+                          };
+
+                          return (
+                            <TableRow key={moduleName} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                              <TableCell sx={{ borderRight: `1px dashed ${theme.palette.divider}` }}>
+                                <Stack direction="row" alignItems="center" spacing={1}>
+                                  <Checkbox 
+                                    size="small"
+                                    checked={isRowAllSelected}
+                                    onChange={() => handleToggleRow(actions)}
+                                    color="primary"
+                                  />
+                                  <Box>
+                                    <Typography variant="body2" fontWeight="700" color="text.primary">
+                                      {translateModule(moduleName)}
+                                    </Typography>
+                                    <Typography variant="caption" display="block" color="text.disabled">
+                                      {moduleName}
+                                    </Typography>
+                                  </Box>
+                                </Stack>
+                              </TableCell>
+                              
+                              {/* ช่อง Checkbox ต่างๆ */}
+                              <TableCell align="center" sx={{ borderRight: `1px dashed ${theme.palette.divider}` }}>
+                                {renderCheckbox(actions.READ, 'success')}
+                              </TableCell>
+                              <TableCell align="center" sx={{ borderRight: `1px dashed ${theme.palette.divider}` }}>
+                                {renderCheckbox(actions.WRITE, 'warning')}
+                              </TableCell>
+                              <TableCell align="center" sx={{ borderRight: `1px dashed ${theme.palette.divider}` }}>
+                                {renderCheckbox(actions.EDIT, 'info')}
+                              </TableCell>
+                              <TableCell align="center" sx={{ borderRight: `1px dashed ${theme.palette.divider}` }}>
+                                {renderCheckbox(actions.DELETE, 'error')}
+                              </TableCell>
+                              <TableCell align="center">
+                                {renderCheckbox(actions.MANAGE, 'secondary')}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  <Stack direction="row" spacing={2} justifyContent="flex-end">
+                    {isEditRole && <Button variant="outlined" color="inherit" onClick={handleCancelRole} sx={{ width: 120 }}>ยกเลิก</Button>}
+                    <Button variant="contained" color={isEditRole ? "warning" : "primary"} onClick={handleSubmitRole} startIcon={<Save />} sx={{ width: 200, py: 1 }}>
+                      {isEditRole ? "อัปเดตสิทธิ์" : "สร้าง Role ใหม่"}
                     </Button>
                   </Stack>
                 </Box>
               </Paper>
             </Box>
 
-            {/* Role List */}
-            <Box sx={{ flex: { lg: 7 }, width: '100%' }}>
-              <Paper elevation={0} sx={{ height: '100%', borderRadius: 4, border: `1px solid ${theme.palette.divider}`, boxShadow: '0 4px 20px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
-                <Box sx={{ p: 3, borderBottom: `1px solid ${theme.palette.divider}` }}>
-                  <Typography variant="h6" fontWeight="bold">รายการบทบาททั้งหมด</Typography>
+            {/* รายการ Role ด้านล่าง */}
+            <Box sx={{ flex: { lg: 12 }, width: '100%' }}>
+              <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+                <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CheckCircleOutline color="success" />
+                  <Typography variant="subtitle1" fontWeight="bold">รายการบทบาทที่มีในระบบ</Typography>
                 </Box>
-                <Box sx={{ p: 0 }}>
-                  <TableContainer>
-                    <Table>
-                      <TableHead sx={{ bgcolor: alpha('#f8fafc', 0.95) }}>
-                        <TableRow>
-                          <TableCell width="30%">ชื่อบทบาท</TableCell>
-                          <TableCell width="50%">สิทธิ์ที่ได้รับ</TableCell>
-                          <TableCell width="20%" align="center">จัดการ</TableCell>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: alpha('#f8fafc', 0.95) }}>
+                      <TableRow>
+                        <TableCell width="20%">ชื่อบทบาท</TableCell>
+                        <TableCell width="65%">สิทธิ์ที่ได้รับ (Permissions)</TableCell>
+                        <TableCell width="15%" align="center">จัดการ</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {rolesData.map((role) => (
+                        <TableRow key={role.roleId} hover selected={editRoleId === role.roleId}>
+                          <TableCell>
+                            <Typography variant="subtitle2" fontWeight="bold" color="primary.dark">{role.roleName}</Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.5 }}>
+                              {role.permissions.map((p) => (
+                                <Chip 
+                                  key={p.permissionId} 
+                                  label={p.description || p.permissionCode} 
+                                  size="small" 
+                                  sx={{ fontSize: '0.65rem', borderRadius: 1, height: 20, bgcolor: alpha(theme.palette.primary.main, 0.08) }} 
+                                />
+                              ))}
+                            </Box>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Stack direction="row" spacing={1} justifyContent="center">
+                              <IconButton size="small" onClick={() => handleEditRole(role)} sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.05) }}><Edit fontSize="small" /></IconButton>
+                              <IconButton size="small" onClick={() => handleDeleteRole(role.roleId)} sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.05) }}><Delete fontSize="small" /></IconButton>
+                            </Stack>
+                          </TableCell>
                         </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {rolesData.map((role) => (
-                          <TableRow key={role.roleId} hover selected={editRoleId === role.roleId}>
-                            <TableCell><Typography variant="subtitle2" fontWeight="bold" color="primary">{role.roleName}</Typography></TableCell>
-                            <TableCell>
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                {role.permissions.map((p) => (
-                                  <Chip key={p.permissionId} label={p.permissionCode} size="small" sx={{ fontSize: '0.7rem', borderRadius: 1 }} />
-                                ))}
-                              </Box>
-                            </TableCell>
-                            <TableCell align="center">
-                              <Stack direction="row" spacing={1} justifyContent="center">
-                                <IconButton size="small" onClick={() => handleEditRole(role)} sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.05) }}><Edit fontSize="small" /></IconButton>
-                                <IconButton size="small" onClick={() => handleDeleteRole(role.roleId)} sx={{ color: theme.palette.error.main, bgcolor: alpha(theme.palette.error.main, 0.05) }}><Delete fontSize="small" /></IconButton>
-                              </Stack>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </Paper>
             </Box>
+
           </Stack>
         </Box>
       )}

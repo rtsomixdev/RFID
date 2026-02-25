@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
-import { HubConnectionBuilder } from '@microsoft/signalr'; // ⚠️ อย่าลืม npm install @microsoft/signalr
+import { HubConnectionBuilder } from '@microsoft/signalr'; 
 import theme from './theme/theme';
 
 // --- Imports Pages ---
@@ -21,70 +21,49 @@ import Transport from './pages/Transport';
 import Settings from './pages/Settings';
 import NotificationsPage from './pages/Notifications';
 import RfidConnect from './pages/RfidConnect';
-import SearchLinen from './pages/SearchLinen'; // ✅ นำเข้า SearchLinen ที่สร้างใหม่
+import SearchLinen from './pages/SearchLinen'; 
 
 import MainLayout from './layouts/MainLayout';
 
 // ----------------------------------------------------------------------
 // 🔥 Component สำหรับจัดการ SignalR (Real-time)
-// ต้องวางไว้ใต้ <Router> เสมอ ถึงจะใช้ useNavigate ได้
 // ----------------------------------------------------------------------
 const SignalRHandler = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // 1. สร้างการเชื่อมต่อ
     const connection = new HubConnectionBuilder()
       .withUrl("http://localhost:5134/hubs/notification", {
-        withCredentials: true // ✅ สำคัญมากสำหรับ CORS
+        withCredentials: true 
       })
       .withAutomaticReconnect()
       .build();
 
-    // 2. เริ่มต้นเชื่อมต่อ
     connection.start()
       .then(() => console.log('🟢 SignalR Connected! Waiting for scans...'))
       .catch(err => console.error('🔴 SignalR Connection Error:', err));
 
-    // 3. 👂 ดักฟัง Event "OnScan" จาก Backend
     connection.on("OnScan", (data: any) => {
       console.log("⚡ Real-time Scan Received:", data);
-
-      // A. ส่ง Event บอกทุกหน้าจอ (เช่น หน้าลงทะเบียน ให้กรอก Textbox เอง)
       const event = new CustomEvent("RFID_SCANNED", { detail: data.rfid });
       window.dispatchEvent(event);
 
-      // B. เปลี่ยนหน้าจออัตโนมัติ (Navigation Logic)
-      // เช็คว่า User Login อยู่หรือเปล่าก่อนเปลี่ยนหน้า
       const userStr = localStorage.getItem('currentUser');
       if (userStr) {
         switch (data.mode) {
-          case 'SET_MODE_WASH':
-            navigate('/laundry'); // เด้งไปหน้าซักผ้า
-            break;
-          case 'SET_MODE_DISCARD':
-            navigate('/discard'); // เด้งไปหน้าทิ้ง/ชำรุด
-            break;
-          case 'SET_MODE_RESTOCK':
-            navigate('/linens');  // เด้งไปหน้าสต็อก
-            break;
-          default:
-            // Normal Mode: ไม่ต้องเปลี่ยนหน้า หรืออาจจะแค่แจ้งเตือน
-            break;
+          case 'SET_MODE_WASH': navigate('/laundry'); break;
+          case 'SET_MODE_DISCARD': navigate('/discard'); break;
+          case 'SET_MODE_RESTOCK': navigate('/linens');  break;
+          default: break;
         }
       }
     });
 
-    // Cleanup เมื่อปิด App
-    return () => {
-      connection.stop();
-    };
+    return () => { connection.stop(); };
   }, [navigate]);
 
-  return null; // Component นี้ทำงานเบื้องหลัง ไม่ต้องแสดงผล
+  return null; 
 };
-
-// ----------------------------------------------------------------------
 
 const ComingSoon = ({ title }: { title: string }) => (
   <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
@@ -92,28 +71,34 @@ const ComingSoon = ({ title }: { title: string }) => (
   </div>
 );
 
-// 🔥🔥🔥 Permission Guard: ตัวเช็คสิทธิ์การเข้าถึง 🔥🔥🔥
-const PermissionGuard = ({ children, requiredPerm }: { children: JSX.Element, requiredPerm?: string }) => {
+// 🔥🔥🔥 ปรับปรุง Permission Guard ใหม่ให้ฉลาดขึ้น 🔥🔥🔥
+const PermissionGuard = ({ children, requiredPerm }: { children: JSX.Element, requiredPerm?: string | string[] }) => {
   const userStr = localStorage.getItem('currentUser');
   
-  // 1. ยังไม่ Login -> ดีดไปหน้า Login
   if (!userStr) {
     return <Navigate to="/login" replace />;
   }
 
   const user = JSON.parse(userStr);
-  
-  // 2. ถ้าหน้านี้ต้องการสิทธิ์ (requiredPerm) แต่ User ไม่มี -> ดีดไปหน้า Home (หรือ Unauthorized)
-  if (requiredPerm) {
-    // ดึง permissions จาก user object (รองรับทั้งตัวเล็กตัวใหญ่เผื่อ backend ส่งมาต่างกัน)
-    const userPerms: string[] = user.Permissions || user.permissions || [];
-    
-    // (Optional: ให้ Role 'Admin' เข้าได้ทุกหน้าโดยไม่ต้องเช็ค)
-    // if (user.RoleName === 'Admin') return children;
+  const userPerms: string[] = user.Permissions || user.permissions || [];
+  const roleId = user.roleId || user.RoleId || 0;
 
-    if (!userPerms.includes(requiredPerm)) {
-      // ไม่มีสิทธิ์!
-      return <Navigate to="/" replace />; 
+  // ✅ 1. ถ้าเป็น Admin (RoleId = 1) ปล่อยผ่านให้เข้าได้ทุกหน้า 100%
+  if (roleId === 1) {
+    return children;
+  }
+  
+  // ✅ 2. ถ้ามีการระบุสิทธิ์ที่ต้องการ 
+  if (requiredPerm) {
+    if (Array.isArray(requiredPerm)) {
+      // ถ้าระบุมาเป็น Array: ขอแค่มีสิทธิ์ใดสิทธิ์หนึ่งใน Array นี้ ก็ให้ผ่าน (เช่น มีแค่ READ ก็ดูหน้าเว็บได้)
+      const hasAnyPerm = requiredPerm.some(perm => userPerms.includes(perm));
+      if (!hasAnyPerm) return <Navigate to="/" replace />; 
+    } else {
+      // ถ้าระบุมาเป็น String คำเดียว: ต้องมีคำนี้เป๊ะๆ ถึงจะผ่าน
+      if (!userPerms.includes(requiredPerm)) {
+        return <Navigate to="/" replace />; 
+      }
     }
   }
 
@@ -126,60 +111,46 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       
-      {/* ✅ Router ต้องอยู่ชั้นนอกสุด */}
       <Router>
-        
-        {/* ✅ SignalRHandler อยู่ใน Router เพื่อใช้ useNavigate */}
         <SignalRHandler />
 
         <Routes>
-          {/* 1. Public Pages (หน้า Login แยกต่างหาก ไม่มี Layout) */}
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* 2. Main Layout Structure (มี Sidebar + Navbar) */}
           <Route element={<MainLayout />}>
 
-            {/* 🟢 PUBLIC ACCESS: หน้า Home (Monitor) เข้าได้ทุกคน ไม่ต้อง Login */}
+            {/* 🟢 PUBLIC ACCESS: หน้า Home (Monitor) */}
             <Route path="/" element={<Home />} />
 
-            {/* 🔒 PROTECTED AREA: โซนหวงห้าม ต้องมีสิทธิ์เฉพาะทาง */}
+            {/* 🔒 PROTECTED AREA: ใช้ Array ในการเช็คสิทธิ์ (แค่มีสิทธิ์ READ หรือ MANAGE อย่างใดอย่างหนึ่งก็เข้าหน้าเว็บได้) */}
             
-            {/* กลุ่ม Dashboard */}
-            <Route path="/dashboard" element={<PermissionGuard requiredPerm="VIEW_DASHBOARD"><Dashboard /></PermissionGuard>} />
-            <Route path="/stats" element={<PermissionGuard requiredPerm="VIEW_DASHBOARD"><Dashboard /></PermissionGuard>} />
+            <Route path="/dashboard" element={<PermissionGuard requiredPerm={['VIEW_DASHBOARD', 'READ_DASHBOARD']}><Dashboard /></PermissionGuard>} />
+            <Route path="/stats" element={<PermissionGuard requiredPerm={['VIEW_DASHBOARD', 'READ_DASHBOARD']}><Dashboard /></PermissionGuard>} />
 
-            {/* กลุ่มจัดการข้อมูลหลัก */}
-            <Route path="/hospital" element={<PermissionGuard requiredPerm="MANAGE_HOSPITAL"><Hospital /></PermissionGuard>} />
-            <Route path="/vendors" element={<PermissionGuard requiredPerm="MANAGE_VENDOR"><Vendor /></PermissionGuard>} />
-            <Route path="/users" element={<PermissionGuard requiredPerm="MANAGE_USER"><Users /></PermissionGuard>} />
+            <Route path="/hospital" element={<PermissionGuard requiredPerm={['READ_HOSPITAL', 'MANAGE_HOSPITAL']}><Hospital /></PermissionGuard>} />
+            <Route path="/vendors" element={<PermissionGuard requiredPerm={['READ_VENDOR', 'MANAGE_VENDOR']}><Vendor /></PermissionGuard>} />
+            <Route path="/users" element={<PermissionGuard requiredPerm={['READ_USER', 'MANAGE_USER', 'READ_ROLE']}><Users /></PermissionGuard>} />
             
-            {/* กลุ่มจัดการผ้า (Stock & Requests) */}
-            <Route path="/linens" element={<PermissionGuard requiredPerm="MANAGE_LINEN"><Linen /></PermissionGuard>} />
-            <Route path="/requests" element={<PermissionGuard requiredPerm="MANAGE_REQUEST"><Requests /></PermissionGuard>} />
+            <Route path="/linens" element={<PermissionGuard requiredPerm={['READ_LINEN', 'MANAGE_LINEN']}><Linen /></PermissionGuard>} />
+            <Route path="/requests" element={<PermissionGuard requiredPerm={['READ_REQUEST', 'MANAGE_REQUEST']}><Requests /></PermissionGuard>} />
 
-            {/* กลุ่ม Laundry Flow */}
-            <Route path="/laundry" element={<PermissionGuard requiredPerm="MANAGE_LAUNDRY"><Laundry /></PermissionGuard>} />
-            <Route path="/discard" element={<PermissionGuard requiredPerm="MANAGE_DISCARD"><Discard /></PermissionGuard>} />
+            <Route path="/laundry" element={<PermissionGuard requiredPerm={['READ_LAUNDRY', 'MANAGE_LAUNDRY']}><Laundry /></PermissionGuard>} />
+            <Route path="/discard" element={<PermissionGuard requiredPerm={['READ_DISCARD', 'MANAGE_DISCARD']}><Discard /></PermissionGuard>} />
             
-            {/* ✅ กลุ่มค้นหาข้อมูลผ้า (อนุญาตให้ทุกคนที่ล็อกอินเข้ามาใช้งานได้ ไม่บังคับสิทธิ์เฉพาะเจาะจง) */}
+            {/* กลุ่มนี้อนุญาตให้ทุกคนที่ล็อกอินแล้วเข้าได้เลย โดยไม่ต้องระบุ RequiredPerm */}
             <Route path="/search-linen" element={<PermissionGuard><SearchLinen /></PermissionGuard>} />
+            <Route path="/notifications" element={<PermissionGuard><NotificationsPage /></PermissionGuard>} />
 
-            {/* กลุ่มอื่นๆ */}
-            <Route path="/reports" element={<PermissionGuard requiredPerm="VIEW_REPORT"><Reports /></PermissionGuard>} />
-            <Route path="/transport" element={<PermissionGuard requiredPerm="MANAGE_TRANSPORT"><Transport /></PermissionGuard>} />
+            <Route path="/reports" element={<PermissionGuard requiredPerm={['VIEW_REPORT', 'READ_REPORT']}><Reports /></PermissionGuard>} />
+            <Route path="/transport" element={<PermissionGuard requiredPerm={['READ_TRANSPORT', 'MANAGE_TRANSPORT']}><Transport /></PermissionGuard>} />
             <Route path="/settings" element={<PermissionGuard requiredPerm="MANAGE_SETTING"><Settings /></PermissionGuard>} />
             
-            <Route path="/rfid-connect" element={<PermissionGuard requiredPerm="CONNECT_RFID"><RfidConnect /></PermissionGuard>} />
-            
-            {/* หน้าแจ้งเตือน (ให้สิทธิ์พื้นฐานเข้าได้ ถ้าล็อกอินแล้ว) */}
-            <Route path="/notifications" element={<PermissionGuard><NotificationsPage /></PermissionGuard>} />
-            
+            <Route path="/rfid-connect" element={<PermissionGuard requiredPerm={['READ_RFID', 'CONNECT_RFID', 'WRITE_RFID']}><RfidConnect /></PermissionGuard>} />
             <Route path="/readers" element={<PermissionGuard><ComingSoon title="เพิ่มอุปกรณ์ RFID" /></PermissionGuard>} />
 
           </Route>
 
-          {/* Fallback: ถ้า URL ไม่ตรงกับอะไรเลย ให้กลับไปหน้า Home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

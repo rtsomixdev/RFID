@@ -28,17 +28,18 @@ const Login: React.FC = () => {
 
       const loginData = response.data;
 
+      // ✅ Backend จะส่ง { message: "...", user: { ... } } กลับมา
       if (loginData && loginData.user) {
+        
+        // 1. เก็บแค่ Profile ของ User ลง LocalStorage เอาไว้โชว์ชื่อและเช็คสิทธิ์ (RBAC)
         localStorage.setItem('currentUser', JSON.stringify(loginData.user));
-
-        if (loginData.token) {
-          localStorage.setItem('token', loginData.token);
-        }
+        
+        // ❌ เอาการเซ็ต Token ลง LocalStorage ออก เพราะตอนนี้เราใช้ HttpOnly Cookie Session แทนแล้ว
 
         Swal.fire({
           icon: 'success',
           title: 'ยินดีต้อนรับ',
-          text: `สวัสดีคุณ ${loginData.user.firstName}`,
+          text: `สวัสดีคุณ ${loginData.user.firstName} (${loginData.user.roleName || ''})`, // ✅ ดึง roleName จริงมาโชว์ได้เลย
           timer: 1500,
           showConfirmButton: false
         }).then(() => {

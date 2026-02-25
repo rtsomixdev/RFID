@@ -4,6 +4,7 @@ import axios from 'axios';
 // เดี๋ยว Vite Proxy จะจัดการเลือกทางไปต่อให้เอง
 const axiosClient = axios.create({
   baseURL: '/api', 
+  withCredentials: true, // ✅ สำคัญมาก: สั่งให้ Axios ส่ง HttpOnly Cookie (Session) ไปกับทุก Request
   headers: {
     'Content-Type': 'application/json',
   },
@@ -14,7 +15,9 @@ axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // window.location.href = '/login'; // เปิดใช้อันนี้ถ้าต้องการให้ดีด log out
+      // ✅ ถ้า Session หมดอายุ หรือไม่มีสิทธิ์ (401) จะล้างข้อมูลหน้าเว็บและดีดกลับไปหน้า Login
+      localStorage.removeItem('currentUser');
+      window.location.href = '/login'; 
     }
     return Promise.reject(error);
   }

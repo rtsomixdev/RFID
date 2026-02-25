@@ -33,39 +33,35 @@ namespace Backend.Controllers
             {
                 var today = ThaiTime().Date;
 
-                // 1. ดึง Linen ทั้งหมดที่ Active
-                var allLinens = await _context.Linens
-                    .Where(l => l.IsActive == true)
-                    .Select(l => new { l.Status, l.RegisteredAt }) 
-                    .ToListAsync();
+                // 1. นับจำนวนผ้าทั้งหมดที่ยัง Active
+                var totalLinen = await _context.Linens.CountAsync(l => l.IsActive == true);
 
-                // 2. นับยอดผ้าใหม่ 
-                var startOfDayUtc = DateTime.UtcNow.Date; 
-                var newLinenToday = allLinens.Count(l => l.RegisteredAt >= startOfDayUtc);
+                // 2. นับผ้าใหม่ของวันนี้
+                var newLinenToday = await _context.Linens.CountAsync(l => l.IsActive == true && l.RegisteredAt.Date == today);
 
-                // 3. ดึงจำนวนคำร้องที่รออนุมัติ
-                var pendingRequests = await _context.Requests
-                    .CountAsync(r => r.Status == "Pending" || r.Status == "Waiting");
+                // 3. สถานะกำลังซัก
+                var washing = await _context.Linens.CountAsync(l => l.IsActive == true && 
+                    (l.Status.Contains("ซัก") || l.Status.Contains("Wash") || l.Status.Contains("Laundry")));
+
+                // 4. สถานะพร้อมใช้งาน
+                var available = await _context.Linens.CountAsync(l => l.IsActive == true && 
+                    (l.Status == "พร้อมใช้" || l.Status == "Available" || l.Status == "Stock"));
+
+                // 5. คำร้องรออนุมัติ
+                var pendingRequests = await _context.Requests.CountAsync(r => r.CurrentStatusId == 1 || r.Status == "Pending" || r.Status == "Waiting");
+
+                // ✅ 6. แก้ไข: นับผ้าที่ถูกจำหน่ายออก/ชำรุด โดยเช็คจากผ้าที่ IsActive == false
+                var disposed = await _context.Linens.CountAsync(l => l.IsActive == false);
 
                 var stats = new
                 {
-                    totalLinen = allLinens.Count,
+                    totalLinen = totalLinen,
                     newLinenToday = newLinenToday,
-                    
-                    washing = allLinens.Count(l => 
-                        l.Status == "Washing" || l.Status == "SendingToLaundry" || l.Status == "In Laundry" || 
-                        l.Status == "กำลังซัก" || l.Status == "ส่งซัก"),
-                    
-                    available = allLinens.Count(l => 
-                        l.Status == "Available" || l.Status == "Stock" || l.Status == "พร้อมใช้"),
-                    
+                    washing = washing,
+                    available = available,
                     pendingRequests = pendingRequests,
-                    
-                    damaged = allLinens.Count(l => 
-                        l.Status == "Damaged" || l.Status == "Repairing" || l.Status == "ชำรุด"),
-                    
-                    disposed = allLinens.Count(l => 
-                        l.Status == "Discarded" || l.Status == "Disposed" || l.Status == "จำหน่ายออก")
+                    damaged = disposed, // นำยอดที่ตัดจำหน่ายมาใส่กล่องแจ้งชำรุดสีแดง
+                    disposed = disposed
                 };
 
                 return Ok(stats);
@@ -99,10 +95,10 @@ namespace Backend.Controllers
                     .Take(5)
                     .ToListAsync();
 
-                // --- B. Daily Data (7 Days) - กราฟแท่งคู่ (จุดที่แก้) ---
+                // --- B. Daily Data (7 Days) - กราฟแท่งคู่ ---
                 var logsRaw = await _context.LinenLogs
-                    .Where(l => l.Timestamp >= DateTime.UtcNow.AddDays(-8))
-                    .Select(l => new { l.ActivityType, l.Timestamp })
+                    .Where(l => l.Timestamp >= DateTime.UtcNow.AddDays(-8) || l.CreatedAt >= DateTime.UtcNow.AddDays(-8))
+                    .Select(l => new { l.ActivityType, l.Timestamp, l.CreatedAt })
                     .ToListAsync();
 
                 var dailyData = Enumerable.Range(0, 7)
@@ -113,14 +109,13 @@ namespace Backend.Controllers
                         
                         var logsOfDay = logsRaw.Where(l => 
                         {
-                            if (!l.Timestamp.HasValue) return false;
-                            return l.Timestamp.Value.AddHours(7).Date == date;
+                            var logTime = l.Timestamp ?? l.CreatedAt; 
+                            return logTime.Date == date; // ตัด AddHours ออกเพราะ DB เซฟเป็นเวลาไทยไปแล้ว
                         }).ToList();
 
                         return new
                         {
                             name = dateLabel,
-                            // ✅ แก้ให้ครอบคลุมคำที่บันทึกจากการสแกน RFID (เช่น รับเข้า, ย้าย, ใช้งาน)
                             use = logsOfDay.Count(l => 
                                 l.ActivityType == "Move" || 
                                 l.ActivityType == "Restock" || 
@@ -128,11 +123,11 @@ namespace Backend.Controllers
                                 l.ActivityType == "Receive" || 
                                 l.ActivityType == "เบิกจ่าย"), 
                             
-                            // ✅ แก้ให้ครอบคลุมการซัก
                             wash = logsOfDay.Count(l => 
                                 l.ActivityType == "SendToWash" || 
                                 l.ActivityType == "ReceiveWash" || 
-                                l.ActivityType == "ส่งซัก")
+                                l.ActivityType == "ส่งซัก" ||
+                                l.ActivityType == "WASH")
                         };
                     })
                     .ToList();
@@ -150,33 +145,37 @@ namespace Backend.Controllers
                 var requestData = monthsLabels.Select(m => new { 
                     name = m.ToString("MMM", new CultureInfo("th-TH")),
                     count = requestRaw.Count(r => {
-                        if (!r.HasValue) return false;
-                        var rt = r.Value.AddHours(7);
-                        return rt.Month == m.Month && rt.Year == m.Year;
+                        if (!r.HasValue) return false; 
+                        return r.Value.Month == m.Month && r.Value.Year == m.Year;
                     })
                 }).ToList();
 
-                // --- D. Damaged Data (Monthly) ---
+                // --- D. Damaged Data (Monthly) กราฟผ้าชำรุด ---
                 var damageLogsRaw = await _context.LinenLogs
-                    .Where(l => l.Timestamp >= DateTime.UtcNow.AddMonths(-6) && 
-                               (l.ActivityType == "Discard" || l.ActivityType == "Damage" || l.ActivityType == "ReportDamage"))
-                    .Select(l => l.Timestamp)
+                    .Where(l => l.Timestamp >= DateTime.UtcNow.AddMonths(-6) || l.CreatedAt >= DateTime.UtcNow.AddMonths(-6))
+                    .Select(l => new { l.ActivityType, l.Timestamp, l.CreatedAt })
                     .ToListAsync();
+
+                // ✅ แก้ไข: ดึงข้อมูลฝั่ง Memory แล้ว ToUpper() ก่อนเช็ค เพื่อให้ครอบคลุมทุกคำโดยไม่สนพิมพ์เล็ก/ใหญ่
+                var validDamageTypes = new[] { "DISCARD", "DAMAGE", "จำหน่ายออก", "ชำรุด", "สูญหาย" };
+                var filteredDamageLogs = damageLogsRaw
+                    .Where(l => !string.IsNullOrEmpty(l.ActivityType) && 
+                                validDamageTypes.Any(v => l.ActivityType.ToUpper().Contains(v)))
+                    .ToList();
 
                 var damagedData = monthsLabels.Select(m => new {
                     name = m.ToString("MMM", new CultureInfo("th-TH")),
-                    count = damageLogsRaw.Count(t => {
-                        if (!t.HasValue) return false;
-                        var localTime = t.Value.AddHours(7);
-                        return localTime.Month == m.Month && localTime.Year == m.Year;
+                    count = filteredDamageLogs.Count(t => {
+                        var logTime = t.Timestamp ?? t.CreatedAt; 
+                        return logTime.Month == m.Month && logTime.Year == m.Year;
                     })
                 }).ToList();
 
                 // --- E. Yearly Data ---
                 var currentYear = now.Year;
                 var yearlyLogsRaw = await _context.LinenLogs
-                    .Where(l => l.Timestamp >= DateTime.UtcNow.AddYears(-1))
-                    .Select(l => l.Timestamp)
+                    .Where(l => l.Timestamp >= DateTime.UtcNow.AddYears(-1) || l.CreatedAt >= DateTime.UtcNow.AddYears(-1))
+                    .Select(l => new { l.Timestamp, l.CreatedAt })
                     .ToListAsync();
 
                 string[] thaiMonths = { "", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค." };
@@ -184,9 +183,8 @@ namespace Backend.Controllers
                 var yearlyData = Enumerable.Range(1, 12).Select(month => new {
                     name = thaiMonths[month],
                     value = yearlyLogsRaw.Count(t => {
-                        if (!t.HasValue) return false;
-                        var localTime = t.Value.AddHours(7);
-                        return localTime.Year == currentYear && localTime.Month == month;
+                        var logTime = t.Timestamp ?? t.CreatedAt;
+                        return logTime.Year == currentYear && logTime.Month == month;
                     })
                 }).ToList();
 

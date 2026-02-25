@@ -254,8 +254,10 @@ const Dashboard: React.FC = () => {
                         <Grid item xs={12} sm={6} md={3}>
                             <StatCard title="คำร้องรออนุมัติ" value={stats.pendingRequests} icon={<ShoppingCart />} color={CHART_COLORS.purple} />
                         </Grid>
+                        
+                        {/* ✅ แก้ไขตรงนี้ ไม่ให้ค่าบวกกันเบิ้ล ดึงแค่ stats.disposed ที่มาจากหลังบ้านก็พอครับ */}
                         <Grid item xs={12} sm={6} md={3}>
-                            <StatCard title="แจ้งชำรุด/หาย" value={(stats.damaged || 0) + (stats.disposed || 0)} icon={<Warning />} color={theme.palette.error.main} />
+                            <StatCard title="แจ้งชำรุด/หาย" value={stats.disposed || 0} icon={<Warning />} color={theme.palette.error.main} />
                         </Grid>
                     </Grid>
                 </Box>

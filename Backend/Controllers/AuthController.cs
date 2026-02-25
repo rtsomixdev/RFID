@@ -2,18 +2,19 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Backend.Models;
 using Backend.Services;
-using System.Data; // ⚠️ สำคัญมาก: ต้องมีบรรทัดนี้ ไม่งั้น Error
+using System.Data; 
+using System.Security.Claims; // ✅ เพิ่มบรรทัดนี้
+using Microsoft.AspNetCore.Authentication.Cookies; // ✅ เพิ่มบรรทัดนี้
+using Microsoft.AspNetCore.Authentication; // ✅ เพิ่มบรรทัดนี้
 
 namespace Backend.Controllers;
 
-// DTO สำหรับ Login
 public class LoginDto
 {
     public string Username { get; set; } = null!;
     public string Password { get; set; } = null!;
 }
 
-// DTO เดิมของคุณ
 public class RequestOtpDto { public string Email { get; set; } = null!; }
 public class VerifyOtpDto { public string Email { get; set; } = null!; public string Otp { get; set; } = null!; }
 public class ResetPasswordDto { public string Email { get; set; } = null!; public string Otp { get; set; } = null!; public string NewPassword { get; set; } = null!; }
@@ -32,13 +33,14 @@ public class AuthController : ControllerBase
     }
 
     // ==========================================
-    // 🔥 1. LOGIN (เวอร์ชันสมบูรณ์: ดึงจาก DB จริง + แก้ JSON Error)
+    // 🔥 1. LOGIN (Session Cookie + RoleName)
     // ==========================================
     [HttpPost("Login")]
     public async Task<IActionResult> Login([FromBody] LoginDto request)
     {
-        // 1. เช็ค User
+        // 1. เช็ค User พร้อมดึงข้อมูล Role ที่ผูกอยู่
         var user = await _context.Users
+            .Include(u => u.Role) // ✅ เพื่อให้ดึง RoleName ได้
             .FirstOrDefaultAsync(u => u.Username == request.Username);
 
         if (user == null || user.PasswordHash != request.Password)
@@ -47,7 +49,7 @@ public class AuthController : ControllerBase
         if (user.IsActive == false)
             return Unauthorized(new { message = "บัญชีนี้ถูกระงับการใช้งาน" });
 
-        // 2. ดึง Permissions จริงจาก Database (ใช้ ADO.NET เพื่อความชัวร์ 100%)
+        // 2. ดึง Permissions 
         var permissions = new List<string>();
         try 
         {
@@ -56,7 +58,6 @@ public class AuthController : ControllerBase
 
             using (var cmd = conn.CreateCommand())
             {
-                // ดึงสิทธิ์ทั้งหมดที่ Role นี้มี จากตาราง public.permissions
                 cmd.CommandText = @"
                     SELECT p.permission_code 
                     FROM public.permissions p
@@ -85,10 +86,36 @@ public class AuthController : ControllerBase
             return StatusCode(500, new { message = "DB Error: " + ex.Message });
         }
 
-        // 3. ส่งข้อมูลกลับ
+        // 3. ✅ สร้าง Claims (ข้อมูลประจําตัว) เพื่อฝังลงใน Cookie Session
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+            new Claim(ClaimTypes.Name, user.Username),
+            new Claim(ClaimTypes.Role, user.Role?.RoleName ?? "User")
+        };
+        
+        foreach (var perm in permissions)
+        {
+            claims.Add(new Claim("Permission", perm));
+        }
+
+        var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var authProperties = new AuthenticationProperties
+        {
+            IsPersistent = true, // ให้อยู่ได้แม้ปิดเบราว์เซอร์
+            ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) // อายุ 8 ชั่วโมง
+        };
+
+        // สั่งให้ระบบ Sign-in และสร้าง Cookie ตอบกลับไปที่ Browser 
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme, 
+            new ClaimsPrincipal(claimsIdentity), 
+            authProperties);
+
+        // 4. ส่งข้อมูลกลับให้ Frontend (ไม่ต้องส่ง Token แล้ว)
         return Ok(new
         {
-            Token = "mock-token-12345",
+            message = "เข้าสู่ระบบสำเร็จ",
             User = new
             {
                 user.UserId,
@@ -96,10 +123,21 @@ public class AuthController : ControllerBase
                 user.FirstName,
                 user.LastName,
                 user.RoleId,
-                // ✅ จุดสำคัญ: ส่ง Permissions แค่ตัวเดียว (ระบบจะแปลงเป็นตัวเล็ก permissions ให้อัตโนมัติ)
+                RoleName = user.Role?.RoleName ?? "ผู้ใช้งานทั่วไป", // ✅ ส่ง RoleName จริงไปให้หน้าเว็บโชว์
+                user.WardId,
                 Permissions = permissions 
             }
         });
+    }
+
+    // ==========================================
+    // ✅ เพิ่มฟังก์ชัน LOGOUT เพื่อล้าง Cookie Session
+    // ==========================================
+    [HttpPost("Logout")]
+    public async Task<IActionResult> Logout()
+    {
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return Ok(new { message = "ออกจากระบบสำเร็จ" });
     }
 
     // ==========================================
@@ -109,10 +147,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> RequestOtp([FromBody] RequestOtpDto model)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
-        if (user == null)
-        {
-            return NotFound(new { message = "ไม่พบอีเมลนี้ในระบบ" });
-        }
+        if (user == null) return NotFound(new { message = "ไม่พบอีเมลนี้ในระบบ" });
 
         var otp = new Random().Next(0, 999999).ToString("D6");
         
@@ -157,10 +192,8 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Session หมดอายุ กรุณาขอ OTP ใหม่" });
 
         user.PasswordHash = model.NewPassword;
-        
         user.OtpCode = null;
         user.OtpExpiry = null;
-        
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "เปลี่ยนรหัสผ่านสำเร็จ" });

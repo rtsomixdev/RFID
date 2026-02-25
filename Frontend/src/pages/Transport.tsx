@@ -10,7 +10,6 @@ import {
 import axiosClient from '../api/axiosClient';
 import PageHeader from '../components/ui/PageHeader';
 
-// --- Interfaces ---
 interface TransportMonitorItem {
     rfid: string;
     productName: string;
@@ -22,27 +21,31 @@ interface TransportMonitorItem {
 const Transport: React.FC = () => {
     const theme = useTheme();
     
-    // Transport List States
+    // ✅ การเช็คสิทธิ์แบบละเอียด
+    const userStr = localStorage.getItem('currentUser');
+    const currentUser = userStr ? JSON.parse(userStr) : null;
+    const permissions = currentUser?.permissions || currentUser?.Permissions || [];
+    const roleId = currentUser?.roleId || currentUser?.RoleId || 0;
+    
+    // เช็คสิทธิ์จัดการขนส่ง (ถ้าไม่มีก็จะดูรายการตารางได้เฉยๆ)
+    const canManage = roleId === 1 || permissions.includes('MANAGE_TRANSPORT');
+
     const [transportList, setTransportList] = useState<TransportMonitorItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchTransportList();
-
-        // Auto Refresh ทุก 5 วินาที
         const interval = setInterval(() => {
             fetchTransportList();
         }, 5000);
         return () => clearInterval(interval);
     }, []);
 
-    // ✅ ฟังก์ชันดึงข้อมูลตาราง (ดึงจาก Linen Monitor เหมือนหน้า Home แต่เอามา Filter)
     const fetchTransportList = async () => {
         try {
             const res = await axiosClient.get('/Linen/Monitor/Latest');
             const data = res.data || [];
 
-            // กรองเอาเฉพาะสถานะ "กำลังส่ง" หรือ "ระหว่างขนส่ง"
             const filtered = data.filter((item: any) =>
                 item.status === 'กำลังส่ง' ||
                 item.status === 'ระหว่างขนส่ง' ||
@@ -50,7 +53,6 @@ const Transport: React.FC = () => {
                 item.location === 'ระหว่างขนส่ง'
             );
 
-            // Map ให้ตรง Interface
             const mappedData: TransportMonitorItem[] = filtered.map((item: any) => ({
                 rfid: item.RfidCode || item.rfidCode || item.rfid || '-',
                 productName: item.ItemName || item.productName || item.product_name || '-',
@@ -95,9 +97,13 @@ const Transport: React.FC = () => {
                                 <Typography variant="h6" fontWeight="bold" color="warning.dark">รายการผ้ากำลังขนส่ง (In Transit List)</Typography>
                                 <Chip label={`${transportList.length} รายการ`} size="small" color="warning" sx={{ fontWeight: 'bold', ml: 1 }} />
                             </Stack>
-                            <Button startIcon={<Refresh />} size="small" variant="outlined" color="warning" onClick={() => { setLoading(true); fetchTransportList(); }}>
-                                อัปเดตข้อมูล
-                            </Button>
+                            
+                            {/* ซ่อนปุ่มอัปเดต ถ้าไม่ได้รับสิทธิ์ Manage */}
+                            {canManage && (
+                                <Button startIcon={<Refresh />} size="small" variant="outlined" color="warning" onClick={() => { setLoading(true); fetchTransportList(); }}>
+                                    อัปเดตข้อมูล
+                                </Button>
+                            )}
                         </Box>
 
                         <TableContainer sx={{ flexGrow: 1, overflowY: 'auto' }}>

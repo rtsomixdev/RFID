@@ -10,7 +10,6 @@ import {
 import axiosClient from '../api/axiosClient';
 import PageHeader from '../components/ui/PageHeader';
 
-// --- Interfaces ---
 interface WashingItem {
     rfid: string;
     productName: string;
@@ -21,28 +20,32 @@ interface WashingItem {
 
 const Laundry: React.FC = () => {
     const theme = useTheme();
+
+    // ✅ การเช็คสิทธิ์แบบละเอียด
+    const userStr = localStorage.getItem('currentUser');
+    const currentUser = userStr ? JSON.parse(userStr) : null;
+    const permissions = currentUser?.permissions || currentUser?.Permissions || [];
+    const roleId = currentUser?.roleId || currentUser?.RoleId || 0;
     
-    // Washing List State
+    // เช็คว่ามีสิทธิ์จัดการกระบวนการซักรีดหรือไม่
+    const canManage = roleId === 1 || permissions.includes('MANAGE_LAUNDRY');
+    
     const [washingList, setWashingList] = useState<WashingItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchWashingList();
-
-        // Auto Refresh ทุก 5 วินาที
         const interval = setInterval(() => {
             fetchWashingList();
         }, 5000);
         return () => clearInterval(interval);
     }, []);
 
-    // ✅ ฟังก์ชันดึงข้อมูลตาราง (ดึงจาก Linen Monitor เหมือนหน้า Home แต่เอามา Filter)
     const fetchWashingList = async () => {
         try {
             const res = await axiosClient.get('/Linen/Monitor/Latest');
             const data = res.data || [];
 
-            // กรองเอาเฉพาะสถานะที่เกี่ยวข้องกับการซัก (Logic เดิม 100%)
             const filtered = data.filter((item: any) => 
                 item.status === 'กำลังซัก' || 
                 item.status === 'ส่งซัก' ||
@@ -96,9 +99,13 @@ const Laundry: React.FC = () => {
                                 <Typography variant="h6" fontWeight="bold" color="info.main">รายการผ้ากำลังซัก (Washing List)</Typography>
                                 <Chip label={`${washingList.length} รายการ`} size="small" color="info" sx={{ fontWeight: 'bold', ml: 1 }} />
                             </Stack>
-                            <Button startIcon={<Refresh />} size="small" variant="outlined" color="info" onClick={() => { setLoading(true); fetchWashingList(); }}>
-                                อัปเดตข้อมูล
-                            </Button>
+                            
+                            {/* ซ่อนปุ่มอัปเดต/จัดการ ถ้ายูสเซอร์ไม่มีสิทธิ์ Manage (ให้ข้อมูลอัปเดตอัตโนมัติก็พอ) */}
+                            {canManage && (
+                                <Button startIcon={<Refresh />} size="small" variant="outlined" color="info" onClick={() => { setLoading(true); fetchWashingList(); }}>
+                                    อัปเดตข้อมูล
+                                </Button>
+                            )}
                         </Box>
 
                         <TableContainer sx={{ flexGrow: 1, overflowY: 'auto' }}>
@@ -143,7 +150,6 @@ const Laundry: React.FC = () => {
                                 </TableBody>
                             </Table>
                         </TableContainer>
-
                     </CardContent>
                 </Card>
             </Box>
