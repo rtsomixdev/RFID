@@ -38,7 +38,7 @@ const Home: React.FC = () => {
     const [registeredItems, setRegisteredItems] = useState<MonitorItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [allItemsCount, setAllItemsCount] = useState(0);
-    
+
     // 🔥 Reader Status
     const [isReaderOnline, setIsReaderOnline] = useState(false);
     const [activeReaderCount, setActiveReaderCount] = useState(0);
@@ -54,7 +54,7 @@ const Home: React.FC = () => {
         const handleRealtimeScan = (e: any) => {
             const data = e.detail;
             console.log("⚡ Home Real-time Scan:", data);
-            
+
             // สร้าง Item ใหม่จากข้อมูล Real-time
             const newItem: MonitorItem = {
                 rfid: data.rfid || 'Unknown',
@@ -78,7 +78,7 @@ const Home: React.FC = () => {
             clearInterval(interval);
             window.removeEventListener("RFID_SCANNED", handleRealtimeScan);
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchData = async () => {
@@ -116,7 +116,7 @@ const Home: React.FC = () => {
 
             // แสดงข้อมูลทั้งหมดในตารางเดียวคลีนๆ
             setRegisteredItems(mappedData);
-            setAllItemsCount(rawData.length); 
+            setAllItemsCount(rawData.length);
 
             setLoading(false);
         } catch (err) {
@@ -159,27 +159,22 @@ const Home: React.FC = () => {
                         <Typography variant="body2" color="text.secondary">ระบบติดตามผ้าแบบเรียลไทม์ (Real-time Tracking)</Typography>
                     </Box>
                     <Box sx={{ display: 'flex', gap: 2 }}>
-                        <IconButton onClick={fetchData} title="Refresh Data">
-                            <Refresh />
-                        </IconButton>
-                        {!user ? (
+                        {!user && (
                             <Button variant="contained" size="medium" startIcon={<Login />} onClick={() => navigate('/login')}>เข้าสู่ระบบ</Button>
-                        ) : (
-                            <Button variant="outlined" size="medium" startIcon={<DashboardIcon />} onClick={() => navigate('/dashboard')}>Go to Dashboard</Button>
                         )}
                     </Box>
                 </Box>
 
                 {/* Stat Cards */}
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
-                    
+
                     {/* Card 1: Reader Status */}
                     <Card elevation={0} sx={{ flex: 1, bgcolor: '#1e293b', color: '#fff', border: 'none', borderRadius: 3 }}>
                         <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 3 }}>
                             <Box>
                                 <Typography variant="overline" sx={{ opacity: 0.7, letterSpacing: 1 }}>READER STATUS</Typography>
                                 <Typography variant="h5" fontWeight="bold" sx={{ color: isReaderOnline ? '#4ade80' : '#f87171', display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                                    {isReaderOnline ? <WifiTethering /> : <SignalWifiOff />} 
+                                    {isReaderOnline ? <WifiTethering /> : <SignalWifiOff />}
                                     {isReaderOnline ? "ONLINE" : "OFFLINE"}
                                 </Typography>
                                 {isReaderOnline && (
