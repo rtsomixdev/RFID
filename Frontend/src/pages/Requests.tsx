@@ -249,14 +249,14 @@ const Requests: React.FC = () => {
     };
 
     // --- ยืนยันการจัดส่งผ้า (Dispatch) ---
-    const handleConfirmDispatch = async (reqId: number) => {
+    const handleConfirmDispatch = async (reqId: number, isReturn: boolean) => {
         Swal.fire({
-            title: 'ยืนยันการจัดส่ง?',
-            text: "ยืนยันว่าได้ทำการจัดส่งผ้าตามใบเบิกนี้เรียบร้อยแล้ว",
+            title: isReturn ? 'ยืนยันการรับผ้าคืน?' : 'ยืนยันการจัดส่ง?',
+            text: isReturn ? "ยืนยันว่าได้รับผ้าคืนจากวอร์ดเรียบร้อยแล้ว" : "ยืนยันว่าได้ทำการจัดส่งผ้าตามใบเบิกนี้เรียบร้อยแล้ว",
             icon: 'info',
             showCancelButton: true,
-            confirmButtonColor: theme.palette.info.main,
-            confirmButtonText: 'ยืนยันจัดส่ง',
+            confirmButtonColor: isReturn ? theme.palette.info.main : theme.palette.primary.main,
+            confirmButtonText: isReturn ? 'ยืนยันรับคืน' : 'ยืนยันจัดส่ง',
             cancelButtonText: 'ยกเลิก'
         }).then(async (result) => {
             if (result.isConfirmed) {
@@ -273,19 +273,19 @@ const Requests: React.FC = () => {
                         requestCode: currentReq.requestCode
                     });
 
-                    Swal.fire({ icon: 'success', title: 'ยืนยันการจัดส่งแล้ว', timer: 1500, showConfirmButton: false });
+                    Swal.fire({ icon: 'success', title: isReturn ? 'รับคืนเรียบร้อย' : 'ยืนยันการจัดส่งแล้ว', timer: 1500, showConfirmButton: false });
                     
                     await sendNotification(
-                        `กำลังจัดส่งผ้า (${currentReq.requestCode})`,
-                        `เจ้าหน้าที่กำลังนำผ้าไปส่งที่แผนกของท่าน`,
-                        'WARNING',
+                        isReturn ? `รับคืนผ้าเสร็จสิ้น (${currentReq.requestCode})` : `จัดส่งผ้าเสร็จสิ้น (${currentReq.requestCode})`,
+                        isReturn ? `เจ้าหน้าที่ได้รับผ้าคืนจากวอร์ดของท่านแล้ว` : `เจ้าหน้าที่ได้จัดส่งผ้าถึงวอร์ดของท่านแล้ว`,
+                        'SUCCESS',
                         '/requests',
                         currentReq.requestedByUserId
                     );
 
                     fetchRequests();
                 } catch (apiErr) {
-                    Swal.fire('Error', 'ไม่สามารถอัปเดตสถานะจัดส่งได้', 'error');
+                    Swal.fire('Error', 'ไม่สามารถอัปเดตสถานะได้', 'error');
                 }
             }
         });
@@ -296,7 +296,7 @@ const Requests: React.FC = () => {
             case 1: return <Chip icon={<AccessTime />} label="รออนุมัติ" color="warning" variant="outlined" size="small" />;
             case 2: return <Chip icon={<CheckCircle />} label="อนุมัติแล้ว (รอส่ง)" color="success" size="small" variant="filled" />;
             case 3: return <Chip icon={<Cancel />} label="ถูกปฏิเสธ" color="error" size="small" variant="filled" />;
-            case 4: return <Chip icon={<DoneAll />} label="จัดส่งเรียบร้อย" color="info" size="small" variant="filled" />;
+            case 4: return <Chip icon={<DoneAll />} label="เสร็จสิ้น" color="info" size="small" variant="filled" />;
             default: return <Chip label="Unknown" size="small" />;
         }
     };
@@ -605,10 +605,10 @@ const Requests: React.FC = () => {
                             <Table stickyHeader>
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell sx={{ fontWeight: 'bold', width: '15%', bgcolor: '#f8fafc' }}>เลขที่คำร้อง</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold', width: '20%', bgcolor: '#f8fafc' }}>สถานที่จัดส่ง (วอร์ดปลายทาง)</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold', width: '40%', bgcolor: '#f8fafc' }}>รายการผ้าที่ต้องเตรียม</TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 'bold', width: '25%', bgcolor: '#f8fafc' }}>ยืนยันการจัดส่ง</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', width: '20%', bgcolor: '#f8fafc' }}>ข้อมูลคำร้อง</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', width: '20%', bgcolor: '#f8fafc' }}>สถานที่ (เป้าหมาย)</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', width: '35%', bgcolor: '#f8fafc' }}>รายการผ้าที่ต้องเตรียม</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 'bold', width: '25%', bgcolor: '#f8fafc' }}>ยืนยันดำเนินการ</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -622,12 +622,18 @@ const Requests: React.FC = () => {
                                                 <Typography variant="body2" color="primary" fontWeight="bold" sx={{ fontFamily: 'monospace', fontSize: '1.1rem' }}>
                                                     {req.requestCode}
                                                 </Typography>
+                                                {/* ✅ เพิ่ม Chip บอกประเภทคำร้องตรงนี้ */}
+                                                <Box sx={{ mt: 0.5, mb: 1 }}>
+                                                    {req.requestType === 1 && <Chip label="เบิกใหม่" size="small" color="primary" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />}
+                                                    {req.requestType === 2 && <Chip label="เปลี่ยนชำรุด" size="small" color="error" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />}
+                                                    {req.requestType === 3 && <Chip label="ส่งคืนผ้า" size="small" color="info" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />}
+                                                </Box>
                                                 <Typography variant="caption" color="textSecondary">
                                                     อนุมัติเมื่อ: {new Date(req.updatedAt || req.createdAt).toLocaleString('th-TH')}
                                                 </Typography>
                                             </TableCell>
                                             <TableCell>
-                                                <Chip label={req.targetWard?.wardName || '-'} color="primary" variant="outlined" sx={{ fontWeight: 'bold', fontSize: '1rem', py: 2 }} />
+                                                <Chip label={req.targetWard?.wardName || '-'} color={req.requestType === 3 ? "default" : "primary"} variant="outlined" sx={{ fontWeight: 'bold', fontSize: '1rem', py: 2 }} />
                                             </TableCell>
                                             <TableCell>
                                                 {req.requestItems?.map((item: any, idx: number) => (
@@ -647,17 +653,17 @@ const Requests: React.FC = () => {
                                                 ))}
                                             </TableCell>
                                             <TableCell align="center">
-                                                {/* ✅ ซ่อนปุ่มจัดส่ง ถ้าไม่ใช่ Admin หรือคนมีสิทธิ์ MANAGE */}
+                                                {/* ✅ เปลี่ยนข้อความปุ่มตามประเภทคำร้อง */}
                                                 {isAdmin ? (
                                                     <Button 
                                                         variant="contained" 
-                                                        color="info" 
+                                                        color={req.requestType === 3 ? "secondary" : "primary"} 
                                                         size="large" 
-                                                        startIcon={<LocalShipping />}
-                                                        onClick={() => handleConfirmDispatch(req.requestId)}
+                                                        startIcon={req.requestType === 3 ? <KeyboardReturn /> : <LocalShipping />}
+                                                        onClick={() => handleConfirmDispatch(req.requestId, req.requestType === 3)}
                                                         sx={{ borderRadius: 2, fontWeight: 'bold', px: 3, py: 1 }}
                                                     >
-                                                        ส่งผ้าเรียบร้อย
+                                                        {req.requestType === 3 ? 'ยืนยันรับคืน' : 'ส่งผ้าเรียบร้อย'}
                                                     </Button>
                                                 ) : (
                                                     <Typography variant="caption" color="textSecondary">รอเจ้าหน้าที่ดำเนินการ</Typography>
