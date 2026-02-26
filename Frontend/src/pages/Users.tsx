@@ -59,7 +59,7 @@ const buildPermissionMatrix = (permissions: Permission[]) => {
 
   permissions.forEach(perm => {
     const code = perm.permissionCode.toUpperCase();
-    
+
     // 1. แยกประเภทแอคชัน (Action)
     let actionType = 'MANAGE';
     if (code.startsWith('VIEW') || code.startsWith('READ')) actionType = 'READ';
@@ -74,7 +74,7 @@ const buildPermissionMatrix = (permissions: Permission[]) => {
     if (!matrix[moduleName]) {
       matrix[moduleName] = { READ: [], WRITE: [], EDIT: [], DELETE: [], MANAGE: [] };
     }
-    
+
     matrix[moduleName][actionType as keyof typeof matrix[string]].push(perm);
   });
 
@@ -104,7 +104,7 @@ const translateModule = (moduleCode: string) => {
 
 const Users: React.FC = () => {
   const theme = useTheme();
-  const [tabIndex, setTabIndex] = useState(0); 
+  const [tabIndex, setTabIndex] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // ==========================================
@@ -113,15 +113,15 @@ const Users: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  const [rolesList, setRolesList] = useState<any[]>([]); 
+
+  const [rolesList, setRolesList] = useState<any[]>([]);
   const [titles, setTitles] = useState<any[]>([]);
-  const [hospitals, setHospitals] = useState<any[]>([]); 
-  const [wards, setWards] = useState<any[]>([]); 
+  const [hospitals, setHospitals] = useState<any[]>([]);
+  const [wards, setWards] = useState<any[]>([]);
 
   const [isEditUser, setIsEditUser] = useState(false);
   const [editUserId, setEditUserId] = useState<number | null>(null);
-  
+
   const [userForm, setUserForm] = useState({
     username: '', passwordHash: '', firstName: '', lastName: '', email: '',
     roleId: '', titleId: '', hospitalId: '', wardId: ''
@@ -143,12 +143,12 @@ const Users: React.FC = () => {
     const userStr = localStorage.getItem('currentUser');
     if (userStr) setCurrentUser(JSON.parse(userStr));
     fetchInitialData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (tabIndex === 0) filterUsers();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, users, tabIndex]);
 
   const fetchInitialData = async () => {
@@ -228,7 +228,7 @@ const Users: React.FC = () => {
   const handleSubmitUser = async () => {
     try {
       if (!userForm.username || !userForm.roleId || !userForm.hospitalId || !userForm.wardId) {
-          return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลสำคัญและเลือกแผนกให้ครบถ้วน', 'warning');
+        return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลสำคัญและเลือกแผนกให้ครบถ้วน', 'warning');
       }
 
       const payload: any = {
@@ -313,7 +313,7 @@ const Users: React.FC = () => {
     });
 
     const allSelected = rowIds.length > 0 && rowIds.every(id => roleForm.selectedPermissions.includes(id));
-    
+
     setRoleForm(prev => {
       let newSelected = [...prev.selectedPermissions];
       if (allSelected) {
@@ -341,7 +341,7 @@ const Users: React.FC = () => {
       }
       handleCancelRole();
       fetchRolesAndPermissions();
-      fetchMasterData(); 
+      fetchMasterData();
     } catch (err: any) {
       Swal.fire('Error', err.response?.data?.message || 'บันทึกไม่สำเร็จ', 'error');
     }
@@ -552,7 +552,7 @@ const Users: React.FC = () => {
                       <TableCell>
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5 }}>
                           <Chip label={rolesList.find(r => r.roleId === u.roleId)?.roleName || '-'} size="small" sx={{ fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main, borderRadius: 1 }} />
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>📍 {wards.find(w => w.wardId === u.wardId)?.wardName || 'ไม่ระบุแผนก'}</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}> {wards.find(w => w.wardId === u.wardId)?.wardName || 'ไม่ระบุแผนก'}</Typography>
                         </Box>
                       </TableCell>
                       <TableCell align="center">
@@ -576,7 +576,7 @@ const Users: React.FC = () => {
       {tabIndex === 1 && (
         <Box sx={{ animation: 'fadeIn 0.3s ease-in-out', '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } } }}>
           <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} alignItems="stretch">
-            
+
             {/* ✅ Role Matrix Form (อิงตามภาพตัวอย่าง) */}
             <Box sx={{ flex: { lg: 12 }, width: '100%' }}>
               <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${theme.palette.divider}`, height: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
@@ -596,15 +596,15 @@ const Users: React.FC = () => {
                     </Button>
                   )}
                 </Box>
-                
+
                 <Box sx={{ p: 4 }}>
                   <Box sx={{ width: { xs: '100%', md: '50%' }, mb: 4 }}>
                     <FormLabel label="ชื่อตำแหน่ง (Role Name) *" required>
-                      <TextField 
-                        fullWidth 
-                        placeholder="เช่น ผู้จัดการแผนก, พยาบาลหัวหน้าเวร..." 
-                        value={roleForm.roleName} 
-                        onChange={e => setRoleForm({ ...roleForm, roleName: e.target.value })} 
+                      <TextField
+                        fullWidth
+                        placeholder="เช่น ผู้จัดการแผนก, พยาบาลหัวหน้าเวร..."
+                        value={roleForm.roleName}
+                        onChange={e => setRoleForm({ ...roleForm, roleName: e.target.value })}
                       />
                     </FormLabel>
                   </Box>
@@ -633,13 +633,13 @@ const Users: React.FC = () => {
                           // ฟังก์ชันช่วยสร้าง Checkbox (สีตาม Action)
                           const renderCheckbox = (permsArray: Permission[], colorStr: 'success' | 'warning' | 'info' | 'error' | 'secondary') => {
                             if (permsArray.length === 0) return <Typography color="text.disabled">-</Typography>;
-                            
+
                             return permsArray.map(perm => {
                               const isChecked = roleForm.selectedPermissions.includes(perm.permissionId);
                               return (
                                 <Tooltip title={perm.description || perm.permissionCode} key={perm.permissionId} arrow>
-                                  <Checkbox 
-                                    size="small" 
+                                  <Checkbox
+                                    size="small"
                                     color={colorStr}
                                     checked={isChecked}
                                     onChange={() => handlePermissionToggle(perm.permissionId)}
@@ -658,7 +658,7 @@ const Users: React.FC = () => {
                             <TableRow key={moduleName} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                               <TableCell sx={{ borderRight: `1px dashed ${theme.palette.divider}` }}>
                                 <Stack direction="row" alignItems="center" spacing={1}>
-                                  <Checkbox 
+                                  <Checkbox
                                     size="small"
                                     checked={isRowAllSelected}
                                     onChange={() => handleToggleRow(actions)}
@@ -674,7 +674,7 @@ const Users: React.FC = () => {
                                   </Box>
                                 </Stack>
                               </TableCell>
-                              
+
                               {/* ช่อง Checkbox ต่างๆ */}
                               <TableCell align="center" sx={{ borderRight: `1px dashed ${theme.palette.divider}` }}>
                                 {renderCheckbox(actions.READ, 'success')}
@@ -733,11 +733,11 @@ const Users: React.FC = () => {
                           <TableCell>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 0.5 }}>
                               {role.permissions.map((p) => (
-                                <Chip 
-                                  key={p.permissionId} 
-                                  label={p.description || p.permissionCode} 
-                                  size="small" 
-                                  sx={{ fontSize: '0.65rem', borderRadius: 1, height: 20, bgcolor: alpha(theme.palette.primary.main, 0.08) }} 
+                                <Chip
+                                  key={p.permissionId}
+                                  label={p.description || p.permissionCode}
+                                  size="small"
+                                  sx={{ fontSize: '0.65rem', borderRadius: 1, height: 20, bgcolor: alpha(theme.palette.primary.main, 0.08) }}
                                 />
                               ))}
                             </Box>

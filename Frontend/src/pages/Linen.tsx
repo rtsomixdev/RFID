@@ -10,8 +10,8 @@ import {
     AppRegistration, Delete, PlaylistAddCheck, QrCodeScanner, RestartAlt,
     LocalLaundryService, Info, Save,
     Category, FiberNew,
-    CheckCircle, ErrorOutline, AddCircleOutline, Room,
-    Straighten, Scale, CalendarToday, Palette, DeleteSweep, SettingsRemote
+    CheckCircle, ErrorOutline, Room,
+    DeleteForever
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
@@ -29,10 +29,10 @@ interface Product {
     sizeSpec?: string;
     unitName: string;
     maxWashCount?: number;
-    standardWeightKg?: number; 
-    maxLifespanDays?: number;  
-    color?: string; 
-    isDisposable?: boolean; 
+    standardWeightKg?: number;
+    maxLifespanDays?: number;
+    color?: string;
+    isDisposable?: boolean;
     [key: string]: any;
 }
 
@@ -43,11 +43,6 @@ interface Reader {
     location?: string;
 }
 
-interface LocationItem {
-    roomId: number;
-    roomName: string;
-}
-
 const RegisterLinen: React.FC = () => {
     const theme = useTheme();
 
@@ -56,25 +51,23 @@ const RegisterLinen: React.FC = () => {
     const currentUser = userStr ? JSON.parse(userStr) : null;
     const permissions = currentUser?.permissions || currentUser?.Permissions || [];
     const roleId = currentUser?.roleId || currentUser?.RoleId || 0;
-    
-    // Admin (1) ผ่านหมด หรือต้องมีสิทธิ์ WRITE_LINEN ถึงจะเพิ่มผ้าได้
+
+    // Admin (1) ผ่านหมด หรือต้องมีสิทธิ์ WRITE_LINEN ถึงจะเพิ่ม/ลบผ้าได้
     const canWrite = roleId === 1 || permissions.includes('WRITE_LINEN');
 
     // --- Master Data ---
     const [products, setProducts] = useState<Product[]>([]);
     const [hospitals, setHospitals] = useState<any[]>([]);
     const [vendors, setVendors] = useState<any[]>([]);
-    const [rooms, setRooms] = useState<LocationItem[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     const [readers, setReaders] = useState<Reader[]>([]);
 
     // --- Selection State ---
     const [selectedHospital, setSelectedHospital] = useState<string>('');
     const [selectedVendor, setSelectedVendor] = useState<string>('');
-    const [selectedLocation, setSelectedLocation] = useState<string>('');
     const [selectedReader, setSelectedReader] = useState<string>('');
     const [isReaderOnline, setIsReaderOnline] = useState(false);
-    
+
     const [maxWash, setMaxWash] = useState<number>(100);
 
     // --- Product Hybrid State ---
@@ -83,7 +76,7 @@ const RegisterLinen: React.FC = () => {
 
     const [newProductData, setNewProductData] = useState({
         productName: '', productCode: '', categoryName: '', sizeSpec: '', unitName: 'ชิ้น',
-        standardWeightKg: '', maxLifespanDays: '', color: '', isDisposable: false 
+        standardWeightKg: '', maxLifespanDays: '', color: '', isDisposable: false
     });
 
     const [rfidInput, setRfidInput] = useState('');
@@ -93,12 +86,12 @@ const RegisterLinen: React.FC = () => {
     // --- Initialization ---
     useEffect(() => {
         fetchMasterData();
-        
+
         const interval = setInterval(() => {
             fetchReadersOnly();
         }, 5000);
         return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -134,7 +127,7 @@ const RegisterLinen: React.FC = () => {
 
         window.addEventListener("RFID_SCANNED", handleAutoScan);
         return () => window.removeEventListener("RFID_SCANNED", handleAutoScan);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedReader, selectedHospital, scannedRfids, canWrite]);
 
     const toastWarning = (msg: string) => {
@@ -172,28 +165,6 @@ const RegisterLinen: React.FC = () => {
         await fetchData('/Vendor', setVendors);
         await fetchData('/Category', setCategories);
 
-        try {
-            const resWard = await axiosClient.get('/Ward');
-            const dataWard = resWard.data || [];
-            const formattedRooms = dataWard.map((item: any, index: number) => ({
-                roomId: item.wardId || item.id || index,
-                roomName: item.wardName || item.name || ''
-            }));
-            setRooms(formattedRooms);
-        } catch (err) {
-            try {
-                const resLoc = await axiosClient.get('/Location');
-                const dataLoc = resLoc.data || [];
-                const formattedFallback = dataLoc.map((item: any, index: number) => ({
-                    roomId: item.locationId || item.id || index,
-                    roomName: item.locationName || item.name || ''
-                }));
-                setRooms(formattedFallback);
-            } catch (fallbackErr) {
-                 console.error("Failed to fetch locations", fallbackErr);
-            }
-        }
-
         const hospData = await fetchData('/Hospital', setHospitals);
         if (hospData.length > 0 && !selectedHospital) setSelectedHospital(hospData[0].hospitalId);
 
@@ -202,10 +173,6 @@ const RegisterLinen: React.FC = () => {
             const active = readerData.find((r: Reader) => r.isActive);
             if (active) {
                 setSelectedReader(active.readerName);
-                if (active.location && rooms.length > 0) {
-                    const matchedRoom = rooms.find(r => r.roomName === active.location);
-                    if (matchedRoom) setSelectedLocation(matchedRoom.roomId.toString());
-                }
             }
         }
     };
@@ -219,18 +186,7 @@ const RegisterLinen: React.FC = () => {
 
     // --- Event Handlers ---
     const handleReaderChange = (event: any) => {
-        const readerName = event.target.value;
-        setSelectedReader(readerName);
-
-        const targetReader = readers.find(r => r.readerName === readerName);
-        if (targetReader && targetReader.location) {
-            const matchedRoom = rooms.find(r => r.roomName === targetReader.location);
-            if (matchedRoom) {
-                setSelectedLocation(matchedRoom.roomId.toString());
-                const Toast = Swal.mixin({ toast: true, position: 'top', showConfirmButton: false, timer: 1500 });
-                Toast.fire({ icon: 'info', title: `ปรับสถานที่ตามเครื่องอ่าน: ${matchedRoom.roomName}` });
-            }
-        }
+        setSelectedReader(event.target.value);
     };
 
     const handleProductChange = (_event: any, newValue: any) => {
@@ -260,10 +216,37 @@ const RegisterLinen: React.FC = () => {
         setTimeout(() => inputRef.current?.focus(), 100);
     };
 
+    // ✅ ฟังก์ชันลบสินค้า (Delete Product)
+    const handleDeleteProduct = async () => {
+        if (!selectedProduct) return;
+
+        Swal.fire({
+            title: 'ยืนยันการลบสินค้า?',
+            html: `คุณกำลังจะลบ <b>${selectedProduct.productName}</b> ออกจากระบบ<br/><span style="color:red; font-size: 0.9em;">(คำเตือน: หากมีผ้าที่ผูกกับสินค้านี้อยู่ อาจส่งผลกระทบต่อข้อมูลสต็อก)</span>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: theme.palette.error.main,
+            cancelButtonColor: '#ccc',
+            confirmButtonText: 'ใช่, ลบเลย!',
+            cancelButtonText: 'ยกเลิก'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    await axiosClient.delete(`/Product/${selectedProduct.productId}`);
+                    Swal.fire('ลบสำเร็จ!', 'ลบสินค้าออกจากระบบแล้ว', 'success');
+                    setSelectedProduct(null); // เคลียร์ช่องเลือก
+                    fetchMasterData(); // โหลดข้อมูลรายการสินค้าใหม่
+                } catch (err: any) {
+                    Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.message || 'ไม่สามารถลบสินค้านี้ได้', 'error');
+                }
+            }
+        });
+    };
+
     // --- Submit Logic ---
     const handleSubmitBatch = async () => {
         if (!canWrite) return Swal.fire('ไม่มีสิทธิ์', 'คุณไม่มีสิทธิ์ลงทะเบียนผ้าเข้าระบบ', 'error');
-        if (!selectedHospital || !selectedLocation) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ โรงพยาบาล และ สถานที่จัดเก็บ', 'warning');
+        if (!selectedHospital) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุ โรงพยาบาล', 'warning');
         if (scannedRfids.length === 0) return Swal.fire('ไม่มีข้อมูล', 'กรุณาสแกน RFID อย่างน้อย 1 รายการ', 'warning');
 
         if (isNewProduct) {
@@ -305,25 +288,24 @@ const RegisterLinen: React.FC = () => {
                         sizeSpec: newProductData.sizeSpec,
                         unitName: newProductData.unitName,
                         maxWashCount: Number(maxWash),
-                        standardWeightKg: newProductData.standardWeightKg ? Number(newProductData.standardWeightKg) : 0, 
+                        standardWeightKg: newProductData.standardWeightKg ? Number(newProductData.standardWeightKg) : 0,
                         maxLifespanDays: newProductData.maxLifespanDays ? Number(newProductData.maxLifespanDays) : 365,
-                        color: newProductData.color, 
-                        isDisposable: newProductData.isDisposable, 
-                        defaultRoomId: selectedLocation ? parseInt(selectedLocation) : 1
+                        color: newProductData.color,
+                        isDisposable: newProductData.isDisposable,
+                        defaultRoomId: 1
                     });
                     finalProductId = prodRes.data.productId;
                 }
             }
 
-            const locationObj = rooms.find(r => r.roomId === parseInt(selectedLocation));
-            const finalLocationName = locationObj ? locationObj.roomName : 'คลังผ้าสะอาด'; 
+            const finalLocationName = 'คลังผ้าสะอาด';
 
             await axiosClient.post('/Linen/RegisterBatch', {
                 productId: finalProductId,
                 hospitalId: parseInt(selectedHospital),
                 vendorId: selectedVendor ? parseInt(selectedVendor) : null,
                 maxWashCount: Number(maxWash),
-                currentLocation: finalLocationName, 
+                currentLocation: finalLocationName,
                 rfidCodes: scannedRfids
             });
 
@@ -338,8 +320,8 @@ const RegisterLinen: React.FC = () => {
             setRfidInput('');
             setIsNewProduct(false);
             setSelectedProduct(null);
-            
-            setNewProductData({ 
+
+            setNewProductData({
                 productName: '', productCode: '', categoryName: '', sizeSpec: '', unitName: 'ชิ้น',
                 standardWeightKg: '', maxLifespanDays: '', color: '', isDisposable: false
             });
@@ -374,9 +356,12 @@ const RegisterLinen: React.FC = () => {
                 </Alert>
             )}
 
-            <Grid container spacing={3}>
-                <Grid item xs={12} lg={8}>
-                    <Stack spacing={3}>
+            <Grid container spacing={3} alignItems="stretch">
+                {/* --- Left Column: Info --- */}
+                <Grid item xs={12} lg={8} sx={{ display: 'flex' }}>
+                    <Stack spacing={3} sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+
+                        {/* กล่อง 1: ข้อมูลล็อตและสถานที่ */}
                         <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
                             <CardContent sx={{ p: 3 }}>
                                 <Typography variant="subtitle1" fontWeight="700" color="primary.main" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -391,14 +376,32 @@ const RegisterLinen: React.FC = () => {
                                             </Select>
                                         </FormLabel>
                                     </Grid>
+
                                     <Grid item xs={12} md={6}>
                                         <FormLabel label="สถานที่จัดเก็บเริ่มต้น" required>
-                                            <Select fullWidth value={selectedLocation} displayEmpty onChange={e => setSelectedLocation(e.target.value)} disabled={!canWrite}>
-                                                <MenuItem value="" disabled>เลือกสถานที่</MenuItem>
-                                                {rooms.map(r => <MenuItem key={r.roomId} value={r.roomId}>{r.roomName}</MenuItem>)}
-                                            </Select>
+                                            <TextField
+                                                fullWidth
+                                                disabled
+                                                value="คลังผ้าสะอาด"
+                                                InputProps={{
+                                                    startAdornment: (
+                                                        <InputAdornment position="start">
+                                                            <Room color="success" />
+                                                        </InputAdornment>
+                                                    ),
+                                                }}
+                                                sx={{
+                                                    '& .MuiInputBase-root.Mui-disabled': {
+                                                        bgcolor: alpha(theme.palette.success.main, 0.05),
+                                                        color: theme.palette.success.dark,
+                                                        fontWeight: 'bold',
+                                                        WebkitTextFillColor: theme.palette.success.dark
+                                                    }
+                                                }}
+                                            />
                                         </FormLabel>
                                     </Grid>
+
                                     <Grid item xs={12}>
                                         <FormLabel label="บริษัทผู้ผลิต/จำหน่าย (Vendor)">
                                             <Select fullWidth value={selectedVendor} displayEmpty onChange={e => setSelectedVendor(e.target.value)} disabled={!canWrite}>
@@ -411,108 +414,204 @@ const RegisterLinen: React.FC = () => {
                             </CardContent>
                         </Card>
 
-                        <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, overflow: 'visible' }}>
-                            <CardContent sx={{ p: 3 }}>
+                        {/* กล่อง 2: ข้อมูลสินค้า */}
+                        <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, overflow: 'visible', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                            <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
                                 <Typography variant="subtitle1" fontWeight="700" color="primary.main" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <Category /> ข้อมูลสินค้า (Product Info)
                                 </Typography>
 
-                                <Grid container spacing={3}>
-                                    <Grid item xs={12}>
-                                        <FormLabel label="ค้นหาหรือสร้างสินค้าใหม่" required>
-                                            <Autocomplete
-                                                fullWidth size="small" disabled={!canWrite}
-                                                value={isNewProduct ? newProductData.productName : selectedProduct}
-                                                onChange={handleProductChange}
-                                                onInputChange={(_, newInputValue) => { if (isNewProduct) setNewProductData(prev => ({ ...prev, productName: newInputValue })); }}
-                                                filterOptions={(options, params) => {
-                                                    const filtered = filter(options, params);
-                                                    const { inputValue } = params;
-                                                    const isExisting = options.some((option) => inputValue === option.productName);
-                                                    if (inputValue !== '' && !isExisting) {
-                                                        filtered.push({ inputValue, productName: `➕ เพิ่มสินค้าใหม่: "${inputValue}"` });
-                                                    }
-                                                    return filtered;
-                                                }}
-                                                selectOnFocus clearOnBlur handleHomeEndKeys options={products}
-                                                getOptionLabel={(option) => {
-                                                    if (typeof option === 'string') return option;
-                                                    if (option.inputValue) return option.inputValue;
-                                                    return option.productName;
-                                                }}
-                                                renderOption={(props, option) => (
-                                                    <li {...props}>
-                                                        <Box>
-                                                            <Typography variant="body2" fontWeight="bold">{option.productName}</Typography>
-                                                            {option.productCode && <Typography variant="caption" color="text.secondary">Code: {option.productCode}</Typography>}
-                                                        </Box>
-                                                    </li>
-                                                )}
-                                                freeSolo
-                                                renderInput={(params) => <TextField {...params} fullWidth placeholder="พิมพ์ชื่อสินค้า..." />}
-                                            />
-                                        </FormLabel>
-                                    </Grid>
-                                </Grid>
-
-                                {/* ✅ ดึงข้อมูลที่ซ่อนอยู่กลับมาให้ครบถ้วนในโหมดสินค้าเก่า */}
-                                <Collapse in={!isNewProduct && selectedProduct !== null}>
-                                    {selectedProduct && (
-                                        <Paper elevation={0} sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-                                            <Typography variant="subtitle2" fontWeight="bold" color="primary" sx={{ mb: 2 }}>
-                                                {selectedProduct.productName} 
-                                                {selectedProduct.isDisposable && <Chip label="ใช้แล้วทิ้ง" color="warning" size="small" sx={{ ml: 2, height: 20 }} />}
-                                            </Typography>
-                                            <Grid container spacing={2}>
-                                                <Grid item xs={6} md={3}><Typography variant="caption" color="textSecondary">รหัสสินค้า</Typography><Typography variant="body2" fontWeight="600">{selectedProduct.productCode}</Typography></Grid>
-                                                <Grid item xs={6} md={3}><Typography variant="caption" color="textSecondary">หมวดหมู่</Typography><Typography variant="body2" fontWeight="600">{categories.find(c => c.categoryId === selectedProduct.categoryId)?.categoryName || '-'}</Typography></Grid>
-                                                <Grid item xs={6} md={2}><Typography variant="caption" color="textSecondary">ขนาด</Typography><Typography variant="body2" fontWeight="600">{selectedProduct.sizeSpec || '-'}</Typography></Grid>
-                                                <Grid item xs={6} md={2}><Typography variant="caption" color="textSecondary">สี</Typography><Typography variant="body2" fontWeight="600">{selectedProduct.color || '-'}</Typography></Grid>
-                                                <Grid item xs={6} md={2}><Typography variant="caption" color="textSecondary">หน่วยนับ</Typography><Typography variant="body2" fontWeight="600">{selectedProduct.unitName}</Typography></Grid>
-                                                
-                                                <Grid item xs={12}><Divider sx={{ my: 1, borderStyle: 'dashed' }} /></Grid>
-
-                                                <Grid item xs={6} md={3}><Typography variant="caption" color="textSecondary">น้ำหนัก</Typography><Typography variant="body2" fontWeight="600">{selectedProduct.standardWeightKg ? `${selectedProduct.standardWeightKg} กก.` : '-'}</Typography></Grid>
-                                                <Grid item xs={6} md={3}><Typography variant="caption" color="textSecondary">อายุการใช้งาน (วัน)</Typography><Typography variant="body2" fontWeight="600">{selectedProduct.maxLifespanDays ? `${selectedProduct.maxLifespanDays} วัน` : '-'}</Typography></Grid>
-                                                <Grid item xs={6} md={3}><Typography variant="caption" color="textSecondary">อายุการใช้งาน (รอบซัก)</Typography><Typography variant="body2" fontWeight="600">{selectedProduct.maxWashCount ? `${selectedProduct.maxWashCount} รอบ` : '-'}</Typography></Grid>
-                                            </Grid>
-                                        </Paper>
-                                    )}
-                                </Collapse>
-
-                                <Collapse in={isNewProduct}>
-                                    <Box sx={{ mt: 3, p: 3, bgcolor: alpha(theme.palette.secondary.main, 0.05), borderRadius: 2, border: `1px dashed ${theme.palette.secondary.main}` }}>
-                                        <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2, color: theme.palette.secondary.main }}>
-                                            <FiberNew /> <Typography variant="subtitle2" fontWeight="bold">สร้างสินค้าใหม่ (New Master Data)</Typography>
-                                        </Stack>
-                                        <Grid container spacing={2}>
-                                            <Grid item xs={12}><FormLabel label="ชื่อสินค้า" required><TextField fullWidth value={newProductData.productName} onChange={e => setNewProductData(prev => ({ ...prev, productName: e.target.value }))} disabled={!canWrite} /></FormLabel></Grid>
-                                            <Grid item xs={12} md={6}><FormLabel label="รหัสสินค้า (SKU)" required><TextField fullWidth value={newProductData.productCode} onChange={e => setNewProductData(prev => ({ ...prev, productCode: e.target.value }))} disabled={!canWrite} /></FormLabel></Grid>
-                                            <Grid item xs={12} md={6}>
-                                                <FormLabel label="หมวดหมู่ (Category)" required>
-                                                    <Autocomplete freeSolo options={categories.map(c => c.categoryName)} value={newProductData.categoryName} onChange={(event, newValue) => setNewProductData(prev => ({ ...prev, categoryName: newValue || '' }))} onInputChange={(event, newInputValue) => setNewProductData(prev => ({ ...prev, categoryName: newInputValue }))} renderInput={(params) => <TextField {...params} placeholder="เลือก หรือ พิมพ์ใหม่..." error={!newProductData.categoryName} disabled={!canWrite} />} disabled={!canWrite} />
-                                                </FormLabel>
-                                            </Grid>
-                                            <Grid item xs={6} md={3}><FormLabel label="ขนาด (Size)"><TextField fullWidth value={newProductData.sizeSpec} onChange={e => setNewProductData(prev => ({ ...prev, sizeSpec: e.target.value }))} disabled={!canWrite} /></FormLabel></Grid>
-                                            <Grid item xs={6} md={3}><FormLabel label="สี (Color)"><TextField fullWidth value={newProductData.color} onChange={e => setNewProductData(prev => ({ ...prev, color: e.target.value }))} disabled={!canWrite} /></FormLabel></Grid>
-                                            <Grid item xs={6} md={3}><FormLabel label="น้ำหนัก (กก.)"><TextField fullWidth type="number" value={newProductData.standardWeightKg} onChange={e => setNewProductData(prev => ({ ...prev, standardWeightKg: e.target.value }))} disabled={!canWrite} /></FormLabel></Grid>
-                                            <Grid item xs={6} md={3}><FormLabel label="หน่วยนับ"><TextField fullWidth value={newProductData.unitName} onChange={e => setNewProductData(prev => ({ ...prev, unitName: e.target.value }))} disabled={!canWrite} /></FormLabel></Grid>
-                                            
-                                            <Grid item xs={12}><Divider sx={{ my: 1, borderStyle: 'dashed' }} /></Grid>
-
-                                            <Grid item xs={12} md={4}><FormLabel label="อายุการใช้งาน (วัน)"><TextField fullWidth type="number" value={newProductData.maxLifespanDays} onChange={e => setNewProductData(prev => ({ ...prev, maxLifespanDays: e.target.value }))} disabled={!canWrite} /></FormLabel></Grid>
-                                            <Grid item xs={12} md={4}><FormLabel label="อายุการใช้งาน (รอบซัก)"><TextField fullWidth type="number" value={maxWash} onChange={e => setMaxWash(Number(e.target.value))} disabled={!canWrite || newProductData.isDisposable} /></FormLabel></Grid>
-                                            <Grid item xs={12} md={4} sx={{ display: 'flex', alignItems: 'flex-end', pb: 1 }}><FormControlLabel control={<Switch color="warning" checked={newProductData.isDisposable} onChange={e => setNewProductData(prev => ({ ...prev, isDisposable: e.target.checked }))} disabled={!canWrite} />} label={<Typography variant="body2" fontWeight="bold" color={newProductData.isDisposable ? 'warning.main' : 'textSecondary'}>เป็นผ้าชนิดใช้แล้วทิ้ง</Typography>} /></Grid>
+                                <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                                    <Grid container spacing={3}>
+                                        <Grid item xs={12}>
+                                            <FormLabel label="ค้นหาหรือสร้างสินค้าใหม่" required>
+                                                {/* ✅ นำ Box มาครอบเพื่อบังคับความกว้างให้เต็ม 100% */}
+                                                <Box sx={{ width: '100%', minWidth: { xs: '100%', sm: '400px', lg: '600px' } }}>
+                                                    <Autocomplete
+                                                        fullWidth
+                                                        size="small"
+                                                        disabled={!canWrite}
+                                                        value={isNewProduct ? newProductData.productName : selectedProduct}
+                                                        onChange={handleProductChange}
+                                                        onInputChange={(_, newInputValue) => { if (isNewProduct) setNewProductData(prev => ({ ...prev, productName: newInputValue })); }}
+                                                        filterOptions={(options, params) => {
+                                                            const filtered = filter(options, params);
+                                                            const { inputValue } = params;
+                                                            const isExisting = options.some((option) => inputValue === option.productName);
+                                                            if (inputValue !== '' && !isExisting) {
+                                                                filtered.push({ inputValue, productName: `เพิ่มสินค้าใหม่: "${inputValue}"` });
+                                                            }
+                                                            return filtered;
+                                                        }}
+                                                        selectOnFocus clearOnBlur handleHomeEndKeys options={products}
+                                                        getOptionLabel={(option) => {
+                                                            if (typeof option === 'string') return option;
+                                                            if (option.inputValue) return option.inputValue;
+                                                            return option.productName;
+                                                        }}
+                                                        renderOption={(props, option) => (
+                                                            <li {...props}>
+                                                                <Box sx={{ width: '100%' }}>
+                                                                    <Typography variant="body2" fontWeight="bold">{option.productName}</Typography>
+                                                                    {option.productCode && <Typography variant="caption" color="text.secondary">Code: {option.productCode}</Typography>}
+                                                                </Box>
+                                                            </li>
+                                                        )}
+                                                        freeSolo
+                                                        renderInput={(params) => <TextField {...params} fullWidth placeholder="พิมพ์ชื่อสินค้าเพื่อค้นหา..." />}
+                                                    />
+                                                </Box>
+                                            </FormLabel>
                                         </Grid>
-                                    </Box>
-                                </Collapse>
+                                    </Grid>
+
+                                    <Collapse in={!isNewProduct && selectedProduct !== null} sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', mt: 3 }}>
+                                        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                                            {selectedProduct && (
+                                                <Paper elevation={0} sx={{
+                                                    p: { xs: 2, md: 4 },
+                                                    bgcolor: alpha(theme.palette.primary.main, 0.03),
+                                                    border: `1px solid ${theme.palette.divider}`,
+                                                    borderRadius: 2,
+                                                    flexGrow: 1,
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    justifyContent: 'center'
+                                                }}>
+                                                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+                                                        <Typography variant="h6" fontWeight="bold" color="primary.main" sx={{ display: 'flex', alignItems: 'center' }}>
+                                                            {selectedProduct.productName}
+                                                            {selectedProduct.isDisposable && <Chip label="ใช้แล้วทิ้ง" color="warning" size="small" sx={{ ml: 2, fontWeight: 'bold' }} />}
+                                                        </Typography>
+
+                                                        {canWrite && (
+                                                            <Button
+                                                                variant="outlined"
+                                                                size="small"
+                                                                color="error"
+                                                                startIcon={<DeleteForever />}
+                                                                onClick={handleDeleteProduct}
+                                                                sx={{ textTransform: 'none' }}
+                                                            >
+                                                                ลบสินค้านี้
+                                                            </Button>
+                                                        )}
+                                                    </Stack>
+
+                                                    <Grid container spacing={4}>
+                                                        <Grid item xs={6} sm={4} md={2.4}>
+                                                            <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 1 }}>รหัสสินค้า</Typography>
+                                                            <Typography variant="body1" fontWeight="600">{selectedProduct.productCode || '-'}</Typography>
+                                                        </Grid>
+                                                        <Grid item xs={6} sm={4} md={2.4}>
+                                                            <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 1 }}>หมวดหมู่</Typography>
+                                                            <Typography variant="body1" fontWeight="600" noWrap>{categories.find(c => c.categoryId === selectedProduct.categoryId)?.categoryName || '-'}</Typography>
+                                                        </Grid>
+                                                        <Grid item xs={4} sm={4} md={2.4}>
+                                                            <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 1 }}>ขนาด</Typography>
+                                                            <Typography variant="body1" fontWeight="600">{selectedProduct.sizeSpec || '-'}</Typography>
+                                                        </Grid>
+                                                        <Grid item xs={4} sm={6} md={2.4}>
+                                                            <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 1 }}>สี</Typography>
+                                                            <Typography variant="body1" fontWeight="600">{selectedProduct.color || '-'}</Typography>
+                                                        </Grid>
+                                                        <Grid item xs={4} sm={6} md={2.4}>
+                                                            <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 1 }}>หน่วยนับ</Typography>
+                                                            <Typography variant="body1" fontWeight="600">{selectedProduct.unitName}</Typography>
+                                                        </Grid>
+
+                                                        <Grid item xs={12}><Divider sx={{ borderStyle: 'dashed' }} /></Grid>
+
+                                                        <Grid item xs={6} sm={4} md={4}>
+                                                            <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 1 }}>น้ำหนัก</Typography>
+                                                            <Typography variant="body1" fontWeight="600">{selectedProduct.standardWeightKg ? `${selectedProduct.standardWeightKg} กก.` : '-'}</Typography>
+                                                        </Grid>
+                                                        <Grid item xs={6} sm={4} md={4}>
+                                                            <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 1 }}>อายุการใช้งาน (วัน)</Typography>
+                                                            <Typography variant="body1" fontWeight="600">{selectedProduct.maxLifespanDays ? `${selectedProduct.maxLifespanDays} วัน` : '-'}</Typography>
+                                                        </Grid>
+                                                        <Grid item xs={12} sm={4} md={4}>
+                                                            <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 1 }}>อายุการใช้งาน (รอบซัก)</Typography>
+                                                            <Typography variant="body1" fontWeight="600" color="info.main">{selectedProduct.maxWashCount ? `${selectedProduct.maxWashCount} รอบ` : '-'}</Typography>
+                                                        </Grid>
+                                                    </Grid>
+                                                </Paper>
+                                            )}
+                                        </Box>
+                                    </Collapse>
+
+                                    <Collapse in={isNewProduct} sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                                        <Box sx={{ mt: 3, p: 4, bgcolor: alpha(theme.palette.secondary.main, 0.05), borderRadius: 2, border: `1px dashed ${theme.palette.secondary.main}`, flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                            <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 3, color: theme.palette.secondary.main }}>
+                                                <FiberNew fontSize="large" /> <Typography variant="h6" fontWeight="bold">สร้างสินค้าใหม่ (New Master Data)</Typography>
+                                            </Stack>
+                                            <Grid container spacing={3}>
+                                                <Grid item xs={12} md={6}>
+                                                    <FormLabel label="ชื่อสินค้า" required>
+                                                        <TextField fullWidth value={newProductData.productName} onChange={e => setNewProductData(prev => ({ ...prev, productName: e.target.value }))} disabled={!canWrite} />
+                                                    </FormLabel>
+                                                </Grid>
+                                                <Grid item xs={12} md={6}>
+                                                    <FormLabel label="รหัสสินค้า (SKU)" required>
+                                                        <TextField fullWidth value={newProductData.productCode} onChange={e => setNewProductData(prev => ({ ...prev, productCode: e.target.value }))} disabled={!canWrite} />
+                                                    </FormLabel>
+                                                </Grid>
+                                                <Grid item xs={12} md={6}>
+                                                    <FormLabel label="หมวดหมู่ (Category)" required>
+                                                        <Autocomplete freeSolo options={categories.map(c => c.categoryName)} value={newProductData.categoryName} onChange={(event, newValue) => setNewProductData(prev => ({ ...prev, categoryName: newValue || '' }))} onInputChange={(event, newInputValue) => setNewProductData(prev => ({ ...prev, categoryName: newInputValue }))} renderInput={(params) => <TextField {...params} placeholder="เลือก หรือ พิมพ์ใหม่..." error={!newProductData.categoryName} disabled={!canWrite} />} disabled={!canWrite} />
+                                                    </FormLabel>
+                                                </Grid>
+                                                <Grid item xs={6} md={3}>
+                                                    <FormLabel label="ขนาด (Size)">
+                                                        <TextField fullWidth value={newProductData.sizeSpec} onChange={e => setNewProductData(prev => ({ ...prev, sizeSpec: e.target.value }))} disabled={!canWrite} />
+                                                    </FormLabel>
+                                                </Grid>
+                                                <Grid item xs={6} md={3}>
+                                                    <FormLabel label="สี (Color)">
+                                                        <TextField fullWidth value={newProductData.color} onChange={e => setNewProductData(prev => ({ ...prev, color: e.target.value }))} disabled={!canWrite} />
+                                                    </FormLabel>
+                                                </Grid>
+
+                                                <Grid item xs={12}><Divider sx={{ borderStyle: 'dashed' }} /></Grid>
+
+                                                <Grid item xs={6} md={3}>
+                                                    <FormLabel label="น้ำหนัก (กก.)">
+                                                        <TextField fullWidth type="number" value={newProductData.standardWeightKg} onChange={e => setNewProductData(prev => ({ ...prev, standardWeightKg: e.target.value }))} disabled={!canWrite} />
+                                                    </FormLabel>
+                                                </Grid>
+                                                <Grid item xs={6} md={3}>
+                                                    <FormLabel label="หน่วยนับ">
+                                                        <TextField fullWidth value={newProductData.unitName} onChange={e => setNewProductData(prev => ({ ...prev, unitName: e.target.value }))} disabled={!canWrite} />
+                                                    </FormLabel>
+                                                </Grid>
+                                                <Grid item xs={12} md={3}>
+                                                    <FormLabel label="อายุการใช้งาน (วัน)">
+                                                        <TextField fullWidth type="number" value={newProductData.maxLifespanDays} onChange={e => setNewProductData(prev => ({ ...prev, maxLifespanDays: e.target.value }))} disabled={!canWrite} />
+                                                    </FormLabel>
+                                                </Grid>
+                                                <Grid item xs={12} md={3}>
+                                                    <FormLabel label="อายุการใช้งาน (รอบซัก)">
+                                                        <TextField fullWidth type="number" value={maxWash} onChange={e => setMaxWash(Number(e.target.value))} disabled={!canWrite || newProductData.isDisposable} />
+                                                    </FormLabel>
+                                                </Grid>
+
+                                                <Grid item xs={12} sx={{ display: 'flex', alignItems: 'flex-end', pb: 1 }}>
+                                                    <FormControlLabel
+                                                        control={<Switch color="warning" checked={newProductData.isDisposable} onChange={e => setNewProductData(prev => ({ ...prev, isDisposable: e.target.checked }))} disabled={!canWrite} />}
+                                                        label={<Typography variant="body1" fontWeight="bold" color={newProductData.isDisposable ? 'warning.main' : 'textSecondary'}>เป็นผ้าชนิดใช้แล้วทิ้ง (Disposable)</Typography>}
+                                                    />
+                                                </Grid>
+                                            </Grid>
+                                        </Box>
+                                    </Collapse>
+                                </Box>
 
                                 {!isNewProduct && (
-                                    <Box sx={{ mt: 3 }}>
+                                    <Box sx={{ mt: 'auto', pt: 4 }}>
                                         <Grid container spacing={3} alignItems="center">
-                                            <Grid item xs={12} md={4}>
-                                                <FormLabel label="ตั้งค่ารอบซักสูงสุดของ Lot นี้">
-                                                    <TextField fullWidth type="number" value={maxWash} onChange={e => setMaxWash(Number(e.target.value))} disabled={!canWrite || selectedProduct?.isDisposable} InputProps={{ startAdornment: <InputAdornment position="start"><LocalLaundryService fontSize="small" /></InputAdornment>, endAdornment: <Typography variant="caption">รอบ</Typography> }} />
+                                            <Grid item xs={12} md={6}>
+                                                <FormLabel label="ตั้งค่ารอบซักสูงสุดของ Lot นี้ (สามารถปรับแก้ได้)">
+                                                    <TextField fullWidth type="number" value={maxWash} onChange={e => setMaxWash(Number(e.target.value))} disabled={!canWrite || selectedProduct?.isDisposable} InputProps={{ startAdornment: <InputAdornment position="start"><LocalLaundryService color="primary" /></InputAdornment>, endAdornment: <Typography variant="body2" fontWeight="bold" color="text.secondary">รอบ</Typography>, sx: { fontSize: '1.1rem' } }} />
                                                 </FormLabel>
                                             </Grid>
                                         </Grid>
@@ -524,20 +623,20 @@ const RegisterLinen: React.FC = () => {
                 </Grid>
 
                 {/* --- Right Column: Scanning Action --- */}
-                <Grid item xs={12} lg={4}>
-                    <Card elevation={0} sx={{ height: '100%', borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', flexDirection: 'column' }}>
+                <Grid item xs={12} lg={4} sx={{ display: 'flex' }}>
+                    <Card elevation={0} sx={{ width: '100%', borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', flexDirection: 'column' }}>
                         <CardContent sx={{ p: 0, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                             <Box sx={{ p: 3, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}><QrCodeScanner color="primary" /> จุดสแกน (Scanning Point)</Typography>
                             </Box>
 
-                            <Box sx={{ p: 3, flexGrow: 1 }}>
+                            <Box sx={{ p: 3, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                                 <Box sx={{ mb: 3 }}>
                                     <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
                                         <FormLabel label="เครื่องอ่าน RFID (Reader)" required />
                                         {selectedReader && <ReaderWakeButton readerName={selectedReader} isOnline={isReaderOnline} />}
                                     </Stack>
-                                    
+
                                     <Select fullWidth value={selectedReader} onChange={handleReaderChange} displayEmpty disabled={!canWrite}>
                                         <MenuItem value="" disabled>-- เลือกเครื่องอ่าน --</MenuItem>
                                         {readers.map((r) => (<MenuItem key={r.readerId} value={r.readerName}><Stack direction="row" alignItems="center" justifyContent="space-between" width="100%">{r.readerName}{r.isActive ? <CheckCircle fontSize="small" color="success" /> : <ErrorOutline fontSize="small" color="error" />}</Stack></MenuItem>))}
@@ -550,14 +649,13 @@ const RegisterLinen: React.FC = () => {
                                     </form>
                                 </Box>
 
-                                <Box sx={{ mb: 2 }}>
+                                <Box sx={{ mb: 2, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
                                         <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">รายการที่สแกนล่าสุด</Typography>
                                         <Chip label={`${scannedRfids.length}`} color={scannedRfids.length > 0 ? "primary" : "default"} size="small" />
                                     </Stack>
 
-                                    {/* ✅ ตารางรายการที่สแกน โชว์ข้อมูลที่ผูกไว้ให้ชัดเจน */}
-                                    <Paper elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2, maxHeight: 350, overflowY: 'auto', bgcolor: '#fafafa' }}>
+                                    <Paper elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2, flexGrow: 1, maxHeight: { xs: 350, lg: 500 }, overflowY: 'auto', bgcolor: '#fafafa' }}>
                                         <Table stickyHeader size="small">
                                             <TableHead>
                                                 <TableRow>
@@ -579,8 +677,8 @@ const RegisterLinen: React.FC = () => {
                                                                 <Typography variant="body2" fontWeight="500" noWrap>
                                                                     {isNewProduct ? (newProductData.productName || 'ยังไม่ระบุชื่อสินค้า') : (selectedProduct?.productName || 'ยังไม่ระบุสินค้า')}
                                                                 </Typography>
-                                                                <Typography variant="caption" color="text.secondary">
-                                                                    📍 {rooms.find(r => r.roomId.toString() === selectedLocation)?.roomName || 'ยังไม่ระบุสถานที่'}
+                                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                                    <Room fontSize="inherit" color="success" /> คลังผ้าสะอาด
                                                                 </Typography>
                                                             </TableCell>
                                                             <TableCell align="right" width="10%">
@@ -594,7 +692,7 @@ const RegisterLinen: React.FC = () => {
                                     </Paper>
 
                                     {scannedRfids.length > 0 && canWrite && (
-                                        <Button size="small" color="error" startIcon={<RestartAlt />} onClick={() => setScannedRfids([])} sx={{ mt: 1, width: '100%' }}>ล้างรายการทั้งหมด</Button>
+                                        <Button size="small" color="error" startIcon={<RestartAlt />} onClick={() => setScannedRfids([])} sx={{ mt: 2, width: '100%' }}>ล้างรายการทั้งหมด</Button>
                                     )}
                                 </Box>
                             </Box>
