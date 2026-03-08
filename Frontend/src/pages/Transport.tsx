@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Box, Paper, Typography, Card, CardContent,
+    Box, Typography, Card, CardContent,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Chip, CircularProgress, Button, Stack, useTheme, alpha
+    Chip, CircularProgress, Button, Stack, useTheme, alpha, TablePagination
 } from '@mui/material';
 import {
-    LocalShipping, History, Refresh, Room, Place
+    LocalShipping, History, Refresh, Place
 } from '@mui/icons-material';
 import axiosClient from '../api/axiosClient';
 import PageHeader from '../components/ui/PageHeader';
 
+/**
+ * โครงสร้างข้อมูลรายการติดตามสถานะการขนส่งผ้า
+ * @interface TransportMonitorItem
+ */
 interface TransportMonitorItem {
     rfid: string;
     productName: string;
@@ -18,20 +22,33 @@ interface TransportMonitorItem {
     updatedAt: string;
 }
 
+/**
+ * หน้าจอติดตามสถานะการขนส่ง (Transport Monitor)
+ * 
+ * @returns {JSX.Element} คอมโพเนนต์หน้าจอติดตามสถานะ
+ */
 const Transport: React.FC = () => {
     const theme = useTheme();
-    
-    // ✅ การเช็คสิทธิ์แบบละเอียด
+
+    // ตรวจสอบสิทธิ์การเข้าใช้งานอย่างละเอียด
     const userStr = localStorage.getItem('currentUser');
     const currentUser = userStr ? JSON.parse(userStr) : null;
     const permissions = currentUser?.permissions || currentUser?.Permissions || [];
     const roleId = currentUser?.roleId || currentUser?.RoleId || 0;
-    
-    // เช็คสิทธิ์จัดการขนส่ง (ถ้าไม่มีก็จะดูรายการตารางได้เฉยๆ)
+
+    // ตรวจสอบสิทธิ์สำหรับการจัดการ (หากไม่มีสิทธิ์จะสามารถดูตารางได้เพียงอย่างเดียว)
     const canManage = roleId === 1 || permissions.includes('MANAGE_TRANSPORT');
 
     const [transportList, setTransportList] = useState<TransportMonitorItem[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
+    const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setRowsPerPage(+event.target.value);
+        setPage(0);
+    };
 
     useEffect(() => {
         fetchTransportList();
@@ -90,15 +107,15 @@ const Transport: React.FC = () => {
             <Box sx={{ flexGrow: 1, p: 3, pt: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <Card elevation={0} sx={{ flex: 1, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', flexDirection: 'column' }}>
                     <CardContent sx={{ p: 0, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                        
+
                         <Box sx={{ p: 2, px: 3, bgcolor: alpha(theme.palette.warning.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <Stack direction="row" alignItems="center" gap={1.5}>
                                 <History color="warning" />
                                 <Typography variant="h6" fontWeight="bold" color="warning.dark">รายการผ้ากำลังขนส่ง (In Transit List)</Typography>
                                 <Chip label={`${transportList.length} รายการ`} size="small" color="warning" sx={{ fontWeight: 'bold', ml: 1 }} />
                             </Stack>
-                            
-                            {/* ซ่อนปุ่มอัปเดต ถ้าไม่ได้รับสิทธิ์ Manage */}
+
+                            {/* ซ่อนปุ่มอัปเดต ถ้าไม่ได้รับสิทธิ์สำหรับการจัดการ (Manage) */}
                             {canManage && (
                                 <Button startIcon={<Refresh />} size="small" variant="outlined" color="warning" onClick={() => { setLoading(true); fetchTransportList(); }}>
                                     อัปเดตข้อมูล
@@ -106,8 +123,8 @@ const Transport: React.FC = () => {
                             )}
                         </Box>
 
-                        <TableContainer sx={{ flexGrow: 1, overflowY: 'auto' }}>
-                            <Table stickyHeader size="medium">
+                        <TableContainer sx={{ flexGrow: 1 }}>
+                            <Table size="medium">
                                 <TableHead>
                                     <TableRow>
                                         <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc', width: '20%' }}>RFID Code</TableCell>
@@ -123,7 +140,7 @@ const Transport: React.FC = () => {
                                     ) : transportList.length === 0 ? (
                                         <TableRow><TableCell colSpan={5} align="center" sx={{ py: 10, color: 'text.secondary' }}>ไม่พบรายการผ้าที่กำลังขนส่ง</TableCell></TableRow>
                                     ) : (
-                                        transportList.map((item, index) => (
+                                        transportList.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((item, index) => (
                                             <TableRow key={`${item.rfid}-${index}`} hover sx={{ '& td': { py: 1.5 } }}>
                                                 <TableCell sx={{ fontFamily: 'monospace', fontWeight: 'bold', color: 'primary.main' }}>
                                                     {item.rfid}
@@ -148,6 +165,15 @@ const Transport: React.FC = () => {
                                 </TableBody>
                             </Table>
                         </TableContainer>
+                        <TablePagination
+                            rowsPerPageOptions={[5, 10, 25]}
+                            component="div"
+                            count={transportList.length}
+                            rowsPerPage={rowsPerPage}
+                            page={page}
+                            onPageChange={handleChangePage}
+                            onRowsPerPageChange={handleChangeRowsPerPage}
+                        />
 
                     </CardContent>
                 </Card>

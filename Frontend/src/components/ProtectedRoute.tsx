@@ -1,32 +1,40 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 
+/**
+ * คุณสมบัติข้อมูลกั้นสิทธิ์สำหรับเส้นทางที่จำกัดพฤติกรรม
+ * @interface ProtectedRouteProps
+ * @property {string} [requiredPermission] สิทธิ์เจาะจงที่บังคับให้ตั๋วผู้ใช้ต้องมีถึงจะผ่านหน้านี้ได้
+ */
 interface ProtectedRouteProps {
-  requiredPermission?: string; // สิทธิ์ที่ต้องมี (เช่น 'MANAGE_USER')
+  requiredPermission?: string;
 }
 
+/**
+ * คอมโพเนนต์ครอบเส้นทางที่ใช้ดักจับและปกป้องการเข้าถึงจากผู้ใช้ที่ไม่มีสิทธิ์
+ * จะตรวจสอบเซสชั่นปัจจุบันและการกระจายสิทธิ์ (Permissions List) เพื่อเปิดทางผ่าน
+ * 
+ * @param {ProtectedRouteProps} props ข้อมูลคุณสมบัติความปลอดภัยและสิทธิ์ที่ต้องการ
+ * @returns {JSX.Element} สั่งเรนเดอร์เนื้อหาย่อยข้างใน หรือส่งคำสั่งนำทางกลับไปหน้าอื่น
+ */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ requiredPermission }) => {
-  // 1. ดึง User จาก LocalStorage (หรือ Context)
   const userStr = localStorage.getItem('currentUser');
   const user = userStr ? JSON.parse(userStr) : null;
 
-  // 2. ถ้าไม่ได้ Login -> ดีดไปหน้า Login
+  // ป้องกันผู้ใช้ทั่วไปภายนอก หากตรวจสอบไม่พบเซสชั่นที่เซฟไว้จะสกัดและดีดออก
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // 3. ถ้าหน้านี้ต้องการสิทธิ์พิเศษ แต่ User ไม่มี -> ดีดไปหน้า 403 หรือ Dashboard
   if (requiredPermission) {
-    // สมมติว่าตอน Login เราส่ง array permissions มาใน user.permissions หรือ user.Permissions
     const userPermissions: string[] = user.Permissions || user.permissions || [];
-    
+
+    // ตัดสิทธิ์ไม่อนุญาตให้เปิดหน้าและดีดไปหน้า 403 (unauthorized) ถ้าไม่มีสิทธิ์ตามเงื่อนไข
     if (!userPermissions.includes(requiredPermission)) {
-      // ไม่มีสิทธิ์!
-      return <Navigate to="/unauthorized" replace />; // หรือ redirect ไป "/"
+      return <Navigate to="/unauthorized" replace />;
     }
   }
 
-  // 4. ผ่านฉลุย -> ให้เข้าหน้าได้
   return <Outlet />;
 };
 

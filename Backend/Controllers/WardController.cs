@@ -4,97 +4,57 @@ using Backend.Models;
 
 namespace Backend.Controllers;
 
+/// <summary>
+/// ควบคุมชั้นและพื้นที่หอผู้ป่วย หรือส่วนบริการแยกส่วนต่างๆ ของระบบโรงพยาบาล
+/// </summary>
 [Route("api/[controller]")]
 [ApiController]
 public class WardController : ControllerBase
 {
-    private readonly LinenDbContext _context;
+    private readonly Services.IWardService _service;
 
-    public WardController(LinenDbContext context)
+    /// <summary>
+    /// กำหนดค่าเริ่มต้นให้กับ WardController
+    /// </summary>
+    /// <param name="service">บริการสำหรับการจัดการข้อมูลวอร์ด</param>
+    public WardController(Services.IWardService service)
     {
-        _context = context;
+        _service = service;
     }
 
-    // GET: api/Ward
+    /// <summary>
+    /// ดึงรายการหอผู้ป่วย(Ward) ที่มีข้อมูลทั้งหมด
+    /// </summary>
+    /// <returns>โครงสร้างข้อมูลวอร์ดทั้งหมด</returns>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Ward>>> GetWards()
     {
-        return await _context.Wards
-            .Include(w => w.Hospital) // ดึงชื่อโรงพยาบาลมาด้วย
-            .OrderBy(w => w.WardName)
-            .ToListAsync();
+        return Ok(await _service.GetWardsAsync());
     }
 
-    // POST: api/Ward
+    /// <summary>
+    /// ทำการยืนยันและการบันทึกหอผู้ป่วยใหม่
+    /// </summary>
+    /// <param name="ward">ชื่อและข้อมูลประกอบของวอร์ด</param>
+    /// <returns>โครงสร้างข้อมูลหลังการส่งแจ้งระบบแล้ว</returns>
     [HttpPost]
     public async Task<ActionResult<Ward>> PostWard(Ward ward)
     {
-        // 1. กำหนดค่า Default
-        if (ward.IsActive == null) ward.IsActive = true;
-
-        // 2. เริ่ม Transaction (เพื่อความปลอดภัยของข้อมูล)
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
-        {
-            // -------------------------------------------------------
-            // Step A: บันทึก Ward ก่อน (เพื่อให้ได้ WardId)
-            // -------------------------------------------------------
-            _context.Wards.Add(ward);
-            await _context.SaveChangesAsync(); // จังหวะนี้จะได้ ward.WardId มาแล้ว
-
-            // -------------------------------------------------------
-            // Step B: Auto Sync สร้าง Room (ถ้ายังไม่มี)
-            // -------------------------------------------------------
-            // เช็คว่ามีห้องชื่อนี้หรือยัง?
-            var roomExists = await _context.Rooms.AnyAsync(r => r.RoomName == ward.WardName);
-            if (!roomExists)
-            {
-                var newRoom = new Room
-                {
-                    RoomName = ward.WardName,
-                    Description = "หอผู้ป่วย (Auto Sync)",
-                    WardId = ward.WardId, // ✅ เอา ID จากขั้นตอนแรกมาใส่ได้เลย!
-                    // IsActive หรือ CreatedAt ปล่อยให้ Database จัดการ (Default Value)
-                };
-                
-                _context.Rooms.Add(newRoom);
-                await _context.SaveChangesAsync(); // บันทึกห้องตามเข้าไป
-            }
-
-            // -------------------------------------------------------
-            // Step C: ยืนยันการบันทึกทั้งหมด
-            // -------------------------------------------------------
-            await transaction.CommitAsync();
-
-            return CreatedAtAction("GetWards", new { id = ward.WardId }, ward);
-        }
-        catch (Exception ex)
-        {
-            // ❌ ถ้ามีอะไรพัง ให้ยกเลิกทั้งหมด (ไม่ให้มีข้อมูลขยะ)
-            await transaction.RollbackAsync();
-
-            // 🔥 ดึงข้อความ Error จริงๆ ออกมาดู (Inner Exception)
-            var realError = ex.InnerException?.Message ?? ex.Message;
-            Console.WriteLine($"❌ Save Error: {realError}"); // ดูใน Terminal ได้เลย
-
-            return StatusCode(500, new { message = "บันทึกไม่สำเร็จ: " + realError });
-        }
+        var result = await _service.PostWardAsync(ward);
+        if (result.Status == 500) return StatusCode(500, new { message = result.Message });
+        return CreatedAtAction("GetWards", new { id = result.Item?.WardId }, result.Item);
     }
 
-    // DELETE: api/Ward/5
+    /// <summary>
+    /// ถอดถอนหอผู้ป่วยออกจากระบบ
+    /// </summary>
+    /// <param name="id">รหัสวอร์ดที่เลิกใช้งาน</param>
+    /// <returns>รหัสสถานการณ์หลังจากลบส่วนปฏิบัติการแล้ว</returns>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteWard(int id)
     {
-        var ward = await _context.Wards.FindAsync(id);
-        if (ward == null) return NotFound();
-
-        // (Optional) ลบ Room ที่ผูกกับ Ward นี้ด้วยก็ได้ถ้าต้องการ
-        /* var linkedRoom = await _context.Rooms.FirstOrDefaultAsync(r => r.WardId == id);
-        if(linkedRoom != null) _context.Rooms.Remove(linkedRoom);
-        */
-
-        _context.Wards.Remove(ward);
-        await _context.SaveChangesAsync();
+        var result = await _service.DeleteWardAsync(id);
+        if (result.Status == 404) return NotFound();
 
         return NoContent();
     }

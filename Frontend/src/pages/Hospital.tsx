@@ -4,7 +4,7 @@ import {
   TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Tabs, Tab, Select, MenuItem,
   Chip, InputAdornment, Stack, CircularProgress, Alert,
-  useTheme, alpha
+  useTheme, alpha, TablePagination
 } from '@mui/material';
 import {
   AddCircle, Delete, Domain, MeetingRoom, Edit, ListAlt, Apartment, CorporateFare, Save, Cancel,
@@ -17,10 +17,17 @@ import { sendNotification } from '../utils/notificationUtil';
 import PageHeader from '../components/ui/PageHeader';
 import FormLabel from '../components/ui/FormLabel';
 
-const API_BASE_URL = 'http://localhost:5134/api';
+/**
+ * กำหนด URL สำหรับเชื่อมต่อ API ระบบโรงพยาบาลและแผนก
+ */
+const API_BASE_URL = 'https://api.rfidtracking.space/api';
 const API_HOSPITAL = `${API_BASE_URL}/Hospital`;
 const API_WARD = `${API_BASE_URL}/Ward`;
 
+/**
+ * โครงสร้างข้อมูลโรงพยาบาล
+ * @interface Hospital
+ */
 interface Hospital {
   hospitalId: number;
   hospitalName: string;
@@ -28,6 +35,10 @@ interface Hospital {
   contactInfo?: string;
 }
 
+/**
+ * โครงสร้างข้อมูลแผนก/วอร์ด
+ * @interface Ward
+ */
 interface Ward {
   wardId: number;
   wardName: string;
@@ -36,22 +47,27 @@ interface Ward {
   isActive: boolean;
 }
 
+/**
+ * หน้าจอจัดการข้อมูลองค์กร (โรงพยาบาลและวอร์ด)
+ * 
+ * @returns {JSX.Element} คอมโพเนนต์หน้าจอจัดการโรงพยาบาล
+ */
 const HospitalPage: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
 
-  // ✅ การเช็คสิทธิ์แบบละเอียด
+  // ตรวจสอบสิทธิ์การเข้าถึงข้อมูลและการกระทำต่างๆ แบบละเอียด
   const userStr = localStorage.getItem('currentUser');
   const currentUser = userStr ? JSON.parse(userStr) : null;
   const permissions = currentUser?.permissions || currentUser?.Permissions || [];
   const roleId = currentUser?.roleId || currentUser?.RoleId || 0;
-  
-  // เช็คว่ามีสิทธิ์เขียน(เพิ่ม), แก้ไข, ลบ หรือไม่
+
+  // ตรวจสอบสิทธิ์การสร้าง แก้ไข และลบข้อมูล
   const canWrite = roleId === 1 || permissions.includes('WRITE_HOSPITAL');
   const canEdit = roleId === 1 || permissions.includes('EDIT_HOSPITAL');
   const canDelete = roleId === 1 || permissions.includes('DELETE_HOSPITAL');
 
-  // --- States ---
+  // สถานะต่างๆ ที่ใช้สำหรับควบคุมการทำงานภายในหน้าจอ
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +77,22 @@ const HospitalPage: React.FC = () => {
 
   const [hospitalForm, setHospitalForm] = useState({ name: '', address: '', contact: '' });
   const [editHospitalId, setEditHospitalId] = useState<number | null>(null);
+
+  const [page1, setPage1] = useState(0);
+  const [rowsPerPage1, setRowsPerPage1] = useState(10);
+  const handleChangePage1 = (event: unknown, newPage: number) => setPage1(newPage);
+  const handleChangeRowsPerPage1 = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage1(+event.target.value);
+    setPage1(0);
+  };
+
+  const [page2, setPage2] = useState(0);
+  const [rowsPerPage2, setRowsPerPage2] = useState(10);
+  const handleChangePage2 = (event: unknown, newPage: number) => setPage2(newPage);
+  const handleChangeRowsPerPage2 = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage2(+event.target.value);
+    setPage2(0);
+  };
 
   const [wardForm, setWardForm] = useState({ name: '', hospitalId: '' });
   const [editWardId, setEditWardId] = useState<number | null>(null);
@@ -86,7 +118,7 @@ const HospitalPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = async () => {
@@ -116,7 +148,7 @@ const HospitalPage: React.FC = () => {
     handleCancelWard();
   };
 
-  // ================= HOSPITAL LOGIC =================
+  // ส่วนจัดการข้อมูลขององค์กร (Hospital Logic)
   const handleEditHospital = (hospital: Hospital) => {
     setEditHospitalId(hospital.hospitalId);
     setHospitalForm({ name: hospital.hospitalName, address: hospital.address || '', contact: hospital.contactInfo || '' });
@@ -159,7 +191,7 @@ const HospitalPage: React.FC = () => {
     });
   };
 
-  // ================= WARD LOGIC =================
+  // ส่วนจัดการข้อมูลของแผนกและวอร์ด (Ward Logic)
   const handleEditWard = (ward: Ward) => {
     setEditWardId(ward.wardId);
     setWardForm({ name: ward.wardName, hospitalId: ward.hospitalId.toString() });
@@ -220,10 +252,10 @@ const HospitalPage: React.FC = () => {
         </Tabs>
       </Box>
 
-      {/* --- Tab 1: Hospital Content --- */}
+      {/* ส่วนแสดงผลข้อมูลโรงพยาบาล (แท็บที่ 1) */}
       <Paper variant="outlined" sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: tabValue === 0 ? 'block' : 'none' }}>
-        
-        {/* ซ่อนฟอร์มสร้าง/แก้ไข ถ้าไม่มีสิทธิ์ */}
+
+        {/* ซ่อนฟอร์มการสร้างและแก้ไขหากผู้ใช้งานไม่มีสิทธิ */}
         {(canWrite || (editHospitalId && canEdit)) && (
           <Box sx={{ p: 4, bgcolor: editHospitalId ? alpha(theme.palette.warning.light, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
             <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: editHospitalId ? theme.palette.warning.dark : theme.palette.primary.dark }}>
@@ -256,7 +288,7 @@ const HospitalPage: React.FC = () => {
             <Table>
               <TableHead><TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}><TableCell>ชื่อโรงพยาบาล</TableCell><TableCell>ที่อยู่</TableCell><TableCell align="center">จัดการ</TableCell></TableRow></TableHead>
               <TableBody>
-                {hospitals.map((h) => (
+                {hospitals.slice(page1 * rowsPerPage1, page1 * rowsPerPage1 + rowsPerPage1).map((h) => (
                   <TableRow key={h.hospitalId} hover>
                     <TableCell><Typography fontWeight={600} variant="body2">{h.hospitalName}</Typography></TableCell>
                     <TableCell><Typography variant="body2" color="text.secondary">{h.address || '-'}</Typography></TableCell>
@@ -272,13 +304,22 @@ const HospitalPage: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25]}
+            component="div"
+            count={hospitals.length}
+            rowsPerPage={rowsPerPage1}
+            page={page1}
+            onPageChange={handleChangePage1}
+            onRowsPerPageChange={handleChangeRowsPerPage1}
+          />
         </Box>
       </Paper>
 
-      {/* --- Tab 2: Ward Content --- */}
+      {/* ส่วนแสดงผลข้อมูลแผนก/วอร์ด (แท็บที่ 2) */}
       <Paper variant="outlined" sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: tabValue === 1 ? 'block' : 'none' }}>
-        
-        {/* ซ่อนฟอร์มสร้าง/แก้ไข ถ้าไม่มีสิทธิ์ */}
+
+        {/* ซ่อนฟอร์มการสร้างและแก้ไขหากผู้ใช้งานไม่มีสิทธิ */}
         {(canWrite || (editWardId && canEdit)) && (
           <Box sx={{ p: 4, bgcolor: editWardId ? alpha(theme.palette.warning.light, 0.05) : '#fff', borderBottom: `1px solid ${theme.palette.divider}` }}>
             <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: editWardId ? theme.palette.warning.dark : theme.palette.primary.dark }}>
@@ -320,7 +361,7 @@ const HospitalPage: React.FC = () => {
             <Table>
               <TableHead><TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}><TableCell>ชื่อวอร์ด / แผนก</TableCell><TableCell>สังกัดโรงพยาบาล</TableCell><TableCell align="center">จัดการ</TableCell></TableRow></TableHead>
               <TableBody>
-                {wards.map((w) => (
+                {wards.slice(page2 * rowsPerPage2, page2 * rowsPerPage2 + rowsPerPage2).map((w) => (
                   <TableRow key={w.wardId} hover>
                     <TableCell><Typography fontWeight={600} variant="body2">{w.wardName}</Typography></TableCell>
                     <TableCell><Chip label={w.hospital?.hospitalName || 'Unknown'} size="small" variant="outlined" /></TableCell>
@@ -336,6 +377,15 @@ const HospitalPage: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25]}
+            component="div"
+            count={wards.length}
+            rowsPerPage={rowsPerPage2}
+            page={page2}
+            onPageChange={handleChangePage2}
+            onRowsPerPageChange={handleChangeRowsPerPage2}
+          />
         </Box>
       </Paper>
     </Box>

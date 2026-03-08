@@ -4,7 +4,7 @@ import {
     TableBody, TableCell, TableContainer, TableHead, TableRow,
     IconButton, Card, CardContent, FormControl, Select, MenuItem,
     Stack, Tooltip, Collapse, useTheme, alpha,
-    Alert, CircularProgress, Chip
+    Alert, CircularProgress, Chip, TablePagination
 } from '@mui/material';
 import {
     LinkOff, Delete, Search, Build, BugReport, DeleteForever,
@@ -16,13 +16,20 @@ import { sendNotification } from '../utils/notificationUtil';
 import PageHeader from '../components/ui/PageHeader';
 import FormLabel from '../components/ui/FormLabel';
 
+/**
+ * โครงสร้างข้อมูลรายการที่สแกน
+ * @interface CandidateItem
+ */
 interface CandidateItem {
     rfidCode: string;
     productName: string;
     status: string;
 }
 
-// ✅ 1. เปลี่ยน Interface ให้เหมือน MovementItem ของหน้ารายงาน
+/**
+ * โครงสร้างข้อมูลประวัติการตัดจำหน่าย (เหมือนหน้า Report)
+ * @interface DiscardMonitorItem
+ */
 interface DiscardMonitorItem {
     id: string | number;
     date: string;
@@ -33,6 +40,11 @@ interface DiscardMonitorItem {
     user: string;
 }
 
+/**
+ * หน้าจอการตัดจำหน่ายผ้า (Discard & Reset Tag)
+ * 
+ * @returns {JSX.Element} คอมโพเนนต์หน้าจอการตัดจำหน่าย
+ */
 const Discard: React.FC = () => {
     const theme = useTheme();
 
@@ -40,11 +52,11 @@ const Discard: React.FC = () => {
     const currentUser = userStr ? JSON.parse(userStr) : null;
     const permissions = currentUser?.permissions || currentUser?.Permissions || [];
     const roleId = currentUser?.roleId || currentUser?.RoleId || 0;
-    
+
     const canManage = roleId === 1 || permissions.includes('MANAGE_DISCARD');
 
     const [reasons, setReasons] = useState<any[]>([]);
-    
+
     const [rfidInput, setRfidInput] = useState('');
     const [selectedReason, setSelectedReason] = useState<string>('');
     const [note, setNote] = useState('');
@@ -53,7 +65,7 @@ const Discard: React.FC = () => {
     const [discardedList, setDiscardedList] = useState<DiscardMonitorItem[]>([]);
     const [loadingTable, setLoadingTable] = useState(true);
 
-    // Session Logs เพื่อให้ข้อมูลค้างบนจอไม่หายไปตอน Refresh
+    // เก็บประวัติการตัดจำหน่ายใน Session Storage ชั่วคราว เพื่อไม่ให้หายเมื่อรีเฟรชหน้าจอ
     const [sessionLogs, setSessionLogs] = useState<DiscardMonitorItem[]>(() => {
         const savedLogs = sessionStorage.getItem('discardSessionLogs');
         return savedLogs ? JSON.parse(savedLogs) : [];
@@ -62,9 +74,25 @@ const Discard: React.FC = () => {
     const [manualRfid, setManualRfid] = useState('');
     const [showTroubleshoot, setShowTroubleshoot] = useState(false);
 
+    const [page1, setPage1] = useState(0);
+    const [rowsPerPage1, setRowsPerPage1] = useState(10);
+    const handleChangePage1 = (event: unknown, newPage: number) => setPage1(newPage);
+    const handleChangeRowsPerPage1 = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setRowsPerPage1(+event.target.value);
+        setPage1(0);
+    };
+
+    const [page2, setPage2] = useState(0);
+    const [rowsPerPage2, setRowsPerPage2] = useState(10);
+    const handleChangePage2 = (event: unknown, newPage: number) => setPage2(newPage);
+    const handleChangeRowsPerPage2 = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setRowsPerPage2(+event.target.value);
+        setPage2(0);
+    };
+
     useEffect(() => {
         fetchReasons();
-        fetchDiscardedList(); 
+        fetchDiscardedList();
 
         const interval = setInterval(() => {
             fetchDiscardedList();
@@ -93,7 +121,7 @@ const Discard: React.FC = () => {
 
         window.addEventListener("RFID_SCANNED", handleAutoScan);
         return () => window.removeEventListener("RFID_SCANNED", handleAutoScan);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [canManage]);
 
     const findAndAddLinen = async (rfid: string) => {
@@ -129,19 +157,19 @@ const Discard: React.FC = () => {
         } catch (err) { console.error(err); }
     };
 
-    // ✅ 2. ดึงข้อมูลจาก API /Report/Movement เหมือนหน้ารายงาน
+    // ดึงข้อมูลประวัติความเคลื่อนไหวจากระบบ
     const fetchDiscardedList = async () => {
         try {
             const res = await axiosClient.get('/Report/Movement');
             const data = res.data || [];
 
-            // กรองเอาเฉพาะรายการที่เป็น "จำหน่ายออก" (DISCARD)
+            // กรองเงื่อนไขนำเฉพาะข้อมูลประเภท "จำหน่ายออก"
             const filtered = data.filter((item: any) => {
                 const t = (item.type || '').toUpperCase();
                 return t === 'DISCARD' || t === 'LOST' || t === 'DAMAGED' || t === 'จำหน่ายออก';
             });
 
-            // เรียงลำดับจากใหม่ไปเก่า
+            // เรียงลำดับข้อมูลจากรายการล่าสุดไปเก่าสุด
             filtered.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
             const mappedData: DiscardMonitorItem[] = filtered.map((item: any) => ({
@@ -154,11 +182,11 @@ const Discard: React.FC = () => {
                 user: item.user || 'Auto System'
             }));
 
-            // นำไปโชว์ในตาราง (เอาแค่ 30 รายการล่าสุด)
+            // แสดงผลเฉพาะ 30 รายการล่าสุด
             setDiscardedList(mappedData.slice(0, 30));
             setLoadingTable(false);
-        } catch (err) { 
-            console.error("Fetch Discarded Error: ", err); 
+        } catch (err) {
+            console.error("Fetch Discarded Error: ", err);
             setLoadingTable(false);
         }
     };
@@ -167,9 +195,9 @@ const Discard: React.FC = () => {
         e.preventDefault();
         const cleanRfid = rfidInput.trim();
         if (!cleanRfid) return;
-        
+
         await findAndAddLinen(cleanRfid);
-        setRfidInput(''); 
+        setRfidInput('');
     };
 
     const handleRemoveItem = (rfid: string) => {
@@ -224,8 +252,8 @@ const Discard: React.FC = () => {
                     Swal.fire('สำเร็จ', 'ตัดจำหน่ายและคืนค่าแท็กเรียบร้อย (Reset Tag)', 'success');
 
                     const reasonName = reasons.find(r => String(r.reasonId || r.id) === selectedReason)?.reasonName || 'ไม่ระบุ';
-                    
-                    // ✅ สร้าง Log ส่งเข้า sessionStorage ให้หน้าตาเหมือน Report
+
+                    // บันทึกประวัติการส่งตัดจำหน่ายลง Session Storage ชั่วคราว
                     const newLogs: DiscardMonitorItem[] = scannedItems.map((i, index) => ({
                         id: `temp-${Date.now()}-${index}`,
                         date: new Date().toISOString(),
@@ -244,8 +272,8 @@ const Discard: React.FC = () => {
                     );
 
                     clearForm();
-                    // เรียกอัปเดตข้อมูลตาราง
-                    setTimeout(() => fetchDiscardedList(), 1000); 
+                    // ร้องขอให้ตารางดึงข้อมูลล่าช้าเล็กน้อยเพื่อให้ฐานข้อมูลอัปเดต
+                    setTimeout(() => fetchDiscardedList(), 1000);
                 } catch (err: any) {
                     Swal.fire('Error', err.response?.data?.message || 'เกิดข้อผิดพลาด', 'error');
                 }
@@ -269,7 +297,7 @@ const Discard: React.FC = () => {
                     await axiosClient.post('/Linen/DeleteBatch', scannedItems.map(i => i.rfidCode));
                     Swal.fire('ลบสำเร็จ', 'ลบข้อมูลออกจากระบบถาวรแล้ว', 'success');
 
-                    // ✅ สร้าง Log สำหรับลบถาวร
+                    // บันทึกประวัติการลบข้อมูลถาวร
                     const newLogs: DiscardMonitorItem[] = scannedItems.map((i, index) => ({
                         id: `del-${Date.now()}-${index}`,
                         date: new Date().toISOString(),
@@ -301,10 +329,10 @@ const Discard: React.FC = () => {
         setSelectedReason('');
     };
 
-    // นำ Session Logs มาเรียงรวมกับของที่ดึงได้จาก DB Report
+    // รวมประวัติจํานวนจำหน่ายในช่วง Session ปัจจุบันเข้ากับข้อมูลจากฐานข้อมูล
     const displayList = [...sessionLogs];
     discardedList.forEach(item => {
-        // เช็คชื่อสินค้า/flow ว่าซ้ำกับใน Session ไหม (ป้องกันขึ้นเบิ้ล 2 บรรทัด)
+        // ป้องกันการแสดงผลซ้ำซ้อนซ้อนทับกันระหว่าง Session และ Database
         if (!displayList.find(log => log.productName.includes(item.productName) && log.date === item.date)) {
             displayList.push(item);
         }
@@ -378,40 +406,51 @@ const Discard: React.FC = () => {
                         </Grid>
 
                         {scannedItems.length > 0 && (
-                            <TableContainer sx={{ mt: 3, maxHeight: 300, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-                                <Table stickyHeader size="small">
-                                    <TableHead>
-                                        <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>สินค้า</TableCell>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>RFID Code</TableCell>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>สถานะ</TableCell>
-                                            <TableCell align="center" sx={{ fontWeight: 'bold' }}>ลบ</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {scannedItems.map((item, idx) => (
-                                            <TableRow key={idx} hover>
-                                                <TableCell sx={{ fontWeight: 'bold', maxWidth: 200 }}>
-                                                    <Tooltip title={item.productName}>
-                                                        <Typography variant="body2" fontWeight="bold" noWrap>{item.productName}</Typography>
-                                                    </Tooltip>
-                                                </TableCell>
-                                                <TableCell sx={{ maxWidth: 150 }}>
-                                                    <Tooltip title={item.rfidCode}>
-                                                        <Typography variant="body2" fontFamily="monospace" color="primary.main" noWrap>{item.rfidCode}</Typography>
-                                                    </Tooltip>
-                                                </TableCell>
-                                                <TableCell>{item.status}</TableCell>
-                                                <TableCell align="center">
-                                                    <IconButton size="small" color="error" onClick={() => handleRemoveItem(item.rfidCode)}>
-                                                        <Delete fontSize="small" />
-                                                    </IconButton>
-                                                </TableCell>
+                            <>
+                                <TableContainer sx={{ mt: 3, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+                                    <Table size="small">
+                                        <TableHead>
+                                            <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
+                                                <TableCell sx={{ fontWeight: 'bold' }}>สินค้า</TableCell>
+                                                <TableCell sx={{ fontWeight: 'bold' }}>RFID Code</TableCell>
+                                                <TableCell sx={{ fontWeight: 'bold' }}>สถานะ</TableCell>
+                                                <TableCell align="center" sx={{ fontWeight: 'bold' }}>ลบ</TableCell>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
+                                        </TableHead>
+                                        <TableBody>
+                                            {scannedItems.slice(page1 * rowsPerPage1, page1 * rowsPerPage1 + rowsPerPage1).map((item, idx) => (
+                                                <TableRow key={idx} hover>
+                                                    <TableCell sx={{ fontWeight: 'bold', maxWidth: 200 }}>
+                                                        <Tooltip title={item.productName}>
+                                                            <Typography variant="body2" fontWeight="bold" noWrap>{item.productName}</Typography>
+                                                        </Tooltip>
+                                                    </TableCell>
+                                                    <TableCell sx={{ maxWidth: 150 }}>
+                                                        <Tooltip title={item.rfidCode}>
+                                                            <Typography variant="body2" fontFamily="monospace" color="primary.main" noWrap>{item.rfidCode}</Typography>
+                                                        </Tooltip>
+                                                    </TableCell>
+                                                    <TableCell>{item.status}</TableCell>
+                                                    <TableCell align="center">
+                                                        <IconButton size="small" color="error" onClick={() => handleRemoveItem(item.rfidCode)}>
+                                                            <Delete fontSize="small" />
+                                                        </IconButton>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                                <TablePagination
+                                    rowsPerPageOptions={[5, 10, 25]}
+                                    component="div"
+                                    count={scannedItems.length}
+                                    rowsPerPage={rowsPerPage1}
+                                    page={page1}
+                                    onPageChange={handleChangePage1}
+                                    onRowsPerPageChange={handleChangeRowsPerPage1}
+                                />
+                            </>
                         )}
                     </CardContent>
                 </Card>
@@ -446,7 +485,7 @@ const Discard: React.FC = () => {
                 </Box>
             )}
 
-            {/* ✅ 3. ตารางสีแดง: โคลนคอลัมน์และ UI มาจากหน้า Reports.tsx แต่อยู่ในธีมสีแดง */}
+            {/* ตารางแสดงประวัติความเคลื่อนไหวของการตัดจำหน่าย (ธีมสีแดง) */}
             <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.error.light}` }}>
                 <Box sx={{ p: 2, bgcolor: alpha(theme.palette.error.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Stack direction="row" alignItems="center" gap={1.5}>
@@ -464,11 +503,11 @@ const Discard: React.FC = () => {
                     </Box>
                 </Box>
 
-                <TableContainer sx={{ maxHeight: 400 }}>
-                    <Table stickyHeader size="small">
+                <TableContainer>
+                    <Table size="small">
                         <TableHead>
                             <TableRow>
-                                {/* เรียงคอลัมน์เหมือนหน้า Report เลยครับ */}
+                                {/* คอลัมน์รูปแบบเดียวกับหน้าต่างรายงานความเคลื่อนไหว */}
                                 <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc' }}>วัน/เวลา</TableCell>
                                 <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc' }}>ประเภท</TableCell>
                                 <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc' }}>สินค้า (RFID)</TableCell>
@@ -483,18 +522,18 @@ const Discard: React.FC = () => {
                             ) : displayList.length === 0 ? (
                                 <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>ไม่พบประวัติการจำหน่ายออก</TableCell></TableRow>
                             ) : (
-                                displayList.map((item, index) => (
+                                displayList.slice(page2 * rowsPerPage2, page2 * rowsPerPage2 + rowsPerPage2).map((item, index) => (
                                     <TableRow key={`${item.id}-${index}`} hover sx={{ '& td': { py: 1.5 }, bgcolor: item.type === 'ลบถาวร' ? alpha(theme.palette.error.main, 0.02) : 'inherit' }}>
                                         <TableCell sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
                                             {new Date(item.date).toLocaleString('th-TH')}
                                         </TableCell>
                                         <TableCell>
-                                            <Chip 
-                                                label={item.type} 
-                                                color="error" 
-                                                size="small" 
-                                                variant={item.type === 'ลบถาวร' ? 'outlined' : 'filled'} 
-                                                sx={{ fontWeight: 'normal', minWidth: 90 }} 
+                                            <Chip
+                                                label={item.type}
+                                                color="error"
+                                                size="small"
+                                                variant={item.type === 'ลบถาวร' ? 'outlined' : 'filled'}
+                                                sx={{ fontWeight: 'normal', minWidth: 90 }}
                                             />
                                         </TableCell>
                                         <TableCell sx={{ fontWeight: 'normal', color: 'text.primary' }}>
@@ -517,6 +556,15 @@ const Discard: React.FC = () => {
                         </TableBody>
                     </Table>
                 </TableContainer>
+                <TablePagination
+                    rowsPerPageOptions={[5, 10, 25, 50]}
+                    component="div"
+                    count={displayList.length}
+                    rowsPerPage={rowsPerPage2}
+                    page={page2}
+                    onPageChange={handleChangePage2}
+                    onRowsPerPageChange={handleChangeRowsPerPage2}
+                />
             </Card>
 
         </Box>

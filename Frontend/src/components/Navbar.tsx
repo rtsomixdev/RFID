@@ -12,11 +12,24 @@ import axios from '../api/axiosClient';
 
 const drawerWidth = 280;
 
+/**
+ * โครงสร้างคุณสมบัติของแถบนำทางส่วนหัว
+ * @interface NavbarProps
+ * @property {function} onMenuClick เหตุการณ์เมื่อกดปุ่มเมนู (บนจอมือถือ)
+ * @property {function} [onSidebarOpen] เหตุการณ์เสริมสำหรับเปิดเมนูด้านข้าง
+ */
 interface NavbarProps {
   onMenuClick: () => void;
   onSidebarOpen?: () => void;
 }
 
+/**
+ * คอมโพเนนต์แถบเมนูด้านบน (Navbar) ทำหน้าที่แสดงชื่อหน้าเว็บ ป้ายเวลา 
+ * และระบบแจ้งเตือน (Notifications) ดึงข้อมูลแบบเรียลไทม์
+ * 
+ * @param {NavbarProps} props ฟังก์ชันควบคุมเมนูด้านข้าง
+ * @returns {JSX.Element} เลย์เอาต์แถบนำทาง
+ */
 const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
   const handleToggle = onMenuClick || onSidebarOpen;
   const theme = useTheme();
@@ -24,7 +37,6 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
   const navigate = useNavigate();
   const [time, setTime] = useState(new Date());
 
-  // Notification State
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -96,20 +108,20 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
     const basePath = path.split('?')[0];
     if (basePath.startsWith('/requests')) return 'รายการคำร้องเบิกผ้า';
     switch (basePath) {
-      case '/': return 'หน้าหลัก (Monitor)';
-      case '/stats': return 'สถิติภาพรวม (Dashboard)';
-      case '/laundry': return 'ระบบซักรีด (Laundry Management)';
-      case '/discard': return 'แจ้งผ้าชำรุด / สูญหาย';
-      case '/linens': return 'จัดการสต็อกผ้า (Linen Inventory)';
+      case '/': return 'หน้าหลัก';
+      case '/stats': return 'สถิติภาพรวม';
+      case '/laundry': return 'ระบบติดตามสถานะซัก';
+      case '/discard': return 'ระบบแจ้งจำหน่ายออก';
+      case '/linens': return 'ระบบลงทะเบียนผ้าใหม่';
       case '/hospital': return 'ข้อมูลโรงพยาบาล';
       case '/users': return 'จัดการบุคลากร';
       case '/rfid-connect': return 'ตั้งค่าการเชื่อมต่อ RFID';
       case '/vendors': return 'จัดการข้อมูลบริษัทคู่ค้า';
-      case '/reports': return 'ระบบออกรายงาน (Reports Center)';
-      case '/transport': return 'ระบบขนส่ง (Transport Logistics)';
-      case '/settings': return 'ตั้งค่าระบบ (System Configuration)';
+      case '/reports': return 'ระบบออกรายงาน';
+      case '/transport': return 'ระบบติดตามการขนส่งผ้า';
+      case '/settings': return 'ตั้งค่าระบบ';
       case '/notifications': return 'ประวัติการแจ้งเตือน';
-      default: return 'Smart RFID System';
+      default: return 'ระบบติดตามผ้าในโรงพยาบาล';
     }
   };
 
@@ -119,10 +131,9 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
       sx={{
         width: { sm: `calc(100% - ${drawerWidth}px)` },
         ml: { sm: `${drawerWidth}px` },
-        // Glassmorphism effect
         bgcolor: alpha('#ffffff', 0.8),
         backdropFilter: 'blur(12px)',
-        boxShadow: 'none', // Flat look
+        boxShadow: 'none',
         borderBottom: `1px solid ${theme.palette.divider}`,
         color: theme.palette.text.primary,
         zIndex: (theme) => theme.zIndex.drawer + 1
@@ -173,7 +184,6 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
             </Badge>
           </IconButton>
 
-          {/* Notification Menu */}
           <Menu
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
@@ -193,7 +203,6 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick, onSidebarOpen }) => {
             transformOrigin={{ horizontal: 'right', vertical: 'top' }}
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
-            {/* Header */}
             <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="subtitle1" fontWeight="700">การแจ้งเตือน</Typography>
               {unreadCount > 0 && (

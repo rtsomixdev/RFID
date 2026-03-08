@@ -8,217 +8,120 @@ using System;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.SignalR;
 using Backend.Hubs;
+using System.Text.Json; 
 
 namespace Backend.Controllers
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class ReaderController : ControllerBase
-    {
-        private readonly LinenDbContext _context;
-        private readonly MqttPublisherService _mqttPublisher;
-        private readonly IHubContext<NotificationHub> _hubContext;
-
-        public ReaderController(LinenDbContext context, MqttPublisherService mqttPublisher, IHubContext<NotificationHub> hubContext)
-        {
-            _context = context;
-            _mqttPublisher = mqttPublisher;
-            _hubContext = hubContext;
-        }
-
-        private DateTime ThaiTime() => DateTime.UtcNow.AddHours(7);
-
-        // GET: api/Reader
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<Reader>>> GetReaders()
-        {
-            return await _context.Readers
-                .OrderBy(r => r.ReaderId)
-                .ToListAsync();
-        }
-
-        // =============================================
-        // POST: api/Reader (เพิ่มเครื่องอ่านใหม่)
-        // =============================================
-        [HttpPost]
-        public async Task<IActionResult> AddReader([FromBody] Reader reader)
-        {
-            if (await _context.Readers.AnyAsync(r => r.ReaderName == reader.ReaderName))
-            {
-                return BadRequest(new { message = $"ชื่อเครื่อง '{reader.ReaderName}' มีอยู่ในระบบแล้ว" });
-            }
-
-            // บังคับตั้งค่าเริ่มต้นให้เป็น "Offline" เสมอเมื่อเพิ่งสร้างใหม่
-            reader.IsActive = false; 
-            reader.CurrentMode = "โหมดปกติ (Normal)"; // ตั้งเป็นโหมดปกติไว้ก่อน
-            
-            // ถ้าไม่มีการส่ง IP มา ให้ใส่ขีดแดชไว้ก่อน 
-            if (string.IsNullOrEmpty(reader.IpAddress))
-            {
-                reader.IpAddress = "-";
-            }
-
-            if (string.IsNullOrEmpty(reader.ReaderFunction)) reader.ReaderFunction = "CHECK";
-            reader.UpdatedAt = ThaiTime();
-
-            _context.Readers.Add(reader);
-            
-            _context.Notifications.Add(new Notification 
-            {
-                UserId = null,  
-                RoleId = 1,     
-                Title = "เพิ่มอุปกรณ์ใหม่",
-                Message = $"เพิ่มอุปกรณ์: {reader.ReaderName} เข้าสู่ระบบ (สถานะเริ่มต้น: ออฟไลน์)",
-                Type = "INFO",  
-                IsRead = false,
-                CreatedAt = ThaiTime(),
-                LinkUrl = "/readers" 
-            });
-
-            await _context.SaveChangesAsync();
-            return CreatedAtAction("GetReaders", new { id = reader.ReaderId }, reader);
-        }
-
-        // PUT: api/Reader/5
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateReader(int id, [FromBody] Reader reader)
-        {
-            if (id != reader.ReaderId) return BadRequest(new { message = "ID ไม่ตรงกัน" });
-
-            reader.UpdatedAt = ThaiTime();
-            _context.Entry(reader).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Readers.Any(e => e.ReaderId == id)) return NotFound();
-                else throw;
-            }
-
-            return NoContent();
-        }
-
-        // DELETE: api/Reader/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteReader(int id)
-        {
-            var reader = await _context.Readers.FindAsync(id);
-            if (reader == null) return NotFound();
-
-            _context.Notifications.Add(new Notification 
-            {
-                UserId = null, RoleId = 1,
-                Title = "ลบอุปกรณ์",
-                Message = $"ลบอุปกรณ์: {reader.ReaderName} ออกจากระบบ",
-                Type = "WARNING", 
-                IsRead = false,
-                CreatedAt = ThaiTime(),
-                LinkUrl = "/readers"
-            });
-
-            _context.Readers.Remove(reader);
-            await _context.SaveChangesAsync();
-            return Ok();
-        }
-
-        // =============================================
-        // POST: api/Reader/Config (สั่งงานอุปกรณ์ WAKE / SLEEP จากหน้าตั้งค่า)
-        // =============================================
-        [HttpPost("Config")]
-        public async Task<IActionResult> SendConfig([FromBody] ReaderConfigDto request)
-        {
-            var reader = await _context.Readers.FirstOrDefaultAsync(r => r.ReaderName == request.ReaderId);
-            if (reader == null) return NotFound(new { message = "Reader not found" });
-
-            try
-            {
-                // ส่งคำสั่ง WAKE หรือ SLEEP ผ่าน MQTT ไปให้ ESP32
-                await _mqttPublisher.PublishCommandAsync(request.ReaderId, request.Command.ToUpper(), "", false);
-
-                string title = "สั่งงานอุปกรณ์";
-                string msg = $"ส่งคำสั่ง {request.Command} ไปที่ {request.ReaderId}";
-                string type = "INFO";
-
-                // จัดการสถานะในระบบ (เปลี่ยนแค่โหมด ห้ามยุ่งกับ IsActive)
-                if (request.Command.ToUpper() == "SLEEP")
-                {
-                    reader.CurrentMode = "โหมดหลับ (SLEEP)";
-                    reader.UpdatedAt = ThaiTime(); // ต่อเวลาให้มันด้วย ป้องกันโดนเตะออฟไลน์
-                    msg = $"💤 สั่งเข้าโหมดหลับ: {request.ReaderId}";
-                    type = "WARNING"; 
-                }
-                else if (request.Command.ToUpper() == "WAKE")
-                {
-                    reader.CurrentMode = "โหมดปกติ (Normal)";
-                    reader.UpdatedAt = ThaiTime(); // ต่อเวลาให้มันด้วย
-                    msg = $"☀️ สั่งปลุกเครื่อง: {request.ReaderId}";
-                    type = "SUCCESS"; 
-                }
-
-                _context.Notifications.Add(new Notification 
-                {
-                    UserId = null, RoleId = 1,
-                    Title = title,
-                    Message = msg,
-                    Type = type,
-                    IsRead = false,
-                    CreatedAt = ThaiTime(),
-                    LinkUrl = "/readers"
-                });
-
-                await _context.SaveChangesAsync();
-                
-                // ส่ง SignalR ไปบอกหน้าเว็บให้ขยับป้ายโหมดตามคำสั่ง
-                await _hubContext.Clients.All.SendAsync("OnModeChanged");
-
-                return Ok(new { message = "Success" });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "MQTT Error: " + ex.Message });
-            }
-        }
-
-        // =============================================
-        // POST: api/Reader/Wake/{readerName} (รองรับปุ่ม Wake จากหน้าอื่นๆ)
-        // =============================================
-        [HttpPost("Wake/{readerName}")]
-        public async Task<IActionResult> WakeReader(string readerName)
-        {
-            Console.WriteLine($"🔔 Waking up reader: {readerName} (via direct API)");
-            
-            try 
-            {
-                var reader = await _context.Readers.FirstOrDefaultAsync(r => r.ReaderName == readerName);
-                if (reader == null) return NotFound(new { message = "Reader not found" });
-
-                // 1. ส่งคำสั่ง WAKE ไปทาง MQTT
-                await _mqttPublisher.PublishCommandAsync(readerName, "WAKE", "1", true);
-
-                // 2. อัปเดต DB (รีเซ็ตเวลา + เปลี่ยนโหมดกลับเป็น Normal)
-                reader.CurrentMode = "โหมดปกติ (Normal)"; // แค่ปลุกให้ตื่น เปลี่ยนโหมด
-                reader.UpdatedAt = ThaiTime(); // ต่อเวลาให้มันด้วย
-                await _context.SaveChangesAsync();
-
-                // 3. ยิง SignalR บอกหน้าเว็บให้อัปเดต UI ทันที
-                await _hubContext.Clients.All.SendAsync("OnModeChanged");
-
-                return Ok(new { message = $"Sent WAKE command to {readerName} and reset timer." });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Error waking reader: " + ex.Message });
-            }
-        }
-    }
-
+    /// <summary>
+    /// ข้อมูลสำหรับการตั้งค่าอุปกรณ์เครื่องอ่าน (Reader Configuration)
+    /// </summary>
     public class ReaderConfigDto 
     { 
         public string ReaderId { get; set; } = string.Empty;
         public string Command { get; set; } = string.Empty;
         public string? Value { get; set; } 
+    }
+
+    /// <summary>
+    /// ควบคุมการทำงาน การจัดการตั้งค่า และสถานะของเครื่องอ่าน RFID
+    /// </summary>
+    [Route("api/[controller]")]
+    [ApiController]
+    public class ReaderController : ControllerBase
+    {
+        private readonly Services.IReaderService _service;
+
+        /// <summary>
+        /// กำหนดค่าเริ่มต้นให้กับ ReaderController
+        /// </summary>
+        /// <param name="service">บริการสำหรับการจัดการเครื่องอ่าน</param>
+        public ReaderController(Services.IReaderService service)
+        {
+            _service = service;
+        }
+
+        /// <summary>
+        /// ดึงข้อมูลเครื่องอ่านทั้งหมดที่อยู่ในระบบ
+        /// </summary>
+        /// <returns>รายการเครื่องอ่านทั้งหมด</returns>
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<Reader>>> GetReaders()
+        {
+            return Ok(await _service.GetReadersAsync());
+        }
+
+        /// <summary>
+        /// เพิ่มข้อมูลเครื่องอ่านใหม่เข้าสู่ระบบ
+        /// </summary>
+        /// <param name="reader">ข้อมูลการตั้งค่าเริ่มต้นของเครื่องอ่าน</param>
+        /// <returns>ผลลัพธ์การเพิ่มข้อมูลและรายละเอียดเครื่องอ่าน</returns>
+        [HttpPost]
+        public async Task<IActionResult> AddReader([FromBody] Reader reader)
+        {
+            var result = await _service.AddReaderAsync(reader);
+            if (result.Status == 400) return BadRequest(new { message = result.Message });
+            
+            return CreatedAtAction("GetReaders", new { id = result.Item?.ReaderId }, result.Item);
+        }
+
+        /// <summary>
+        /// อัปเดตข้อมูลการตั้งค่าเครื่องอ่านตามรหัสที่กำหนด
+        /// </summary>
+        /// <param name="id">รหัสเครื่องอ่าน</param>
+        /// <param name="reader">ข้อมูลใหม่สำหรับอัปเดต</param>
+        /// <returns>สถานะความสำเร็จจากการอัปเดต</returns>
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateReader(int id, [FromBody] Reader reader)
+        {
+            var result = await _service.UpdateReaderAsync(id, reader);
+            if (result.Status == 400) return BadRequest(new { message = result.Message });
+            if (result.Status == 404) return NotFound();
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// ลบข้อมูลเครื่องอ่านออกจากระบบ
+        /// </summary>
+        /// <param name="id">รหัสเครื่องอ่านที่ต้องการลบ</param>
+        /// <returns>สถานะแสดงผลลัพธ์การลบ</returns>
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteReader(int id)
+        {
+            var result = await _service.DeleteReaderAsync(id);
+            if (result.Status == 404) return NotFound();
+
+            return Ok();
+        }
+
+        /// <summary>
+        /// จัดส่งคำสั่งและข้อมูลการตั้งค่าข้ามไปยังอุปกรณ์เครื่องอ่านแบบระยะไกล (Config Sync)
+        /// </summary>
+        /// <param name="request">ข้อมูลชุดคำสั่ง</param>
+        /// <returns>ผลลัพธ์การส่งคำสั่งไปยังอุปกรณ์</returns>
+        [HttpPost("Config")]
+        public async Task<IActionResult> SendConfig([FromBody] ReaderConfigDto request)
+        {
+            var result = await _service.SendConfigAsync(request);
+            if (result.Status == 404) return NotFound(new { message = result.Message });
+            if (result.Status == 500) return StatusCode(500, new { message = result.Message });
+
+            return Ok(new { message = result.Message });
+        }
+
+        /// <summary>
+        /// กระตุ้นการทำงานของเครื่องอ่าน (Wake reader) เพื่อให้กลับมาทำงานหรือรายงานสถานะ
+        /// </summary>
+        /// <param name="readerName">ชื่ออ้างอิงของเครื่องอ่าน</param>
+        /// <returns>ผลลัพธ์การเปิดการทำงาน</returns>
+        [HttpPost("Wake/{readerName}")]
+        public async Task<IActionResult> WakeReader(string readerName)
+        {
+            var result = await _service.WakeReaderAsync(readerName);
+            if (result.Status == 404) return NotFound(new { message = result.Message });
+            if (result.Status == 500) return StatusCode(500, new { message = result.Message });
+
+            return Ok(new { message = result.Message });
+        }
     }
 }

@@ -4,19 +4,54 @@ using Backend.Models;
 
 namespace Backend.Controllers
 {
+    /// <summary>
+    /// ควบคุมข้อมูลสถานะพื้นฐานที่นำไปใช้ในใบคำร้อง
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class RequestStatusController : ControllerBase
     {
-        private readonly LinenDbContext _context;
-        public RequestStatusController(LinenDbContext context) => _context = context;
+        private readonly Services.IRequestStatusService _service;
 
-        [HttpGet] public async Task<ActionResult<IEnumerable<RequestStatus>>> Get() => await _context.RequestStatuses.ToListAsync();
-        [HttpGet("{id}")] public async Task<ActionResult<RequestStatus>> Get(int id) { var item = await _context.RequestStatuses.FindAsync(id); return item == null ? NotFound() : item; }
+        /// <summary>
+        /// กำหนดค่าเริ่มต้นให้กับ RequestStatusController
+        /// </summary>
+        /// <param name="service">บริการสำหรับการจัดการสถานะของคำร้อง</param>
+        public RequestStatusController(Services.IRequestStatusService service) => _service = service;
+
+        /// <summary>
+        /// ดึงรายการสถานะทั้งหมดของคำร้อง
+        /// </summary>
+        /// <returns>ชุดข้อมูลสถานะ</returns>
+        [HttpGet] public async Task<ActionResult<IEnumerable<RequestStatus>>> Get() => Ok(await _service.GetAsync());
+
+        /// <summary>
+        /// ดึงข้อมูลสถานะตามรหัสที่ระบุ
+        /// </summary>
+        /// <param name="id">รหัสสถานะ</param>
+        /// <returns>ข้อมูลสถานะที่ต้องการค้นหา</returns>
+        [HttpGet("{id}")] public async Task<ActionResult<RequestStatus>> Get(int id) { var item = await _service.GetAsync(id); return item == null ? NotFound() : Ok(item); }
         
-        // แก้จาก RequestStatusId เป็น StatusId ตาม SQL
-        [HttpPost] public async Task<ActionResult<RequestStatus>> Post(RequestStatus item) { _context.RequestStatuses.Add(item); await _context.SaveChangesAsync(); return CreatedAtAction(nameof(Get), new { id = item.StatusId }, item); }
-        [HttpPut("{id}")] public async Task<IActionResult> Put(int id, RequestStatus item) { if (id != item.StatusId) return BadRequest(); _context.Entry(item).State = EntityState.Modified; await _context.SaveChangesAsync(); return NoContent(); }
-        [HttpDelete("{id}")] public async Task<IActionResult> Delete(int id) { var item = await _context.RequestStatuses.FindAsync(id); if (item == null) return NotFound(); _context.RequestStatuses.Remove(item); await _context.SaveChangesAsync(); return NoContent(); }
+        /// <summary>
+        /// เพิ่มข้อมูลสถานะใบคำร้องใหม่
+        /// </summary>
+        /// <param name="item">ข้อมูลสถานะใหม่</param>
+        /// <returns>ข้อมูลสถานะที่ได้รับการบันทึก</returns>
+        [HttpPost] public async Task<ActionResult<RequestStatus>> Post(RequestStatus item) { var createdItem = await _service.PostAsync(item); return CreatedAtAction(nameof(Get), new { id = createdItem.StatusId }, createdItem); }
+
+        /// <summary>
+        /// อัปเดตข้อมูลสถานะใบคำร้อง
+        /// </summary>
+        /// <param name="id">รหัสสถานะที่ต้องการตรวจสอบและแก้ไข</param>
+        /// <param name="item">ข้อมูลที่ต้องการแก้ไข</param>
+        /// <returns>สถานะลัพธ์การแก้ไข</returns>
+        [HttpPut("{id}")] public async Task<IActionResult> Put(int id, RequestStatus item) { if (!await _service.PutAsync(id, item)) return BadRequest(); return NoContent(); }
+
+        /// <summary>
+        /// ลบข้อมูลสถานะใบคำร้อง
+        /// </summary>
+        /// <param name="id">รหัสสถานะที่ต้องการลบ</param>
+        /// <returns>สถานะผลลัพธ์การลบ</returns>
+        [HttpDelete("{id}")] public async Task<IActionResult> Delete(int id) { if (!await _service.DeleteAsync(id)) return NotFound(); return NoContent(); }
     }
 }

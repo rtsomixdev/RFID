@@ -3,90 +3,74 @@ using Microsoft.EntityFrameworkCore;
 using Backend.Models;
 using Backend.Services;
 using System.Data; 
-using System.Security.Claims; // ✅ เพิ่มบรรทัดนี้
-using Microsoft.AspNetCore.Authentication.Cookies; // ✅ เพิ่มบรรทัดนี้
-using Microsoft.AspNetCore.Authentication; // ✅ เพิ่มบรรทัดนี้
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Backend.Controllers;
 
+/// <summary>
+/// ข้อมูลสำหรับการเข้าสู่ระบบ
+/// </summary>
 public class LoginDto
 {
     public string Username { get; set; } = null!;
     public string Password { get; set; } = null!;
 }
 
+/// <summary>
+/// ข้อมูลสำหรับการขอรหัส OTP เพื่อรีเซ็ตหน้าจอหรือรหัสผ่าน
+/// </summary>
 public class RequestOtpDto { public string Email { get; set; } = null!; }
+
+/// <summary>
+/// ข้อมูลสำหรับการยืนยันความถูกต้องของรหัส OTP
+/// </summary>
 public class VerifyOtpDto { public string Email { get; set; } = null!; public string Otp { get; set; } = null!; }
+
+/// <summary>
+/// ข้อมูลสำหรับการตั้งรหัสผ่านใหม่
+/// </summary>
 public class ResetPasswordDto { public string Email { get; set; } = null!; public string Otp { get; set; } = null!; public string NewPassword { get; set; } = null!; }
 
+/// <summary>
+/// ควบคุมการทำงานด้านการยืนยันตัวตน การเข้าสู่ระบบ และการจัดการเซสชันของผู้ใช้งาน
+/// </summary>
 [Route("api/[controller]")]
 [ApiController]
+[EnableRateLimiting("GlobalSpam")]
 public class AuthController : ControllerBase
 {
-    private readonly LinenDbContext _context;
-    private readonly EmailService _emailService;
+    private readonly Services.IAuthService _service;
 
-    public AuthController(LinenDbContext context)
+    /// <summary>
+    /// กำหนดค่าเริ่มต้นให้กับ AuthController
+    /// </summary>
+    /// <param name="service">บริการสำหรับการจัดการการยืนยันตัวตน</param>
+    public AuthController(Services.IAuthService service)
     {
-        _context = context;
-        _emailService = new EmailService(); 
+        _service = service;
     }
 
-    // ==========================================
-    // 🔥 1. LOGIN (Session Cookie + RoleName)
-    // ==========================================
+    /// <summary>
+    /// ตรวจสอบการเข้าสู่ระบบและสร้างเซสชันคุกกี้สำหรับผู้ใช้งาน พร้อมทั้งระบุสิทธิ์การใช้งานเบื้องต้น
+    /// </summary>
+    /// <param name="request">ข้อมูลผู้ใช้งานและรหัสผ่าน</param>
+    /// <returns>ผลลัพธ์การเข้าสู่ระบบพร้อมข้อมูลเบื้องต้นของผู้ใช้งานและการอนุญาตสิทธิ์</returns>
     [HttpPost("Login")]
+    [EnableRateLimiting("StrictLogin")]
     public async Task<IActionResult> Login([FromBody] LoginDto request)
     {
-        // 1. เช็ค User พร้อมดึงข้อมูล Role ที่ผูกอยู่
-        var user = await _context.Users
-            .Include(u => u.Role) // ✅ เพื่อให้ดึง RoleName ได้
-            .FirstOrDefaultAsync(u => u.Username == request.Username);
+        var result = await _service.LoginAsync(request);
 
-        if (user == null || user.PasswordHash != request.Password)
-            return Unauthorized(new { message = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" });
+        if (result.Status == 401) return Unauthorized(new { message = result.Message });
+        if (result.Status == 500) return StatusCode(500, new { message = result.Message });
 
-        if (user.IsActive == false)
-            return Unauthorized(new { message = "บัญชีนี้ถูกระงับการใช้งาน" });
+        var user = result.User!;
+        var permissions = result.Permissions!;
 
-        // 2. ดึง Permissions 
-        var permissions = new List<string>();
-        try 
-        {
-            var conn = _context.Database.GetDbConnection();
-            if (conn.State != ConnectionState.Open) await conn.OpenAsync();
-
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = @"
-                    SELECT p.permission_code 
-                    FROM public.permissions p
-                    JOIN public.role_permissions rp ON p.permission_id = rp.permission_id
-                    WHERE rp.role_id = @roleId";
-
-                var param = cmd.CreateParameter();
-                param.ParameterName = "@roleId";
-                param.Value = user.RoleId ?? 0;
-                cmd.Parameters.Add(param);
-
-                using (var reader = await cmd.ExecuteReaderAsync())
-                {
-                    while (await reader.ReadAsync())
-                    {
-                        if (!reader.IsDBNull(0))
-                        {
-                            permissions.Add(reader.GetString(0));
-                        }
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "DB Error: " + ex.Message });
-        }
-
-        // 3. ✅ สร้าง Claims (ข้อมูลประจําตัว) เพื่อฝังลงใน Cookie Session
+        // รวบรวมข้อมูลระบุตัวตนและบทบาทเพื่อนำไปสร้างสิทธิ์การเข้าถึงในระบบนิเวศ
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
@@ -102,17 +86,16 @@ public class AuthController : ControllerBase
         var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         var authProperties = new AuthenticationProperties
         {
-            IsPersistent = true, // ให้อยู่ได้แม้ปิดเบราว์เซอร์
-            ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) // อายุ 8 ชั่วโมง
+            IsPersistent = true,
+            ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
         };
 
-        // สั่งให้ระบบ Sign-in และสร้าง Cookie ตอบกลับไปที่ Browser 
+        // เริ่มต้นเซสชันคุกกี้เพื่อรักษาการเข้าสู่ระบบไว้ชั่วคราวตามระยะเวลาที่กำหนด
         await HttpContext.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme, 
             new ClaimsPrincipal(claimsIdentity), 
             authProperties);
 
-        // 4. ส่งข้อมูลกลับให้ Frontend (ไม่ต้องส่ง Token แล้ว)
         return Ok(new
         {
             message = "เข้าสู่ระบบสำเร็จ",
@@ -123,16 +106,17 @@ public class AuthController : ControllerBase
                 user.FirstName,
                 user.LastName,
                 user.RoleId,
-                RoleName = user.Role?.RoleName ?? "ผู้ใช้งานทั่วไป", // ✅ ส่ง RoleName จริงไปให้หน้าเว็บโชว์
+                RoleName = user.Role?.RoleName ?? "ผู้ใช้งานทั่วไป",
                 user.WardId,
                 Permissions = permissions 
             }
         });
     }
 
-    // ==========================================
-    // ✅ เพิ่มฟังก์ชัน LOGOUT เพื่อล้าง Cookie Session
-    // ==========================================
+    /// <summary>
+    /// ยกเลิกเซสชันและออกจากระบบ
+    /// </summary>
+    /// <returns>ผลลัพธ์การออกจากระบบและล้างเซสชันสำเร็จ</returns>
     [HttpPost("Logout")]
     public async Task<IActionResult> Logout()
     {
@@ -140,62 +124,46 @@ public class AuthController : ControllerBase
         return Ok(new { message = "ออกจากระบบสำเร็จ" });
     }
 
-    // ==========================================
-    // 2. ขอ OTP (ของเดิม)
-    // ==========================================
+    /// <summary>
+    /// ขอรหัส OTP สำหรับการกู้คืนรหัสผ่าน
+    /// </summary>
+    /// <param name="model">อีเมลของผู้ใช้งาน</param>
+    /// <returns>ผลลัพธ์การส่งรหัส OTP ไปยังอีเมล</returns>
     [HttpPost("request-otp")]
     public async Task<IActionResult> RequestOtp([FromBody] RequestOtpDto model)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
-        if (user == null) return NotFound(new { message = "ไม่พบอีเมลนี้ในระบบ" });
+        var result = await _service.RequestOtpAsync(model);
+        if (result.Status == 404) return NotFound(new { message = result.Message });
+        if (result.Status == 500) return StatusCode(500, new { message = result.Message });
 
-        var otp = new Random().Next(0, 999999).ToString("D6");
-        
-        user.OtpCode = otp;
-        user.OtpExpiry = DateTime.UtcNow.AddMinutes(5);
-        await _context.SaveChangesAsync();
-
-        try {
-            await _emailService.SendOtpEmailAsync(user.Email, otp);
-            return Ok(new { message = "ส่งรหัส OTP ไปยังอีเมลเรียบร้อยแล้ว" });
-        } catch {
-            return StatusCode(500, new { message = "ไม่สามารถส่งอีเมลได้ กรุณาลองใหม่" });
-        }
+        return Ok(new { message = result.Message });
     }
 
-    // ==========================================
-    // 3. ยืนยัน OTP (ของเดิม)
-    // ==========================================
+    /// <summary>
+    /// ตรวจสอบความถูกต้องของรหัส OTP ก่อนดำเนินการในขั้นตอนถัดไป
+    /// </summary>
+    /// <param name="model">อีเมลและรหัส OTP ที่ได้รับ</param>
+    /// <returns>ผลลัพธ์การตรวจสอบความถูกต้อง</returns>
     [HttpPost("verify-otp")]
     public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpDto model)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
-        
-        if (user == null || user.OtpCode != model.Otp)
-            return BadRequest(new { message = "รหัส OTP ไม่ถูกต้อง" });
+        var result = await _service.VerifyOtpAsync(model);
+        if (result.Status == 400) return BadRequest(new { message = result.Message });
 
-        if (user.OtpExpiry < DateTime.UtcNow)
-            return BadRequest(new { message = "รหัส OTP หมดอายุแล้ว" });
-
-        return Ok(new { message = "ยืนยัน OTP สำเร็จ" });
+        return Ok(new { message = result.Message });
     }
 
-    // ==========================================
-    // 4. เปลี่ยนรหัสผ่านใหม่ (ของเดิม)
-    // ==========================================
+    /// <summary>
+    /// ตั้งรหัสผ่านใหม่หลังจากยืนยันตัวตนด้วยรหัส OTP สำเร็จ
+    /// </summary>
+    /// <param name="model">ข้อมูลการตั้งรหัสผ่านใหม่ที่ประกอบด้วยรหัสผ่านใหม่และรหัส OTP เดิม</param>
+    /// <returns>ผลลัพธ์การเปลี่ยนรหัสผ่าน</returns>
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto model)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
-
-        if (user == null || user.OtpCode != model.Otp || user.OtpExpiry < DateTime.UtcNow)
-            return BadRequest(new { message = "Session หมดอายุ กรุณาขอ OTP ใหม่" });
-
-        user.PasswordHash = model.NewPassword;
-        user.OtpCode = null;
-        user.OtpExpiry = null;
-        await _context.SaveChangesAsync();
-
-        return Ok(new { message = "เปลี่ยนรหัสผ่านสำเร็จ" });
+        var result = await _service.ResetPasswordAsync(model);
+        if (result.Status == 400) return BadRequest(new { message = result.Message });
+        
+        return Ok(new { message = result.Message });
     }
 }

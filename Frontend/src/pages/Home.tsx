@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     Box, Paper, Typography, Card, CardContent,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Chip, CircularProgress, Button, useTheme, alpha, IconButton
+    Chip, CircularProgress, Button, useTheme, alpha, IconButton, TablePagination
 } from '@mui/material';
 import {
     WifiTethering, LocationOn, CheckCircle, Login, Dashboard as DashboardIcon,
@@ -11,7 +11,10 @@ import {
 } from '@mui/icons-material';
 import axiosClient from '../api/axiosClient';
 
-// --- Interfaces ---
+/**
+ * โครงสร้างข้อมูลแสดงสถานะและประวัติการเคลื่อนไหว
+ * @interface MonitorItem
+ */
 interface MonitorItem {
     rfid: string;
     productName: string;
@@ -20,7 +23,12 @@ interface MonitorItem {
     timestamp: string;
 }
 
-// --- Helper Functions ---
+/**
+ * ฟังก์ชันปรับรูปแบบวันที่และเวลาให้เป็นภาษาไทย
+ * 
+ * @param {string | undefined | null} dateString ข้อความวันที่ที่ต้องการจัดรูปแบบ
+ * @returns {string} วันที่และเวลาในรูปแบบที่อ่านง่าย หรือเครื่องหมาย '-' หากไม่มีข้อมูล
+ */
 const formatDate = (dateString: string | undefined | null) => {
     if (!dateString) return '-';
     try {
@@ -32,6 +40,11 @@ const formatDate = (dateString: string | undefined | null) => {
     }
 };
 
+/**
+ * หน้าจอหลัก แสดงสถานะและการเคลื่อนไหวแบบเรียลไทม์
+ * 
+ * @returns {JSX.Element} คอมโพเนนต์หน้าจอหลัก (Monitor)
+ */
 const Home: React.FC = () => {
     const theme = useTheme();
     const navigate = useNavigate();
@@ -39,8 +52,20 @@ const Home: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [allItemsCount, setAllItemsCount] = useState(0);
 
-    // 🔥 Reader Status
+    // สถานะสำหรับการเชื่อมต่อกับเครื่องอ่าน RFID
     const [isReaderOnline, setIsReaderOnline] = useState(false);
+
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
+
+    const handleChangePage = (event: unknown, newPage: number) => {
+        setPage(newPage);
+    };
+
+    const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setRowsPerPage(+event.target.value);
+        setPage(0);
+    };
     const [activeReaderCount, setActiveReaderCount] = useState(0);
 
     const userStr = localStorage.getItem('currentUser');
@@ -50,12 +75,12 @@ const Home: React.FC = () => {
         fetchData();
         const interval = setInterval(fetchData, 2000); // Poll every 2 seconds
 
-        // ✅ Listen to Real-time SignalR Event
+        // ดักจับเหตุการณ์การสแกน RFID แบบเรียลไทม์ผ่าน SignalR
         const handleRealtimeScan = (e: any) => {
             const data = e.detail;
             console.log("⚡ Home Real-time Scan:", data);
 
-            // สร้าง Item ใหม่จากข้อมูล Real-time
+            // ตรวจจับและสร้างโครงสร้างข้อมูลใหม่จากสัญญาณแบบเรียลไทม์
             const newItem: MonitorItem = {
                 rfid: data.rfid || 'Unknown',
                 productName: data.productName || (data.status === 'ไม่พบในระบบ' ? 'ไม่พบในระบบ' : 'Unknown Item'),
@@ -64,7 +89,7 @@ const Home: React.FC = () => {
                 timestamp: new Date().toISOString()
             };
 
-            // อัปเดตข้อมูลเข้าตาราง (เอาข้อมูลใหม่ไว้บนสุด สูงสุด 50 รายการ)
+            // อัปเดตข้อมูลตารางโดยแสดงรายการล่าสุดไว้บนสุด (จำกัด 50 แถว)
             setRegisteredItems(prev => {
                 const filtered = prev.filter(item => item.rfid !== newItem.rfid);
                 return [newItem, ...filtered].slice(0, 50);
@@ -83,11 +108,11 @@ const Home: React.FC = () => {
 
     const fetchData = async () => {
         try {
-            // 1. Fetch Monitor Data
+            // ขั้นตอนที่ 1: ร้องขอข้อมูลประวัติการสแกนล่าสุด
             const resMonitor = await axiosClient.get('/Linen/Monitor/Latest');
             const rawData = resMonitor.data || [];
 
-            // 2. Fetch Reader Status (เช็คสถานะเครื่องอ่าน)
+            // ขั้นตอนที่ 2: ตรวจสอบสถานะและจำนวนเครื่องอ่าน RFID ที่ออนไลน์
             try {
                 const resReaders = await axiosClient.get('/Reader');
                 const readers = resReaders.data || [];
@@ -99,7 +124,7 @@ const Home: React.FC = () => {
                 setIsReaderOnline(false);
             }
 
-            // 3. Data Mapping
+            // ขั้นตอนที่ 3: จัดเตรียมและปรับโครงสร้างข้อมูลเพื่อนำขึ้นแสดงผล
             const mappedData: MonitorItem[] = rawData.map((item: any) => {
                 const loc = item.CurrentLocation || item.currentLocation || item.current_location || item.location || item.readerLocation;
                 const time = item.UpdatedAt || item.updatedAt || item.updated_at ||
@@ -114,7 +139,7 @@ const Home: React.FC = () => {
                 };
             });
 
-            // แสดงข้อมูลทั้งหมดในตารางเดียวคลีนๆ
+            // บันทึกข้อมูลทั้งหมดลงในสถานะตารางแสดงผลภาพรวม
             setRegisteredItems(mappedData);
             setAllItemsCount(rawData.length);
 
@@ -126,7 +151,7 @@ const Home: React.FC = () => {
         }
     };
 
-    // Determine Latest Location
+    // ตรวจสอบและระบุพิกัดล่าสุดของรายการผ้า
     const latestItem = registeredItems.length > 0 ? registeredItems[0] : null;
     const latestLocation = latestItem && latestItem.location !== '-' ? latestItem.location : "Waiting...";
 
@@ -149,7 +174,7 @@ const Home: React.FC = () => {
             overflow: 'hidden'
         }}>
 
-            {/* --- Header & Stats --- */}
+            {/* ส่วนหัวกระดาษและสรุปสถิติ */}
             <Box sx={{ p: 3, pb: 1, flexShrink: 0, bgcolor: 'white', borderBottom: `1px solid ${theme.palette.divider}` }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                     <Box>
@@ -165,10 +190,10 @@ const Home: React.FC = () => {
                     </Box>
                 </Box>
 
-                {/* Stat Cards */}
+                {/* การ์ดสรุปสถิติภาพรวม */}
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
 
-                    {/* Card 1: Reader Status */}
+                    {/* ข้อมูลที่ 1: สถานะออนไลน์ของเครื่องอ่าน RFID */}
                     <Card elevation={0} sx={{ flex: 1, bgcolor: '#1e293b', color: '#fff', border: 'none', borderRadius: 3 }}>
                         <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 3 }}>
                             <Box>
@@ -189,7 +214,7 @@ const Home: React.FC = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Card 2: Latest Location */}
+                    {/* ข้อมูลที่ 2: ตำแหน่งพิกัดที่มีการสแกนล่าสุด */}
                     <Card elevation={0} sx={{ flex: 1, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
                         <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 3 }}>
                             <Box>
@@ -202,7 +227,7 @@ const Home: React.FC = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Card 3: Total Scan */}
+                    {/* ข้อมูลที่ 3: ยอดรวมจำนวนการสแกนของวันนี้ */}
                     <Card elevation={0} sx={{ flex: 1, bgcolor: alpha(theme.palette.info.main, 0.05), border: `1px solid ${theme.palette.info.light}`, borderRadius: 3 }}>
                         <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 3 }}>
                             <Box>
@@ -217,7 +242,7 @@ const Home: React.FC = () => {
                 </Box>
             </Box>
 
-            {/* --- Main Content (Full Width Table) --- */}
+            {/* พื้นที่หลักสำหรับตารางประวัติการสแกน */}
             <Box sx={{
                 flexGrow: 1,
                 p: 3,
@@ -227,7 +252,7 @@ const Home: React.FC = () => {
                 overflow: 'hidden',
                 minHeight: 0
             }}>
-                {/* 🟢 Full Width: Scan Results */}
+                {/* ตารางแสดงผลลัพธ์การสแกนแบบสด */}
                 <Paper elevation={0} sx={{
                     flex: 1,
                     display: 'flex',
@@ -243,8 +268,8 @@ const Home: React.FC = () => {
                         </Box>
                         <Chip label={`${registeredItems.length} items`} color="primary" sx={{ fontWeight: 'bold' }} />
                     </Box>
-                    <TableContainer sx={{ flexGrow: 1, overflowY: 'auto' }}>
-                        <Table stickyHeader size="medium">
+                    <TableContainer>
+                        <Table size="medium">
                             <TableHead>
                                 <TableRow>
                                     <TableCell sx={{ fontWeight: '700', color: 'text.secondary', bgcolor: '#f8fafc' }}>TIME</TableCell>
@@ -260,7 +285,7 @@ const Home: React.FC = () => {
                                 ) : registeredItems.length === 0 ? (
                                     <TableRow><TableCell colSpan={5} align="center" sx={{ py: 10, color: 'text.secondary' }}>Waiting for scan...</TableCell></TableRow>
                                 ) : (
-                                    registeredItems.map((row, index) => (
+                                    registeredItems.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((row, index) => (
                                         <TableRow key={index} hover sx={{ '& td': { py: 1.5, fontSize: '0.95rem' } }}>
                                             <TableCell sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>{formatDate(row.timestamp)}</TableCell>
                                             <TableCell sx={{ fontFamily: 'monospace', fontWeight: 'bold', color: 'primary.main' }}>{row.rfid}</TableCell>
@@ -279,6 +304,15 @@ const Home: React.FC = () => {
                             </TableBody>
                         </Table>
                     </TableContainer>
+                    <TablePagination
+                        rowsPerPageOptions={[5, 10, 25]}
+                        component="div"
+                        count={registeredItems.length}
+                        rowsPerPage={rowsPerPage}
+                        page={page}
+                        onPageChange={handleChangePage}
+                        onRowsPerPageChange={handleChangeRowsPerPage}
+                    />
                 </Paper>
             </Box>
 

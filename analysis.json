@@ -1,0 +1,830 @@
+{
+  "frontend_apis": [
+    "auth/login",
+    "auth/logout",
+    "auth/request-otp",
+    "auth/reset-password",
+    "auth/verify-otp",
+    "category",
+    "damagereason",
+    "dashboard/chartdata",
+    "dashboard/stats",
+    "hospital",
+    "linen",
+    "linen/deletebatch",
+    "linen/discardbatch",
+    "linen/monitor/latest",
+    "linen/registerbatch",
+    "linen/search",
+    "location",
+    "notification/create",
+    "notification/mynotifications",
+    "notification/readall",
+    "product",
+    "reader",
+    "reader/`); swal.fire(",
+    "reader/config",
+    "report/movement",
+    "request",
+    "role",
+    "role/`); swal.fire({ icon: ",
+    "role/`, payload); swal.fire({ icon: ",
+    "role/permissions",
+    "setting",
+    "setting/update",
+    "specialtag",
+    "specialtag/`); fetchspecialtags(); swal.fire(",
+    "title",
+    "user",
+    "user/`); swal.fire({ icon: ",
+    "ward"
+  ],
+  "controllers": {
+    "AuthController.cs": [
+      {
+        "method": "POST",
+        "raw_route": "Login",
+        "match_route": "api/auth/login",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "Logout",
+        "match_route": "api/auth/logout",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "request-otp",
+        "match_route": "api/auth/request-otp",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "verify-otp",
+        "match_route": "api/auth/verify-otp",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "reset-password",
+        "match_route": "api/auth/reset-password",
+        "status": "KEPT"
+      }
+    ],
+    "CategoryController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/category",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/category",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/category",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/category",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/category",
+        "status": "KEPT"
+      }
+    ],
+    "DamageReasonController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/damagereason",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/damagereason",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/damagereason",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/damagereason",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/damagereason",
+        "status": "KEPT"
+      }
+    ],
+    "DashboardController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "Stats",
+        "match_route": "api/dashboard/stats",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "ChartData",
+        "match_route": "api/dashboard/chartdata",
+        "status": "KEPT"
+      }
+    ],
+    "HospitalController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/hospital",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/hospital",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/hospital",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/hospital",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/hospital",
+        "status": "KEPT"
+      }
+    ],
+    "LaundryController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "Check/{rfid}",
+        "match_route": "api/laundry/check",
+        "status": "REMOVED"
+      },
+      {
+        "method": "POST",
+        "raw_route": "Send",
+        "match_route": "api/laundry/send",
+        "status": "REMOVED"
+      },
+      {
+        "method": "POST",
+        "raw_route": "Receive",
+        "match_route": "api/laundry/receive",
+        "status": "REMOVED"
+      },
+      {
+        "method": "GET",
+        "raw_route": "Candidates/{mode}",
+        "match_route": "api/laundry/candidates",
+        "status": "REMOVED"
+      },
+      {
+        "method": "GET",
+        "raw_route": "History",
+        "match_route": "api/laundry/history",
+        "status": "REMOVED"
+      },
+      {
+        "method": "POST",
+        "raw_route": "Cancel",
+        "match_route": "api/laundry/cancel",
+        "status": "REMOVED"
+      }
+    ],
+    "LinenController.cs": [
+      {
+        "method": "POST",
+        "raw_route": "Scan",
+        "match_route": "api/linen/scan",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/linen",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "Search",
+        "match_route": "api/linen/search",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "DiscardHistory",
+        "match_route": "api/linen/discardhistory",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "DeleteHistory",
+        "match_route": "api/linen/deletehistory",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "Monitor/Latest",
+        "match_route": "api/linen/monitor/latest",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "Discard",
+        "match_route": "api/linen/discard",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/linen",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "RegisterBatch",
+        "match_route": "api/linen/registerbatch",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/linen",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "DiscardBatch",
+        "match_route": "api/linen/discardbatch",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "DeleteBatch",
+        "match_route": "api/linen/deletebatch",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "Candidates/Discard",
+        "match_route": "api/linen/candidates/discard",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "Dashboard/Stats",
+        "match_route": "api/linen/dashboard/stats",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "Notifications",
+        "match_route": "api/linen/notifications",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "Log/{logId}/note",
+        "match_route": "api/linen/log/note",
+        "status": "KEPT"
+      }
+    ],
+    "LinenLogController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/linenlog",
+        "status": "REMOVED"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/linenlog",
+        "status": "REMOVED"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/linenlog",
+        "status": "REMOVED"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/linenlog",
+        "status": "REMOVED"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/linenlog",
+        "status": "REMOVED"
+      }
+    ],
+    "NotificationController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "MyNotifications",
+        "match_route": "api/notification/mynotifications",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "Read/{id}",
+        "match_route": "api/notification/read",
+        "status": "REMOVED"
+      },
+      {
+        "method": "POST",
+        "raw_route": "ReadAll",
+        "match_route": "api/notification/readall",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "Create",
+        "match_route": "api/notification/create",
+        "status": "KEPT"
+      }
+    ],
+    "ProductController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/product",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/product",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/product",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/product",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/product",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "/api/products/export-stock",
+        "match_route": "api/product/api/products/export-stock",
+        "status": "KEPT"
+      }
+    ],
+    "ReaderController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/reader",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/reader",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/reader",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/reader",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "Config",
+        "match_route": "api/reader/config",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "Wake/{readerName}",
+        "match_route": "api/reader/wake",
+        "status": "KEPT"
+      }
+    ],
+    "ReportController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "Movement",
+        "match_route": "api/report/movement",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "Damaged",
+        "match_route": "api/report/damaged",
+        "status": "REMOVED"
+      }
+    ],
+    "RequestController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/request",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/request",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "CheckStock/{productId}",
+        "match_route": "api/request/checkstock",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/request",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/request",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}/update-tracking",
+        "match_route": "api/request/update-tracking",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/request",
+        "status": "KEPT"
+      }
+    ],
+    "RequestItemController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/requestitem",
+        "status": "REMOVED"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/requestitem",
+        "status": "REMOVED"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/requestitem",
+        "status": "REMOVED"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/requestitem",
+        "status": "REMOVED"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/requestitem",
+        "status": "REMOVED"
+      }
+    ],
+    "RequestStatusController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/requeststatus",
+        "status": "REMOVED"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/requeststatus",
+        "status": "REMOVED"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/requeststatus",
+        "status": "REMOVED"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/requeststatus",
+        "status": "REMOVED"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/requeststatus",
+        "status": "REMOVED"
+      }
+    ],
+    "RoleController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/role",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "Permissions",
+        "match_route": "api/role/permissions",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/role",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/role",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/role",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/role",
+        "status": "KEPT"
+      }
+    ],
+    "RoomController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/room",
+        "status": "REMOVED"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/room",
+        "status": "REMOVED"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/room",
+        "status": "REMOVED"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/room",
+        "status": "REMOVED"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/room",
+        "status": "REMOVED"
+      }
+    ],
+    "SettingController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/setting",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "Update",
+        "match_route": "api/setting/update",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/setting",
+        "status": "KEPT"
+      }
+    ],
+    "SpecialTagController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/specialtag",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/specialtag",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/specialtag",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/specialtag",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/specialtag",
+        "status": "KEPT"
+      }
+    ],
+    "TitleController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/title",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/title",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/title",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/title",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/title",
+        "status": "KEPT"
+      }
+    ],
+    "TransportController.cs": [
+      {
+        "method": "POST",
+        "raw_route": "Dispatch",
+        "match_route": "api/transport/dispatch",
+        "status": "REMOVED"
+      },
+      {
+        "method": "POST",
+        "raw_route": "Receive",
+        "match_route": "api/transport/receive",
+        "status": "REMOVED"
+      }
+    ],
+    "UserController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/user",
+        "status": "KEPT"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/user",
+        "status": "KEPT"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/user",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/user",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/user",
+        "status": "KEPT"
+      }
+    ],
+    "VendorController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/vendor",
+        "status": "REMOVED"
+      },
+      {
+        "method": "GET",
+        "raw_route": "{id}",
+        "match_route": "api/vendor",
+        "status": "REMOVED"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/vendor",
+        "status": "REMOVED"
+      },
+      {
+        "method": "PUT",
+        "raw_route": "{id}",
+        "match_route": "api/vendor",
+        "status": "REMOVED"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/vendor",
+        "status": "REMOVED"
+      }
+    ],
+    "WardController.cs": [
+      {
+        "method": "GET",
+        "raw_route": "",
+        "match_route": "api/ward",
+        "status": "KEPT"
+      },
+      {
+        "method": "POST",
+        "raw_route": "",
+        "match_route": "api/ward",
+        "status": "KEPT"
+      },
+      {
+        "method": "DELETE",
+        "raw_route": "{id}",
+        "match_route": "api/ward",
+        "status": "KEPT"
+      }
+    ]
+  }
+}

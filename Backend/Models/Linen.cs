@@ -83,9 +83,11 @@ public partial class Linen
     [ForeignKey("ProductId")]
     public virtual Product? Product { get; set; }
 
+    // ✅ ถูกต้องครับ: ต้องมี Vendor ตรงนี้เพื่อให้ LinenService.cs ใช้ .Include(l => l.Vendor) ได้
     [ForeignKey("VendorId")]
     public virtual Vendor? Vendor { get; set; }
 
+    // ✅ ถูกต้องครับ: ต้องมี Hospital ตรงนี้เพื่อให้ LinenService.cs ใช้ .Include(l => l.Hospital) ได้
     [ForeignKey("HospitalId")]
     public virtual Hospital? Hospital { get; set; }
 }

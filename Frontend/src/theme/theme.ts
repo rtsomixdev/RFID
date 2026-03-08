@@ -1,52 +1,56 @@
 import { createTheme, alpha } from '@mui/material/styles';
 
+/**
+ * การตั้งค่าและสร้างระบบหน้าตาสีสันแกนหลัก (Theme) ของ Material UI
+ * ควบคุมภาพลักษณ์ของแอปพลิเคชันทั้งหมดรวมถึงจานสี การจัดช่องว่าง และรูปแบบตัวอักษร
+ */
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#2563eb', // Soft Blue (Blue-600) - More professional/medical than Indigo
+      main: '#2563eb',
       light: '#60a5fa',
       dark: '#1e40af',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#64748b', // Neutral Gray (Slate-500)
+      main: '#64748b',
       light: '#94a3b8',
       dark: '#334155',
       contrastText: '#ffffff',
     },
     success: {
-      main: '#10b981', // Emerald-500
+      main: '#10b981',
       light: '#34d399',
       dark: '#059669',
     },
     warning: {
-      main: '#f59e0b', // Amber-500
+      main: '#f59e0b',
       light: '#fbbf24',
       dark: '#d97706',
     },
     error: {
-      main: '#ef4444', // Red-500
+      main: '#ef4444',
       light: '#f87171',
       dark: '#b91c1c',
     },
     background: {
-      default: '#f1f5f9', // Slate-100: Standard Application Background
+      default: '#f1f5f9',
       paper: '#ffffff',
     },
     text: {
-      primary: '#0f172a', // Slate-900: High contrast for readability
-      secondary: '#475569', // Slate-600: Readable secondary text
+      primary: '#0f172a',
+      secondary: '#475569',
       disabled: '#94a3b8',
     },
     divider: '#e2e8f0',
   },
   shape: {
-    borderRadius: 10, // Requirement: 10
+    borderRadius: 10,
   },
   typography: {
     fontFamily: [
       '"Inter"',
-      '"Sarabun"', // Thai font support
+      '"Sarabun"',
       '-apple-system',
       'BlinkMacSystemFont',
       '"Segoe UI"',
@@ -78,7 +82,7 @@ const theme = createTheme({
       color: '#475569',
     },
     button: {
-      textTransform: 'none', // Remove uppercase (Modern look)
+      textTransform: 'none',
       fontWeight: 600,
     },
   },
@@ -97,7 +101,7 @@ const theme = createTheme({
           borderRadius: 8,
           padding: '8px 20px',
           boxShadow: 'none',
-          minHeight: 40, // Standard height
+          minHeight: 40,
           '&:hover': {
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
             transform: 'translateY(-1px)',
@@ -105,7 +109,7 @@ const theme = createTheme({
         },
         containedPrimary: {
           '&:hover': {
-            backgroundColor: '#1d4ed8', // Darker blue on hover
+            backgroundColor: '#1d4ed8',
           },
         },
         sizeLarge: {
@@ -126,7 +130,7 @@ const theme = createTheme({
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
         },
         elevation3: {
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // Use for Dropdowns/Modals
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         },
       },
     },
@@ -134,8 +138,8 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 12,
-          border: '1px solid #e2e8f0', // Subtle border
-          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)', // Elevation 1 equivalent
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
           overflow: 'visible',
         },
       },
@@ -150,11 +154,10 @@ const theme = createTheme({
         },
       },
     },
-    // --- Input & Form Fields ---
     MuiTextField: {
       defaultProps: {
         fullWidth: true,
-        size: 'medium', // Requirement: Standard height (medium)
+        size: 'medium',
         variant: 'outlined',
       },
       styleOverrides: {
@@ -168,7 +171,7 @@ const theme = createTheme({
             },
             '&.Mui-focused': {
               backgroundColor: '#ffffff',
-              boxShadow: `0 0 0 3px ${alpha('#2563eb', 0.15)}`, // Blue ring focus
+              boxShadow: `0 0 0 3px ${alpha('#2563eb', 0.15)}`,
             },
           },
         },
@@ -177,10 +180,10 @@ const theme = createTheme({
     MuiOutlinedInput: {
       styleOverrides: {
         input: {
-          padding: '10.5px 14px', // Adjust internal padding for 'medium' size to look neat
+          padding: '10.5px 14px',
         },
         notchedOutline: {
-          borderColor: '#cbd5e1', // Slate-300
+          borderColor: '#cbd5e1',
         },
       },
     },
@@ -189,11 +192,8 @@ const theme = createTheme({
         root: {
           fontSize: '0.875rem',
           color: '#475569',
-          // We will likely encourage using "FormLabel" above the input, 
-          // but if `label` prop is used in TextField, style it well.
         },
         outlined: {
-          // Adjust position if needed, but standard Material behavior is fine for fallback
         }
       }
     },

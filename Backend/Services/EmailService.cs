@@ -3,11 +3,20 @@ using System.Net.Mail;
 
 namespace Backend.Services;
 
+/// <summary>
+/// บริการสำหรับการส่งอีเมลในระบบ (เช่น OTP)
+/// </summary>
 public class EmailService
 {
     private readonly string _senderEmail = "hospitalrfidtracking@gmail.com";
-    private readonly string _appPassword = "qzls jdhm lrzq pabv"; // ⚠️ แนะนำให้ย้ายไปไว้ใน appsettings.json
+    // ข้อควรระวัง: รหัสแอปควรถูกจัดเก็บไว้ในลักษณะกำหนดตัวแปรภายนอก (appsettings) เพื่อความปลอดภัย
+    private readonly string _appPassword = "qzls jdhm lrzq pabv"; 
 
+    /// <summary>
+    /// สั่งการส่งข้อความรหัสยืนยัน OTP ไปยังเป้าหมายปลายทาง
+    /// </summary>
+    /// <param name="toEmail">ที่อยู่อีเมลเป้าหมาย</param>
+    /// <param name="otpCode">รหัสยืนยันความยาว 6 ตัวอักษร</param>
     public async Task SendOtpEmailAsync(string toEmail, string otpCode)
     {
         try
@@ -38,7 +47,7 @@ public class EmailService
         }
         catch (Exception ex)
         {
-            // Log error หรือ throw ออกไป
+            // ทำการบันทึกเมื่อมีจุดบกพร่อง หรือสะท้อนความผิดพลาดส่วนนอกการทำงาน
             Console.WriteLine($"Error sending email: {ex.Message}");
             throw;
         }

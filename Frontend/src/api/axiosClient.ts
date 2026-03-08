@@ -1,23 +1,24 @@
 import axios from 'axios';
 
-// ไม่ต้องเช็ค localhost หรือ domain แล้ว ให้ใช้ '/api' อย่างเดียวเลย
-// เดี๋ยว Vite Proxy จะจัดการเลือกทางไปต่อให้เอง
+/**
+ * อินสแตนซ์ของ Axios ที่ตั้งค่าสำหรับการเชื่อมต่อกับ Backend API หลักของระบบ
+ * บังคับให้ส่งและรับ Cookie (HttpOnly Session) เพื่อการจัดการสถานะล็อกอินและสิทธิ์
+ */
 const axiosClient = axios.create({
-  baseURL: '/api', 
-  withCredentials: true, // ✅ สำคัญมาก: สั่งให้ Axios ส่ง HttpOnly Cookie (Session) ไปกับทุก Request
+  baseURL: 'https://api.rfidtracking.space/api',
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Interceptor (คงเดิมไว้)
 axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // ล้างข้อมูลผู้ใช้ในระบบและดีดผู้ใช้กลับไปยังหน้าล็อกอินกรณีที่รอบเซสชั่นหมดอายุ
     if (error.response && error.response.status === 401) {
-      // ✅ ถ้า Session หมดอายุ หรือไม่มีสิทธิ์ (401) จะล้างข้อมูลหน้าเว็บและดีดกลับไปหน้า Login
       localStorage.removeItem('currentUser');
-      window.location.href = '/login'; 
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }

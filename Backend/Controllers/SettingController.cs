@@ -4,45 +4,58 @@ using Backend.Models;
 
 namespace Backend.Controllers
 {
+    /// <summary>
+    /// ควบคุมข้อมูลและการตั้งค่าภาพรวมของทั้งระบบ
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class SettingController : ControllerBase
     {
-        private readonly LinenDbContext _context;
+        private readonly Services.ISettingService _service;
 
-        public SettingController(LinenDbContext context)
+        /// <summary>
+        /// กำหนดค่าเริ่มต้นให้กับ SettingController
+        /// </summary>
+        /// <param name="service">บริการสำหรับการจัดการตัวแปรการตั้งค่าของระบบ</param>
+        public SettingController(Services.ISettingService service)
         {
-            _context = context;
+            _service = service;
         }
 
-        // GET: api/Setting
+        /// <summary>
+        /// ดึงรายการการกำหนดค่าของระบบทั้งหมด
+        /// </summary>
+        /// <returns>รายการการตั้งค่าระบบ</returns>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Setting>>> GetSettings()
         {
-            return await _context.Settings.ToListAsync();
+            return Ok(await _service.GetSettingsAsync());
         }
 
-        // PUT: api/Setting/Update
+        /// <summary>
+        /// อัปเดตแพ็กเกจของการกำหนดค่าเพื่อการเปลี่ยนแปลงและควบคุมพฤติกรรมของระบบ
+        /// </summary>
+        /// <param name="setting">ระบบการตั้งค่าที่จะปรับปรุง</param>
+        /// <returns>สถานะความสำเร็จจาการปรับตัวแปรตั้งต้น</returns>
         [HttpPut("Update")]
         public async Task<IActionResult> UpdateSetting([FromBody] Setting setting)
         {
-            var existing = await _context.Settings.FindAsync(setting.Id);
-            if (existing == null) return NotFound("ไม่พบการตั้งค่านี้");
+            var result = await _service.UpdateSettingAsync(setting);
+            if (result.Status == 404) return NotFound(result.Message);
 
-            existing.Value = setting.Value;
-            existing.Description = setting.Description; // อัปเดตคำอธิบายได้ด้วย
-
-            await _context.SaveChangesAsync();
-            return Ok(new { message = "บันทึกการตั้งค่าเรียบร้อย" });
+            return Ok(new { message = result.Message });
         }
         
-        // POST: สร้างค่าใหม่ (เผื่อใช้)
+        /// <summary>
+        /// สร้างเงื่อนไขการตั้งค่าระบบให้รองรับตัวแปรล่วงหน้า
+        /// </summary>
+        /// <param name="setting">เนื้อหาตัวแปรข้อมูลบรรทัดใหม่</param>
+        /// <returns>การตั้งค่าที่ระบุข้อมูลบรรจุลงระบบแล้ว</returns>
         [HttpPost]
         public async Task<ActionResult<Setting>> CreateSetting(Setting setting)
         {
-            _context.Settings.Add(setting);
-            await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetSettings), new { id = setting.Id }, setting);
+            var createdSetting = await _service.CreateSettingAsync(setting);
+            return CreatedAtAction(nameof(GetSettings), new { id = createdSetting.Id }, createdSetting);
         }
     }
 }

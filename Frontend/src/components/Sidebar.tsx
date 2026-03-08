@@ -13,32 +13,46 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { alpha, useTheme } from '@mui/material/styles';
-import axiosClient from '../api/axiosClient'; 
+import axiosClient from '../api/axiosClient';
+
+// ✅ Import Logo
+import rmuttLogo from '../assets/rmutt.png';
 
 const drawerWidth = 280;
 
+/**
+ * คุณสมบัติควบคุมโครงสร้างแถบด้านข้าง
+ * @interface SidebarProps
+ * @property {boolean} open สถานะบอกว่าแถบเปืดหรือปิดอยู่
+ * @property {function} onClose การจัดการเมื่อต้องการปิดแถบ
+ */
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
 }
 
+/**
+ * คอมโพเนนต์เมนูหลักระบบทางด้านซ้าย (Sidebar)
+ * แสดงรายการเข้าถึงตามสิทธิ์ (Permissions) และจัดการช่องทางหลักของทุกโมดูล
+ * * @param {SidebarProps} props ตัวควบคุมหน้าต่างเมนู
+ * @returns {JSX.Element} เลย์เอาตโครงสร้างรวม
+ */
 const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [openDataEntry, setOpenDataEntry] = useState(true);
 
-  // --- 1. User & Permissions ---
   const userStr = localStorage.getItem('currentUser');
   const user = userStr ? JSON.parse(userStr) : { firstName: 'Guest', lastName: '', roleId: 0, permissions: [] };
 
-  const userPermissions = new Set(user.permissions || user.Permissions || []); 
+  const userPermissions = new Set(user.permissions || user.Permissions || []);
   const roleId = user.roleId || 0;
-  
-  // ✅ ปรับปรุง: รองรับการเช็คสิทธิ์หลายตัว (Array) เพื่อให้ยืดหยุ่นกับสิทธิ์ย่อยๆ 
+
+  // ตรวจสอบขั้นสูงสำหรับสิทธิ์แต่ละกลุ่ม สามารถโยนเงื่อนไขเป็นอาเรย์ได้เพื่อเพิ่มความยืดหยุ่น
   const hasPermission = (requiredPerms: string | string[]) => {
-    if (roleId === 1) return true; // Admin ผ่านเสมอ
-    
+    if (roleId === 1) return true;
+
     if (Array.isArray(requiredPerms)) {
       return requiredPerms.some(p => userPermissions.has(p));
     }
@@ -61,15 +75,15 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
       confirmButtonText: 'ใช่, ออกจากระบบ',
       cancelButtonText: 'ยกเลิก',
       customClass: {
-        popup: 'rounded-xl', 
+        popup: 'rounded-xl',
       }
-    }).then(async (result) => { 
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        
+
         try {
-            await axiosClient.post('/Auth/Logout');
-        } catch(e) {
-            console.error("Logout Error", e);
+          await axiosClient.post('/Auth/Logout');
+        } catch (e) {
+          console.error("Logout Error", e);
         }
 
         localStorage.removeItem('currentUser');
@@ -80,7 +94,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
 
   const isSelected = (path: string) => location.pathname === path;
 
-  // --- Modern Menu Styles ---
   const menuButtonStyle = (path: string) => {
     const active = isSelected(path);
     return {
@@ -120,10 +133,10 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
   const subMenuButtonStyle = (path: string) => {
     const active = isSelected(path);
     return {
-      pl: '52px', 
+      pl: '52px',
       py: 1,
       mx: 2,
-      mt: 0.2, 
+      mt: 0.2,
       borderRadius: '8px',
       color: active ? theme.palette.primary.main : theme.palette.text.secondary,
       bgcolor: active ? alpha(theme.palette.primary.main, 0.04) : 'transparent',
@@ -160,54 +173,56 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
   const drawerContent = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', bgcolor: '#ffffff', borderRight: `1px solid ${theme.palette.divider}` }}>
 
-      {/* 1. Logo Section */}
-      <Toolbar sx={{ display: 'flex', alignItems: 'center', px: 3, py: 4, minHeight: 80 }}>
+      {/* ✅ ส่วน Header ที่แก้ไขใหม่ ใส่ Logo และจัดข้อความ */}
+      <Toolbar sx={{ display: 'flex', alignItems: 'center', px: 3, py: 3, minHeight: 90 }}>
         <Box
+          component="img"
+          src={rmuttLogo}
+          alt="RMUTT Logo"
           sx={{
-            width: 44, height: 44, borderRadius: '12px',
-            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', mr: 2,
-            boxShadow: `0 8px 16px -4px ${alpha(theme.palette.primary.main, 0.4)}`
+            width: 50,
+            height: 50,
+            objectFit: 'contain',
+            mr: 2,
+            // filter: 'drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.1))' 
           }}
-        >
-          <Sensors sx={{ color: '#fff', fontSize: 26 }} />
-        </Box>
+        />
         <Box>
-          <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1, color: theme.palette.text.primary, letterSpacing: -0.5 }}>
-            Smart RFID
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2, color: theme.palette.primary.main, letterSpacing: -0.5 }}>
+            ระบบติดตามผ้า
           </Typography>
-          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 500, fontSize: '0.75rem' }}>
-            Linen Management
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2, color: theme.palette.text.primary, letterSpacing: -0.5 }}>
+            ในโรงพยาบาล
+          </Typography>
+          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontWeight: 500, fontSize: '0.65rem', display: 'block', mt: 0.5 }}>
+            Hospital Fabric Tracking System
           </Typography>
         </Box>
       </Toolbar>
 
       <Divider sx={{ mx: 3, mb: 1, borderStyle: 'dashed' }} />
 
-      {/* 2. Menu List */}
       <Box sx={{ overflowY: 'auto', flexGrow: 1, py: 1, px: 0 }}>
         <List component="nav">
 
-          <SectionHeader title="Overview" />
+          <SectionHeader title="ภาพรวม" />
 
-          {/* ✅ อัปเดตการเช็คสิทธิ์ทั้งหมดให้ครอบคลุม READ */}
           {hasPermission(['VIEW_DASHBOARD', 'READ_DASHBOARD']) && (
             <ListItemButton sx={menuButtonStyle('/')} onClick={() => handleNavigate('/')}>
               <ListItemIcon><Home fontSize="small" /></ListItemIcon>
-              <ListItemText primary="หน้าหลัก (Monitor)" primaryTypographyProps={{ fontSize: '0.9rem' }} />
+              <ListItemText primary="หน้าหลัก" primaryTypographyProps={{ fontSize: '0.9rem' }} />
             </ListItemButton>
           )}
 
           {hasPermission(['VIEW_DASHBOARD', 'READ_DASHBOARD']) && (
             <ListItemButton sx={menuButtonStyle('/stats')} onClick={() => handleNavigate('/stats')}>
               <ListItemIcon><ShowChart fontSize="small" /></ListItemIcon>
-              <ListItemText primary="สถิติ (Dashboard)" primaryTypographyProps={{ fontSize: '0.9rem' }} />
+              <ListItemText primary="สถิติภาพรวม" primaryTypographyProps={{ fontSize: '0.9rem' }} />
             </ListItemButton>
           )}
 
-          <SectionHeader title="Operations" />
+          <SectionHeader title="การดำเนินงาน" />
 
-          {/* เมนูค้นหาข้อมูลผ้า (อนุญาตให้ทุกคนเข้าถึงได้ หรือจะใส่ READ_LINEN ก็ได้) */}
           <ListItemButton sx={menuButtonStyle('/search-linen')} onClick={() => handleNavigate('/search-linen')}>
             <ListItemIcon><FindInPage fontSize="small" /></ListItemIcon>
             <ListItemText primary="ค้นหาข้อมูลผ้า" primaryTypographyProps={{ fontSize: '0.9rem' }} />
@@ -216,28 +231,28 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
           {hasPermission(['READ_REQUEST', 'MANAGE_REQUEST']) && (
             <ListItemButton sx={menuButtonStyle('/requests')} onClick={() => handleNavigate('/requests')}>
               <ListItemIcon><Assignment fontSize="small" /></ListItemIcon>
-              <ListItemText primary="คำร้องเบิก/คืนผ้า" primaryTypographyProps={{ fontSize: '0.9rem' }} />
+              <ListItemText primary="สร้างใบคำร้องเบิกผ้า" primaryTypographyProps={{ fontSize: '0.9rem' }} />
             </ListItemButton>
           )}
 
           {hasPermission(['READ_TRANSPORT', 'MANAGE_TRANSPORT']) && (
             <ListItemButton sx={menuButtonStyle('/transport')} onClick={() => handleNavigate('/transport')}>
               <ListItemIcon><LocalShipping fontSize="small" /></ListItemIcon>
-              <ListItemText primary="ระบบขนส่ง" primaryTypographyProps={{ fontSize: '0.9rem' }} />
+              <ListItemText primary="ติดตามการขนส่งผ้า" primaryTypographyProps={{ fontSize: '0.9rem' }} />
             </ListItemButton>
           )}
 
           {hasPermission(['READ_LAUNDRY', 'MANAGE_LAUNDRY']) && (
             <ListItemButton sx={menuButtonStyle('/laundry')} onClick={() => handleNavigate('/laundry')}>
               <ListItemIcon><LocalLaundryService fontSize="small" /></ListItemIcon>
-              <ListItemText primary="ระบบซักรีด" primaryTypographyProps={{ fontSize: '0.9rem' }} />
+              <ListItemText primary="ติดตามสถานะซัก" primaryTypographyProps={{ fontSize: '0.9rem' }} />
             </ListItemButton>
           )}
 
           {hasPermission(['READ_DISCARD', 'MANAGE_DISCARD']) && (
             <ListItemButton sx={menuButtonStyle('/discard')} onClick={() => handleNavigate('/discard')}>
               <ListItemIcon><DeleteForever fontSize="small" /></ListItemIcon>
-              <ListItemText primary="แจ้งชำรุด/หาย" primaryTypographyProps={{ fontSize: '0.9rem' }} />
+              <ListItemText primary="แจ้งจำหน่ายออก" primaryTypographyProps={{ fontSize: '0.9rem' }} />
             </ListItemButton>
           )}
 
@@ -248,67 +263,65 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
             </ListItemButton>
           )}
 
-          {/* Admin Section (ถ้ามีสิทธิ์ READ หรือ MANAGE อย่างน้อย 1 อันในกลุ่มนี้ จะเห็นหมวด Management) */}
           {hasPermission([
-            'READ_HOSPITAL', 'MANAGE_HOSPITAL', 
-            'READ_LINEN', 'MANAGE_LINEN', 
-            'READ_USER', 'MANAGE_USER', 'READ_ROLE', 
+            'READ_HOSPITAL', 'MANAGE_HOSPITAL',
+            'READ_LINEN', 'MANAGE_LINEN',
+            'READ_USER', 'MANAGE_USER', 'READ_ROLE',
             'READ_VENDOR', 'MANAGE_VENDOR',
             'READ_RFID', 'CONNECT_RFID', 'WRITE_RFID'
           ]) && (
-            <>
-              <SectionHeader title="Management" />
+              <>
+                <SectionHeader title="การจัดการข้อมูล" />
 
-              <ListItemButton onClick={() => setOpenDataEntry(!openDataEntry)} sx={{ ...menuButtonStyle(''), justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <ListItemIcon><EditNote fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="จัดการข้อมูล" primaryTypographyProps={{ fontSize: '0.9rem' }} />
-                </Box>
-                {openDataEntry ? <ExpandLess fontSize="small" sx={{ color: theme.palette.text.disabled }} /> : <ChevronRight fontSize="small" sx={{ color: theme.palette.text.disabled }} />}
-              </ListItemButton>
+                <ListItemButton onClick={() => setOpenDataEntry(!openDataEntry)} sx={{ ...menuButtonStyle(''), justifyContent: 'space-between' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <ListItemIcon><EditNote fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="จัดการข้อมูล" primaryTypographyProps={{ fontSize: '0.9rem' }} />
+                  </Box>
+                  {openDataEntry ? <ExpandLess fontSize="small" sx={{ color: theme.palette.text.disabled }} /> : <ChevronRight fontSize="small" sx={{ color: theme.palette.text.disabled }} />}
+                </ListItemButton>
 
-              <Collapse in={openDataEntry} timeout="auto" unmountOnExit>
-                <List component="div" disablePadding>
+                <Collapse in={openDataEntry} timeout="auto" unmountOnExit>
+                  <List component="div" disablePadding>
 
-                  {hasPermission(['READ_HOSPITAL', 'MANAGE_HOSPITAL']) && (
-                    <ListItemButton sx={subMenuButtonStyle('/hospital')} onClick={() => handleNavigate('/hospital')}>
-                      <ListItemText primary="โรงพยาบาล" />
-                    </ListItemButton>
-                  )}
+                    {hasPermission(['READ_HOSPITAL', 'MANAGE_HOSPITAL']) && (
+                      <ListItemButton sx={subMenuButtonStyle('/hospital')} onClick={() => handleNavigate('/hospital')}>
+                        <ListItemText primary="โรงพยาบาล" />
+                      </ListItemButton>
+                    )}
 
-                  {hasPermission(['READ_LINEN', 'MANAGE_LINEN']) && (
-                    <ListItemButton sx={subMenuButtonStyle('/linens')} onClick={() => handleNavigate('/linens')}>
-                      <ListItemText primary="สต็อกผ้า (Linen)" />
-                    </ListItemButton>
-                  )}
+                    {hasPermission(['READ_LINEN', 'MANAGE_LINEN']) && (
+                      <ListItemButton sx={subMenuButtonStyle('/linens')} onClick={() => handleNavigate('/linens')}>
+                        <ListItemText primary="สต็อกผ้า (Linen)" />
+                      </ListItemButton>
+                    )}
 
-                  {hasPermission(['READ_VENDOR', 'MANAGE_VENDOR']) && (
-                    <ListItemButton sx={subMenuButtonStyle('/vendors')} onClick={() => handleNavigate('/vendors')}>
-                      <ListItemText primary="บริษัทคู่ค้า" />
-                    </ListItemButton>
-                  )}
+                    {hasPermission(['READ_VENDOR', 'MANAGE_VENDOR']) && (
+                      <ListItemButton sx={subMenuButtonStyle('/vendors')} onClick={() => handleNavigate('/vendors')}>
+                        <ListItemText primary="บริษัทคู่ค้า" />
+                      </ListItemButton>
+                    )}
 
-                  {hasPermission(['READ_USER', 'MANAGE_USER', 'READ_ROLE']) && (
-                    <ListItemButton sx={subMenuButtonStyle('/users')} onClick={() => handleNavigate('/users')}>
-                      <ListItemText primary="บุคลากร (Users)" />
-                    </ListItemButton>
-                  )}
+                    {hasPermission(['READ_USER', 'MANAGE_USER', 'READ_ROLE']) && (
+                      <ListItemButton sx={subMenuButtonStyle('/users')} onClick={() => handleNavigate('/users')}>
+                        <ListItemText primary="บุคลากร (Users)" />
+                      </ListItemButton>
+                    )}
 
-                  {hasPermission(['READ_RFID', 'CONNECT_RFID', 'WRITE_RFID']) && (
-                    <ListItemButton sx={subMenuButtonStyle('/rfid-connect')} onClick={() => handleNavigate('/rfid-connect')}>
-                      <ListItemText primary="เชื่อมต่อ RFID" />
-                    </ListItemButton>
-                  )}
+                    {hasPermission(['READ_RFID', 'CONNECT_RFID', 'WRITE_RFID']) && (
+                      <ListItemButton sx={subMenuButtonStyle('/rfid-connect')} onClick={() => handleNavigate('/rfid-connect')}>
+                        <ListItemText primary="เชื่อมต่อ RFID" />
+                      </ListItemButton>
+                    )}
 
-                </List>
-              </Collapse>
-            </>
-          )}
+                  </List>
+                </Collapse>
+              </>
+            )}
 
         </List>
       </Box>
 
-      {/* 3. Footer / User Profile User */}
       <Box sx={{ p: 2, borderTop: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.background.default }}>
         {hasPermission('MANAGE_SETTING') && (
           <ListItemButton sx={{ ...menuButtonStyle('/settings'), mx: 0, mb: 2 }} onClick={() => handleNavigate('/settings')}>

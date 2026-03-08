@@ -1,13 +1,15 @@
 import axios from '../api/axiosClient';
 
 /**
- * ฟังก์ชันส่งแจ้งเตือนเข้าสู่ระบบ (ใช้ได้ทุกหน้า)
- * @param title หัวข้อแจ้งเตือน
- * @param message รายละเอียด
- * @param type ประเภท: 'INFO' | 'SUCCESS' | 'WARNING' | 'DANGER'
- * @param linkUrl (Optional) ลิงก์ที่กดแล้วจะไป (เช่น '/requests?id=1')
- * @param userId (Optional) ระบุคนรับ (ถ้าไม่ใส่ = เป็น null)
- * @param roleId (Optional) ระบุกลุ่มรับ (เช่น 1=Admin, 2=Head)
+ * ฟังก์ชันส่วนกลางสำหรับส่งข้อความแจ้งเตือนป้อนเข้าสู่ระบบ
+ * 
+ * @param {string} title - หัวข้อหรือชื่อเรื่องการแจ้งเตือน
+ * @param {string} message - ข้อความรายละเอียดประกอบ
+ * @param {'INFO' | 'SUCCESS' | 'WARNING' | 'DANGER' | 'ERROR'} [type='INFO'] - ระดับความสำคัญของข้อความ
+ * @param {string} [linkUrl=''] - เส้นทาง URL ที่เกี่ยวข้องเมื่อผู้ใช้คลิกคำแจ้งเตือน
+ * @param {number} [userId] - รหัสผู้ใช้เป้าหมาย หากไม่ระบุจะเป็นตัวเลือกว่างอ้างอิงทุกบัญชี
+ * @param {number} [roleId] - รหัสตำแหน่งสิทธิ์กลุ่มเป้าหมาย หากไม่ระบุจะเป็นตัวเลือกว่าง
+ * @returns {Promise<void>}
  */
 export const sendNotification = async (
   title: string,
@@ -18,6 +20,7 @@ export const sendNotification = async (
   roleId?: number
 ) => {
   try {
+    // ยิงคำสั่งสร้างบันทึกการแจ้งเตือนไปยังฐานข้อมูลเพื่อกระจายข้อมูล
     await axios.post('/Notification/Create', {
       title,
       message,

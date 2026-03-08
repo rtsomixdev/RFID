@@ -4,14 +4,18 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 
-// Must match Sidebar.tsx
 const drawerWidth = 280;
 
+/**
+ * โครงสร้างเลย์เอาต์หลักของแอปพลิเคชัน
+ * ทำหน้าที่คอยประกอบส่วนหัว (Navbar) ด้านข้าง (Sidebar) และพื้นที่เนื้อหาตรงกลาง (Outlet)
+ * 
+ * @returns {JSX.Element} เลย์เอาต์หลักพร้อมส่วนเนื้อหาย่อย
+ */
 const MainLayout: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
-  // 1️⃣ User Check
   const userStr = localStorage.getItem('currentUser');
   const user = userStr ? JSON.parse(userStr) : null;
 
@@ -19,13 +23,12 @@ const MainLayout: React.FC = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  // 2️⃣ Visibility Logic
   const isLoginPage = location.pathname === '/login';
   const isGuestHome = location.pathname === '/' && !user;
 
   const shouldHideSidebar = isLoginPage || isGuestHome;
 
-  // 🟢 CASE 1: Hide Sidebar
+  // กรณีซ่อนแถบเมนูด้านข้าง เช่น หน้าแรกตอนยังไม่มีเซสชั่นเซิร์ฟเวอร์ หรือหน้าเข้าสู่ระบบ
   if (shouldHideSidebar) {
     return (
       <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -35,29 +38,26 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  // 🔒 CASE 2: Show Sidebar
+  // กรณีผ่านการรับรองสิทธิ์ แสดงแถบเมนูด้านข้างและแถบนำทางด้านบนปกติตามโครงร่าง
   return (
     <Box sx={{ display: 'flex', bgcolor: 'background.default', minHeight: '100vh' }}>
       <CssBaseline />
 
-      {/* Navbar receives toggle handler */}
       <Navbar onMenuClick={handleDrawerToggle} />
 
-      {/* Sidebar Component */}
       <Sidebar open={mobileOpen} onClose={handleDrawerToggle} />
 
-      {/* Main Content Area */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: { xs: 2, sm: 3 }, // Responsive padding
+          p: { xs: 2, sm: 3 },
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
           bgcolor: 'background.default',
         }}
       >
-        <Toolbar sx={{ minHeight: '64px' }} /> {/* Spacer for Fixed Navbar */}
+        <Toolbar sx={{ minHeight: '64px' }} />
         <Outlet />
       </Box>
     </Box>

@@ -4,138 +4,64 @@ using Backend.Models;
 
 namespace Backend.Controllers
 {
+    /// <summary>
+    /// ข้อมูลอ้างอิงและพารามิเตอร์สำหรับการสแกนจุดอ่านที่เกี่ยวกับการเคลื่อนย้ายขนส่ง
+    /// </summary>
     public class TransportDto
     {
         public List<string> RfidCodes { get; set; } = new List<string>();
-        public int ReaderId { get; set; } // เครื่องอ่านตัวไหนเป็นคนสแกน
-        public int? RequestId { get; set; } // (Optional) อ้างอิงใบงานไหน
+        public int ReaderId { get; set; } 
+        public int? RequestId { get; set; } 
     }
 
+    /// <summary>
+    /// ควบคุมกิจกรรมการสแกนนำเข้า-นำออกและการกระจายสินค้าที่จุดเคลื่อนย้าย
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class TransportController : ControllerBase
     {
-        private readonly LinenDbContext _context;
+        private readonly Services.ITransportService _service;
 
-        public TransportController(LinenDbContext context)
+        /// <summary>
+        /// กำหนดค่าเริ่มต้นให้กับ TransportController
+        /// </summary>
+        /// <param name="service">บริการสำหรับการจัดการการขนย้าย</param>
+        public TransportController(Services.ITransportService service)
         {
-            _context = context;
+            _service = service;
         }
 
-        private DateTime ThaiTime() => DateTime.UtcNow.AddHours(7);
-
-        // ==========================================
-        // 🚚 1. POST: ส่งผ้าออก (Dispatch / Check-out)
-        // ==========================================
+        /// <summary>
+        /// จัดการสแกนเพื่อส่งผ้าออกหรือตัดสต็อกเคลื่อนย้าย
+        /// </summary>
+        /// <param name="input">ข้อมูลการสแกนนำออก</param>
+        /// <returns>สถานะผลลัพธ์การกระทำ</returns>
         [HttpPost("Dispatch")]
         public async Task<IActionResult> Dispatch([FromBody] TransportDto input)
         {
-            // 1. ตรวจสอบเครื่องอ่าน (ต้องเป็น ReaderType = DISPATCH หรือ GATE)
-            var reader = await _context.Readers.FindAsync(input.ReaderId);
-            if (reader == null) return BadRequest("ไม่พบข้อมูลเครื่องอ่าน RFID");
+            var result = await _service.DispatchAsync(input);
 
-            // 2. ดึงข้อมูลผ้า
-            var linens = await _context.Linens
-                .Where(l => input.RfidCodes.Contains(l.RfidCode) && l.IsActive)
-                .ToListAsync();
+            if (result.Status == 400) return BadRequest(result.Message);
+            if (result.Status == 404) return NotFound(result.Message);
 
-            if (!linens.Any()) return NotFound("ไม่พบผ้าที่ระบุในระบบ");
-
-            var now = ThaiTime();
-            var logList = new List<LinenLog>();
-
-            foreach (var linen in linens)
-            {
-                // Logic: เปลี่ยนสถานะเป็น "กำลังส่ง"
-                linen.Status = "InTransit";
-                linen.CurrentLocation = "InTransit"; 
-                linen.UpdatedAt = now;
-
-                // Log การเคลื่อนไหว
-                logList.Add(new LinenLog
-                {
-                    LinenId = linen.LinenId,
-                    ReaderId = input.ReaderId,
-                    StatusAfter = "InTransit",
-                    CreatedAt = now,
-                    Description = $"ส่งออกจาก {reader.Location ?? reader.ReaderName}"
-                });
-            }
-
-            // ถ้ามี RequestId ส่งมาด้วย ให้ไปอัปเดตใบงานว่า "เริ่มส่งแล้ว"
-            if (input.RequestId.HasValue)
-            {
-                var req = await _context.Requests.FindAsync(input.RequestId.Value);
-                if (req != null)
-                {
-                    req.Status = "InTransit";
-                    req.DispatchDate = now;
-                }
-            }
-
-            _context.LinenLogs.AddRange(logList);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = $"บันทึกการส่งออก {linens.Count} รายการ", status = "InTransit" });
+            return Ok(new { message = result.Message, status = result.ResultStatus });
         }
 
-        // ==========================================
-        // 🏁 2. POST: รับผ้าเข้า (Receive / Check-in)
-        // ==========================================
+        /// <summary>
+        /// รับผ้าเข้ามาสู่ระบบตามส่วนงานที่รับมอบ
+        /// </summary>
+        /// <param name="input">ข้อมูลการสแกนรับเข้า</param>
+        /// <returns>สถานะผลลัพธ์และตำแหน่งที่ได้รับแจ้ง</returns>
         [HttpPost("Receive")]
         public async Task<IActionResult> Receive([FromBody] TransportDto input)
         {
-            var reader = await _context.Readers.Include(r => r.InstalledAtRoom).FirstOrDefaultAsync(r => r.ReaderId == input.ReaderId);
-            if (reader == null) return BadRequest("ไม่พบข้อมูลเครื่องอ่าน RFID");
+            var result = await _service.ReceiveAsync(input);
 
-            var linens = await _context.Linens
-                .Where(l => input.RfidCodes.Contains(l.RfidCode) && l.IsActive)
-                .ToListAsync();
+            if (result.Status == 400) return BadRequest(result.Message);
+            if (result.Status == 404) return NotFound(result.Message);
 
-            if (!linens.Any()) return NotFound("ไม่พบผ้าที่ระบุในระบบ");
-
-            var now = ThaiTime();
-            var logList = new List<LinenLog>();
-            
-            // Logic ปลายทาง: ถ้าเครื่องอ่านติดตั้งที่ไหน ให้ถือว่าผ้านั้นไปอยู่ที่นั่น
-            string newLocation = reader.InstalledAtRoom?.RoomName ?? reader.Location ?? "Unknown";
-
-            foreach (var linen in linens)
-            {
-                // Requirement: ถึงปลายทาง -> สถานะ InUse (ใช้งาน) หรือ Available (เข้าคลัง)
-                // สมมติ: ถ้าเข้า Ward -> InUse, ถ้าเข้า Stock -> Available
-                string newStatus = "Available"; 
-                if (reader.ReaderFunction == "WARD_RECEIVE") newStatus = "InUse";
-
-                linen.Status = newStatus;
-                linen.CurrentLocation = newLocation;
-                linen.UpdatedAt = now;
-
-                logList.Add(new LinenLog
-                {
-                    LinenId = linen.LinenId,
-                    ReaderId = input.ReaderId,
-                    StatusAfter = newStatus,
-                    CreatedAt = now,
-                    Description = $"รับเข้าที่ {newLocation}"
-                });
-            }
-
-            // ถ้ามี RequestId -> ปิดจ็อบ
-            if (input.RequestId.HasValue)
-            {
-                var req = await _context.Requests.FindAsync(input.RequestId.Value);
-                if (req != null)
-                {
-                    req.Status = "Completed";
-                    req.ArrivalDate = now;
-                }
-            }
-
-            _context.LinenLogs.AddRange(logList);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = $"รับผ้าเข้าเรียบร้อย {linens.Count} รายการ", location = newLocation });
+            return Ok(new { message = result.Message, location = result.Location });
         }
     }
 }

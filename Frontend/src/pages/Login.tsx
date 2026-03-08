@@ -3,12 +3,19 @@ import {
   Box, Button, TextField, Typography, Container, Paper, InputAdornment, IconButton, CircularProgress,
   CssBaseline, Link, Stack, useTheme, alpha
 } from '@mui/material';
-import { Visibility, VisibilityOff, PersonOutline, LockOutlined, LocalHospital } from '@mui/icons-material';
+import { Visibility, VisibilityOff, PersonOutline, LockOutlined } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
 import { sendNotification } from '../utils/notificationUtil';
 
+// ✅ Import รูปภาพจาก assets
+import rmuttLogo from '../assets/rmutt.png';
+
+/**
+ * หน้าจอเข้าสู่ระบบ
+ * * @returns {JSX.Element} คอมโพเนนต์หน้าจอเข้าสู่ระบบ
+ */
 const Login: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -28,18 +35,18 @@ const Login: React.FC = () => {
 
       const loginData = response.data;
 
-      // ✅ Backend จะส่ง { message: "...", user: { ... } } กลับมา
+      // ระบบจะส่งข้อมูลผู้ใช้งานและข้อความยืนยันกลับมา
       if (loginData && loginData.user) {
-        
-        // 1. เก็บแค่ Profile ของ User ลง LocalStorage เอาไว้โชว์ชื่อและเช็คสิทธิ์ (RBAC)
+
+        // ขั้นตอนที่ 1: บันทึกข้อมูลส่วนตัวของผู้ใช้ลง LocalStorage สำหรับแสดงชื่อและตรวจสอบสิทธิ์
         localStorage.setItem('currentUser', JSON.stringify(loginData.user));
-        
-        // ❌ เอาการเซ็ต Token ลง LocalStorage ออก เพราะตอนนี้เราใช้ HttpOnly Cookie Session แทนแล้ว
+
+        // หมายเหตุ: ไม่มีการบันทึก Token ลง LocalStorage เนื่องจากระบบใช้ HttpOnly Cookie Session แทนแล้ว
 
         Swal.fire({
           icon: 'success',
           title: 'ยินดีต้อนรับ',
-          text: `สวัสดีคุณ ${loginData.user.firstName} (${loginData.user.roleName || ''})`, // ✅ ดึง roleName จริงมาโชว์ได้เลย
+          text: `สวัสดีคุณ ${loginData.user.firstName} (${loginData.user.roleName || ''})`, // ดึงชื่อสิทธิ์จริงมาแสดงผล
           timer: 1500,
           showConfirmButton: false
         }).then(() => {
@@ -81,7 +88,7 @@ const Login: React.FC = () => {
     >
       <CssBaseline />
 
-      {/* Decorative Background Circles */}
+      {/* วงกลมตกแต่งกระดาษพื้นหลัง */}
       <Box sx={{ position: 'absolute', top: -100, right: -100, width: 400, height: 400, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.05) }} />
       <Box sx={{ position: 'absolute', bottom: -50, left: -50, width: 300, height: 300, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.05) }} />
 
@@ -97,24 +104,27 @@ const Login: React.FC = () => {
             border: `1px solid ${theme.palette.divider}`
           }}
         >
+          {/* ✅ เปลี่ยนจาก Icon เป็นรูปภาพ Logo */}
           <Box
             sx={{
-              width: 64, height: 64,
-              bgcolor: alpha(theme.palette.primary.main, 0.1),
-              color: theme.palette.primary.main,
-              borderRadius: '50%',
+              width: 80, // ปรับขนาดให้เหมาะสมกับ Logo (ขยายจาก 64 เป็น 80 เพื่อความสวยงาม)
+              height: 80,
+              margin: '0 auto',
+              mb: 2,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto',
-              mb: 3
+              justifyContent: 'center'
             }}
           >
-            <LocalHospital sx={{ fontSize: 32 }} />
+            <img 
+              src={rmuttLogo} 
+              alt="RMUTT Logo" 
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+            />
           </Box>
 
           <Typography variant="h5" fontWeight="800" color="text.primary" gutterBottom>
-            Smart Linen System
+            ระบบติดตามผ้าในโรงพยาบาล
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
             กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ
@@ -199,7 +209,7 @@ const Login: React.FC = () => {
           </form>
 
           <Typography variant="caption" display="block" sx={{ mt: 4, color: theme.palette.text.disabled }}>
-            © {new Date().getFullYear()} Smart Linen Management System
+            © {new Date().getFullYear()} ระบบติดตามผ้าในโรงพยาบาล. สงวนลิขสิทธิ์.
           </Typography>
         </Paper>
       </Container>

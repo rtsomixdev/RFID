@@ -4,95 +4,84 @@ using Backend.Models;
 
 namespace Backend.Controllers
 {
+    /// <summary>
+    /// ควบคุมจัดการข้อมูลผู้จัดจำหน่าย (Vendor) และบริษัทภายนอก
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class VendorController : ControllerBase
     {
-        private readonly LinenDbContext _context;
-        public VendorController(LinenDbContext context) => _context = context;
+        private readonly Services.IVendorService _service;
+        
+        /// <summary>
+        /// กำหนดค่าเริ่มต้นให้กับ VendorController
+        /// </summary>
+        /// <param name="service">บริการสำหรับการจัดการตัวแทนผู้จัดจำหน่าย</param>
+        public VendorController(Services.IVendorService service) => _service = service;
 
-        // GET: api/Vendor
+        /// <summary>
+        /// ดึงรายการผู้จัดจำหน่ายและบริษัทคู่ค้าทั้งหมด
+        /// </summary>
+        /// <returns>ชุดข้อมูลบริษัทผู้จัดจำหน่าย</returns>
         [HttpGet] 
         public async Task<ActionResult<IEnumerable<Vendor>>> Get() 
         {
-            return await _context.Vendors.ToListAsync();
+            return Ok(await _service.GetAsync());
         }
 
-        // GET: api/Vendor/5
+        /// <summary>
+        /// ดึงข้อมูลเฉพาะของผู้จัดจำหน่ายตามรหัสแวะตรวจ
+        /// </summary>
+        /// <param name="id">รหัสผู้จัดจำหน่าย</param>
+        /// <returns>ลักษณะนามบริษัทที่บันทึกร่วม</returns>
         [HttpGet("{id}")] 
         public async Task<ActionResult<Vendor>> Get(int id) 
         { 
-            var item = await _context.Vendors.FindAsync(id); 
-            return item == null ? NotFound() : item; 
+            var item = await _service.GetAsync(id); 
+            return item == null ? NotFound() : Ok(item); 
         }
 
-        // POST: api/Vendor
+        /// <summary>
+        /// เพิ่มรายการบริษัทจัดจำหน่ายหรือตัวแทนเข้าสู่สารบบ
+        /// </summary>
+        /// <param name="item">ข้อมูลผู้จัดจำหน่ายใหม่</param>
+        /// <returns>สถานะพร้อมรหัสตัวแทนใหม่ที่เพิ่งออก</returns>
         [HttpPost] 
         public async Task<ActionResult<Vendor>> Post(Vendor item) 
         { 
-            try 
-            {
-                _context.Vendors.Add(item); 
-                await _context.SaveChangesAsync(); 
-                return CreatedAtAction(nameof(Get), new { id = item.VendorId }, item); 
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, "เพิ่มข้อมูลไม่สำเร็จ: " + ex.Message);
-            }
+            var result = await _service.PostAsync(item);
+            if (result.Status == 500) return StatusCode(500, result.Message);
+            return CreatedAtAction(nameof(Get), new { id = result.Item?.VendorId }, result.Item);
         }
 
-        // PUT: api/Vendor/5
-        // ✅ แก้ไขใหม่: ดึงของเก่ามาอัปเดตค่า (ปลอดภัยกว่า State = Modified)
+        /// <summary>
+        /// อัปเดตข้อมูลรายละเอียดของผู้จัดจำหน่ายองค์กร
+        /// </summary>
+        /// <param name="id">รหัสประจำผู้จัดจำหน่าย</param>
+        /// <param name="item">การเปลี่ยนแปลงเชิงลึกของผู้จัดจำหน่าย</param>
+        /// <returns>ปรับปรุงแฟ้มระบบพร้อมรีเทิร์นรายการส่งกลับ</returns>
         [HttpPut("{id}")] 
         public async Task<IActionResult> Put(int id, Vendor item) 
         { 
-            if (id != item.VendorId) return BadRequest("ID ไม่ตรงกัน"); 
+            var result = await _service.PutAsync(id, item);
+            if (result.Status == 400) return BadRequest(result.Message);
+            if (result.Status == 404) return result.Message != null ? NotFound(result.Message) : NotFound();
 
-            // 1. ค้นหาข้อมูลเก่าใน DB
-            var existingVendor = await _context.Vendors.FindAsync(id);
-            if (existingVendor == null) return NotFound("ไม่พบข้อมูลบริษัทนี้");
-
-            // 2. อัปเดตเฉพาะค่าที่ส่งมา
-            existingVendor.VendorName = item.VendorName;
-            existingVendor.RegistrationNumber = item.RegistrationNumber;
-            // (ถ้ามี field อื่นให้เพิ่มตรงนี้)
-
-            try 
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Vendors.Any(e => e.VendorId == id)) return NotFound();
-                else throw;
-            }
-
-            return Ok(existingVendor); // ส่งค่าล่าสุดกลับไป
+            return Ok(result.Item); 
         }
 
-        // DELETE: api/Vendor/5
-        // ✅ แก้ไขใหม่: เช็ค Foreign Key ก่อนลบ (กัน Error 500)
+        /// <summary>
+        /// ลบจุดเช็คสภาพหรือข้อมูลองค์กรตัวแทนที่ใช้งานอยู่
+        /// </summary>
+        /// <param name="id">หมายเลขผู้รับจัดจำหน่าย</param>
+        /// <returns>สถานะระดับแจ้งเตือนผลสัมฤทธิ์</returns>
         [HttpDelete("{id}")] 
         public async Task<IActionResult> Delete(int id) 
         { 
-            // 1. เช็คว่าบริษัทนี้ถูกใช้งานในตาราง Linens (ผ้า) หรือไม่?
-            // ถ้ามีผ้าที่ผูกกับบริษัทนี้อยู่ ห้ามลบ!
-            var isUsedInLinens = await _context.Linens.AnyAsync(l => l.VendorId == id);
-            
-            if (isUsedInLinens)
-            {
-                // ส่ง Error 400 พร้อมข้อความแจ้งเตือนกลับไปที่ Frontend
-                return BadRequest(new { message = "ไม่สามารถลบได้ เนื่องจากมีรายการผ้าที่ผูกกับบริษัทนี้อยู่ในระบบ" });
-            }
+            var result = await _service.DeleteAsync(id);
+            if (result.Status == 400) return BadRequest(new { message = result.Message });
+            if (result.Status == 404) return NotFound();
 
-            // 2. ถ้าไม่มีการใช้งาน ค่อยลบ
-            var item = await _context.Vendors.FindAsync(id); 
-            if (item == null) return NotFound(); 
-
-            _context.Vendors.Remove(item); 
-            await _context.SaveChangesAsync(); 
-            
             return NoContent(); 
         }
     }

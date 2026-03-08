@@ -4,82 +4,82 @@ using Backend.Models;
 
 namespace Backend.Controllers
 {
-    // Class สำหรับรับค่าตอนกด "อ่านทั้งหมด"
+    /// <summary>
+    /// ข้อมูลสำหรับการรับค่าคำสั่งเพื่อปรับสถานะเป็นอ่านแล้วทั้งหมด
+    /// </summary>
     public class MarkAllRequest
     {
         public int UserId { get; set; }
         public int RoleId { get; set; }
     }
 
+    /// <summary>
+    /// ควบคุมการจัดการการแจ้งเตือนต่างๆ ภายในระบบ
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class NotificationController : ControllerBase
     {
-        private readonly LinenDbContext _context;
+        private readonly Services.INotificationService _service;
 
-        public NotificationController(LinenDbContext context)
+        /// <summary>
+        /// กำหนดค่าเริ่มต้นให้กับ NotificationController
+        /// </summary>
+        /// <param name="service">บริการสำหรับการแจ้งเตือน</param>
+        public NotificationController(Services.INotificationService service)
         {
-            _context = context;
+            _service = service;
         }
 
-        // GET: api/Notification/MyNotifications?userId=1&roleId=2
+        /// <summary>
+        /// ดึงข้อมูลการแจ้งเตือนส่วนตัวและสำหรับบทบาทของผู้ใช้งาน
+        /// </summary>
+        /// <param name="userId">รหัสผู้ใช้งาน</param>
+        /// <param name="roleId">รหัสบทบาท</param>
+        /// <returns>รายการแจ้งเตือนทั้งหมดที่เกี่ยวข้อง</returns>
         [HttpGet("MyNotifications")]
         public async Task<IActionResult> GetMyNotifications([FromQuery] int userId, [FromQuery] int roleId)
         {
-            var notis = await _context.Notifications
-                // Logic: ดึงของฉัน (UserId ตรง) OR ของแผนกฉัน (RoleId ตรง)
-                .Where(n => n.UserId == userId || (n.UserId == null && n.RoleId == roleId))
-                .OrderByDescending(n => n.CreatedAt)
-                .Take(20)
-                .ToListAsync();
-
-            var unreadCount = await _context.Notifications
-                .Where(n => (n.UserId == userId || (n.UserId == null && n.RoleId == roleId)) && !n.IsRead)
-                .CountAsync();
-
-            return Ok(new { notifications = notis, unreadCount });
+            var result = await _service.GetMyNotificationsAsync(userId, roleId);
+            return Ok(result);
         }
 
-        // POST: api/Notification/Read/5
+        /// <summary>
+        /// ปรับสถานะการแจ้งเตือนรายการเดียวเป็น "อ่านแล้ว"
+        /// </summary>
+        /// <param name="id">รหัสการแจ้งเตือน</param>
+        /// <returns>ผลลัพธ์การปรับสถานะ</returns>
         [HttpPost("Read/{id}")]
         public async Task<IActionResult> MarkAsRead(int id)
         {
-            var noti = await _context.Notifications.FindAsync(id);
-            if (noti == null) return NotFound();
+            var success = await _service.MarkAsReadAsync(id);
+            if (!success) return NotFound();
 
-            noti.IsRead = true;
-            await _context.SaveChangesAsync();
             return Ok();
         }
 
-        // POST: api/Notification/ReadAll
+        /// <summary>
+        /// ปรับสถานะการแจ้งเตือนทั้งหมดของผู้ใช้งานและระดับบทบาทเป็น "อ่านแล้ว"
+        /// </summary>
+        /// <param name="data">ข้อมูลสำหรับการค้นหารายการที่เกี่ยวข้อง</param>
+        /// <returns>ผลลัพธ์การดำเนินการ</returns>
         [HttpPost("ReadAll")]
         public async Task<IActionResult> MarkAllAsRead([FromBody] MarkAllRequest data)
         {
-            var notis = await _context.Notifications
-                .Where(n => (n.UserId == data.UserId || (n.UserId == null && n.RoleId == data.RoleId)) && !n.IsRead)
-                .ToListAsync();
-
-            if (notis.Any())
-            {
-                foreach (var n in notis) n.IsRead = true;
-                await _context.SaveChangesAsync();
-            }
-
+            await _service.MarkAllAsReadAsync(data);
             return Ok(new { message = "Marked all as read" });
         }
         
-        // POST: api/Notification/Create (สำหรับ System เรียกใช้)
+        /// <summary>
+        /// สร้างการแจ้งเตือนใหม่เข้าสู่ระบบ (สำหรับการเรียกใช้งานภายในระบบ)
+        /// </summary>
+        /// <param name="noti">ข้อมูลการแจ้งเตือน</param>
+        /// <returns>ผลลัพธ์และรายละเอียดที่ถูกสร้าง</returns>
         [HttpPost("Create")]
         public async Task<IActionResult> CreateNotification([FromBody] Notification noti)
         {
-            // แปลงเวลาให้เป็นปัจจุบัน (หรือ +7 ชั่วโมงถ้า Server เป็น UTC แต่เราอยากเก็บ Local time)
-            noti.CreatedAt = DateTime.UtcNow.AddHours(7); 
-            noti.IsRead = false;
-            
-            _context.Notifications.Add(noti);
-            await _context.SaveChangesAsync();
-            return Ok(noti);
+            var createdNoti = await _service.CreateNotificationAsync(noti);
+            return Ok(createdNoti);
         }
     }
 }

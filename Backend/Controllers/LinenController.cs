@@ -1,17 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Backend.Models;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
+using Backend.Services;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Backend.Controllers
 {
-    // ==========================================
-    // DTOs
-    // ==========================================
-
+    /// <summary>
+    /// ข้อมูลสำหรับการบันทึกการตัดจำหน่ายผ้า (รายการเดียว)
+    /// </summary>
     public class DiscardPayload
     {
         public string? RfidCode { get; set; }
@@ -23,6 +20,9 @@ namespace Backend.Controllers
         public int ReportedByUserId { get; set; }
     }
 
+    /// <summary>
+    /// ข้อมูลสำหรับการบันทึกการตัดจำหน่ายผ้า (หลายรายการพร้อมกัน)
+    /// </summary>
     public class DiscardBatchDto
     {
         public List<string> RfidCodes { get; set; } = new List<string>();
@@ -32,6 +32,9 @@ namespace Backend.Controllers
         public int ReportedByUserId { get; set; }
     }
 
+    /// <summary>
+    /// ข้อมูลสำหรับการลงทะเบียนผ้าใหม่เข้าสู่ระบบ
+    /// </summary>
     public class RegisterBatchDto
     {
         public int ProductId { get; set; }
@@ -40,691 +43,238 @@ namespace Backend.Controllers
         public List<string> RfidCodes { get; set; } = new List<string>();
     }
 
+    /// <summary>
+    /// ข้อมูลสำหรับการรับค่าคำสั่งเพื่อสแกนและประมวลผลผ้าตามการกระทำที่ระบุ
+    /// </summary>
     public class ScanRequestDto
     {
         public List<string> RfidCodes { get; set; } = new List<string>();
         public int? ReaderId { get; set; } 
         public string ActionType { get; set; } = "CHECK"; 
         
-        // ✅ เพิ่มตัวนี้: เพื่อรับ ID ใบคำร้องจากหน้า Transport
         public int? RequestId { get; set; } 
     }
 
+    /// <summary>
+    /// ข้อมูลสำหรับการปรับปรุงและเพิ่มหมายเหตุให้กับประวัติการทำงานของผ้า
+    /// </summary>
+    public class UpdateLogNoteDto
+    {
+        public string Note { get; set; } = null!;
+    }
+
+    /// <summary>
+    /// ควบคุมการจัดการข้อมูลหลักของผ้า (Linens) และการทำรายการต่างๆ เช่น ลงทะเบียน สแกน ตัดจำหน่าย
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class LinenController : ControllerBase
     {
-        private readonly LinenDbContext _context;
+        private readonly ILinenService _service;
 
-        public LinenController(LinenDbContext context)
+        /// <summary>
+        /// กำหนดค่าเริ่มต้นให้กับ LinenController
+        /// </summary>
+        /// <param name="service">บริการสำหรับการจัดการข้อมูลของผ้า</param>
+        public LinenController(ILinenService service)
         {
-            _context = context;
+            _service = service;
         }
 
-        private DateTime ThaiTime()
-        {
-            return DateTime.UtcNow.AddHours(7);
-        }
-
-        // ✅ Helper: บันทึก Log
-        private void CreateLinenLog(int linenId, string activity, string description, string from = "-", string to = "-")
-        {
-            _context.LinenLogs.Add(new LinenLog
-            {
-                LinenId = linenId,
-                ActivityType = activity, 
-                Description = description,
-                FromLocation = from,
-                ToLocation = to,
-                CreatedAt = ThaiTime()
-            });
-        }
-
-        // ==========================================
-        // 🔥 0. POST: Scan Logic (เพิ่ม Logic อัปเดต Request Status)
-        // ==========================================
+        /// <summary>
+        /// ประมวลผลการสแกนผ้าในกรณีต่างๆ เช่น เช็คสถานะ, คืนผ้า หรือทำรายการคำร้อง (ตรวจสอบจำนวนครั้งที่ใช้ก่อนหมดอายุ)
+        /// </summary>
+        /// <param name="request">ข้อมูลรหัส RFID, เครื่องอ่านที่ใช้งาน และการกระทำที่ต้องการ</param>
+        /// <returns>ผลลัพธ์การสแกนและสถานะที่เปลี่ยนแปลง</returns>
         [HttpPost("Scan")]
         public async Task<IActionResult> ScanProcess([FromBody] ScanRequestDto request)
         {
-            if (request.RfidCodes == null || !request.RfidCodes.Any())
-                return BadRequest(new { message = "ไม่พบข้อมูล RFID" });
-
-            var foundLinens = await _context.Linens
-                .Include(l => l.Product)
-                    .ThenInclude(p => p.Category)
-                .Where(l => request.RfidCodes.Contains(l.RfidCode))
-                .ToListAsync();
-
-            string readerName = "จุดสแกนไม่ระบุ";
-            if (request.ReaderId.HasValue)
-            {
-                var reader = await _context.Readers.FindAsync(request.ReaderId.Value);
-                if (reader != null) readerName = reader.ReaderName;
-            }
-
-            var now = ThaiTime();
-            var registered = new List<object>(); 
-            var disposed = new List<object>();   
-            var unknown = new List<string>();    
-            var invalid = new List<object>();    
-
-            int? systemUserId = 1;
-
-            // 1. วนลูปจัดการ Linen รายตัว
-            foreach (var rfid in request.RfidCodes)
-            {
-                var linen = foundLinens.FirstOrDefault(l => l.RfidCode == rfid);
-
-                if (linen == null) // 🔴 Alien Tag
-                {
-                    unknown.Add(rfid);
-                    _context.SystemLogs.Add(new SystemLog
-                    {
-                        ActionType = "SCAN_UNKNOWN",
-                        Description = $"AlienTag:{rfid} Point:{readerName}", 
-                        UserId = systemUserId, 
-                        CreatedAt = now
-                    });
-                }
-                else if (!linen.IsActive) // 🔴 จำหน่ายออกไปแล้ว
-                {
-                    disposed.Add(new { linen.RfidCode, Status = "จำหน่ายออก" });
-                    _context.SystemLogs.Add(new SystemLog
-                    {
-                        ActionType = "SCAN_DISPOSED",
-                        Description = $"DisposedTag:{rfid} Point:{readerName}",
-                        UserId = systemUserId, 
-                        CreatedAt = now
-                    });
-                }
-                else
-                {
-                    // ✅ 1. เก็บ Location เดิม
-                    string prevLocation = linen.CurrentLocation ?? "-";
-                    string newLocation = readerName;
-                    string activity = "ตรวจสอบ";
-
-                    // ✅ 2. Logic ตาม ActionType (Transport & Laundry)
-                    if (request.ActionType == "DISPATCH") 
-                    {
-                        // หน้าขนส่ง (ขาออก)
-                        if (linen.Status == "กำลังส่ง") 
-                        {
-                            invalid.Add(new { linen.RfidCode, Message = "สินค้านี้อยู่ระหว่างขนส่งแล้ว" });
-                            continue;
-                        }
-                        linen.Status = "กำลังส่ง"; 
-                        activity = "ส่งผ้า";
-                        newLocation = "ระหว่างขนส่ง";
-                    }
-                    else if (request.ActionType == "RECEIVE")
-                    {
-                        // หน้าขนส่ง (ขาเข้าปลายทาง)
-                        // ถ้ารับเข้า -> ถือว่าพร้อมใช้ หรือรอซัก แล้วแต่ปลายทาง (ในที่นี้ให้เป็นพร้อมใช้ก่อน)
-                        linen.Status = "พร้อมใช้";
-                        activity = "รับผ้า";
-                        newLocation = readerName; // Location ตามเครื่องอ่านปลายทาง
-                    }
-                    else if (request.ActionType == "WASH")
-                    {
-                        // หน้าซักรีด
-                        linen.Status = "กำลังซัก";
-                        activity = "ซักผ้า";
-                        newLocation = "โรงซัก";
-                        
-                        // เพิ่มรอบการซัก
-                        linen.WashCount++;
-                        linen.LastWashDate = now;
-                    }
-                    else 
-                    {
-                        // Scan ปกติ
-                        linen.CurrentLocation = readerName; 
-                    }
-
-                    // ✅ 3. อัปเดตค่าจริงลง DB
-                    linen.CurrentLocation = newLocation;
-                    linen.UpdatedAt = now;
-
-                    CreateLinenLog(linen.LinenId, activity, $"สแกนที่ {readerName}", prevLocation, newLocation);
-
-                    bool isExpired = linen.WashCount >= linen.MaxWashCount;
-                    registered.Add(new 
-                    {
-                        linen.LinenId,
-                        linen.RfidCode,
-                        ProductName = linen.Product?.ProductName ?? "ไม่ระบุ",
-                        Category = linen.Product?.Category?.CategoryName ?? "-",
-                        Status = linen.Status,
-                        linen.WashCount,
-                        linen.MaxWashCount,
-                        IsExpired = isExpired,
-                        linen.CurrentLocation
-                    });
-                }
-            }
-
-            // 2. ✅ Logic อัปเดตสถานะใบคำร้อง (Requests)
-            if (request.RequestId.HasValue)
-            {
-                var req = await _context.Requests.FindAsync(request.RequestId.Value);
-                if (req != null)
-                {
-                    // ถ้าเป็นการ "ส่งออก" -> เปลี่ยนสถานะเป็น 3 (In Transit)
-                    if (request.ActionType == "DISPATCH" && req.CurrentStatusId == 2) // 2 = Approved
-                    {
-                        req.CurrentStatusId = 3; // 3 = In Transit
-                        req.UpdatedAt = now;
-                    }
-                    // ถ้าเป็นการ "รับของ" -> เปลี่ยนสถานะเป็น 4 (Completed)
-                    else if (request.ActionType == "RECEIVE" && req.CurrentStatusId == 3) // 3 = In Transit
-                    {
-                        req.CurrentStatusId = 4; // 4 = Completed
-                        req.UpdatedAt = now;
-                    }
-                }
-            }
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new 
-            {
-                TotalScanned = request.RfidCodes.Count,
-                Registered = registered,
-                Unknown = unknown,
-                Disposed = disposed,
-                Invalid = invalid 
-            });
+            var result = await _service.ScanProcessAsync(request);
+            if (result.Status == 400) return BadRequest(new { message = result.Message });
+            return Ok(result.Data);
         }
 
-        // ==========================================
-        // 1. GET: GetLinens
-        // ==========================================
+        /// <summary>
+        /// ดึงรายการข้อมูลผ้าทั้งหมดภายในระบบ
+        /// </summary>
+        /// <returns>รายการข้อมูลของผ้า</returns>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Linen>>> GetLinens()
         {
-            return await _context.Linens
-                .Include(l => l.Product)
-                    .ThenInclude(p => p.Category)
-                .Include(l => l.Hospital)
-                .Where(l => l.IsActive == true)
-                .OrderByDescending(l => l.RegisteredAt)
-                .ToListAsync();
+            return Ok(await _service.GetLinensAsync());
         }
 
-        // ==========================================
-        // 🔥 เพิ่ม API: Search (สำหรับหน้า Discard)
-        // ==========================================
+        /// <summary>
+        /// ค้นหาข้อมูลผ้าโดยใช้รหัส RFID
+        /// </summary>
+        /// <param name="rfid">รหัส RFID ของผ้าที่ต้องการค้นหา</param>
+        /// <returns>ข้อมูลของผ้าที่พบ</returns>
         [HttpGet("Search")]
         public async Task<IActionResult> SearchLinen([FromQuery] string rfid)
         {
             if (string.IsNullOrEmpty(rfid)) return BadRequest("ระบุ RFID");
-
-            var linens = await _context.Linens
-                .Include(l => l.Product)
-                .Where(l => l.RfidCode == rfid) 
-                .ToListAsync();
-
-            if (!linens.Any()) return Ok(new List<object>()); 
-
-            return Ok(linens);
+            return Ok(await _service.SearchLinenAsync(rfid));
         }
 
-        // ==========================================
-        // 2. GET: DiscardHistory
-        // ==========================================
+        /// <summary>
+        /// ดึงประวัติรายการผ้าที่ถูกนำไปตัดจำหน่าย
+        /// </summary>
+        /// <returns>รายการประวัติการตัดจำหน่ายผ้า</returns>
         [HttpGet("DiscardHistory")]
         public async Task<ActionResult<IEnumerable<object>>> GetDiscardHistory()
         {
-            var history = await _context.Linens
-                .Include(l => l.Product)
-                .Where(l => l.IsActive == false && l.Status != "พร้อมใช้") // กรองเอาเฉพาะที่จำหน่าย
-                .OrderByDescending(l => l.UpdatedAt)
-                .Take(50)
-                .Select(l => new 
-                {
-                    id = l.LinenId,
-                    item = l.Product != null ? l.Product.ProductName : ("RFID: " + l.RfidCode), 
-                    reason = l.Status,
-                    time = l.UpdatedAt.HasValue ? l.UpdatedAt.Value.ToString("dd/MM/yy HH:mm") : "-"
-                })
-                .ToListAsync();
-
-            return Ok(history);
+            return Ok(await _service.GetDiscardHistoryAsync());
         }
 
-        // ==========================================
-        // 3. GET: DeleteHistory
-        // ==========================================
+        /// <summary>
+        /// ดึงประวัติรายการผ้าที่ถูกลบออกจากระบบ
+        /// </summary>
+        /// <returns>รายการประวัติการลบผ้า</returns>
         [HttpGet("DeleteHistory")]
         public async Task<ActionResult<IEnumerable<object>>> GetDeleteHistory()
         {
-            var logs = await _context.SystemLogs
-                .Where(x => x.ActionType.Contains("DELETE") || 
-                            x.ActionType.Contains("DISCARD") || 
-                            x.ActionType == "SCAN_UNKNOWN" || 
-                            x.ActionType == "SCAN_DISPOSED")
-                .OrderByDescending(x => x.CreatedAt)
-                .Take(20)
-                .Select(x => new 
-                {
-                    id = x.LogId,
-                    item = x.Description,
-                    time = x.CreatedAt.ToString("dd/MM/yy HH:mm")
-                })
-                .ToListAsync();
-
-            return Ok(logs);
+            return Ok(await _service.GetDeleteHistoryAsync());
         }
 
-        // ==========================================
-        // 4. GET: Monitor
-        // ==========================================
+        /// <summary>
+        /// ดึงข้อมูลการอ่านล่าสุดสำหรับการสังเกตการณ์ที่เครื่องอ่าน
+        /// </summary>
+        /// <returns>ข้อมูลและรายการการอ่านล่าสุดของระบบ</returns>
         [HttpGet("Monitor/Latest")]
         public async Task<IActionResult> GetLatestMonitor()
         {
-            try 
-            {
-                var recentLinens = await _context.Linens
-                    .Include(l => l.Product)
-                    .Where(l => l.IsActive == true)
-                    .OrderByDescending(l => l.UpdatedAt)
-                    .Take(30) 
-                    .ToListAsync();
-
-                var recentUnknowns = await _context.SystemLogs
-                    .Where(x => x.ActionType == "SCAN_UNKNOWN" || x.ActionType == "SCAN_DISPOSED")
-                    .OrderByDescending(x => x.CreatedAt)
-                    .Take(10)
-                    .ToListAsync();
-
-                var result = new List<object>();
-
-                foreach (var l in recentLinens)
-                {
-                    result.Add(new 
-                    {
-                        rfid = l.RfidCode ?? "-",
-                        productName = l.Product?.ProductName ?? "สินค้าไม่ระบุ",
-                        location = l.CurrentLocation ?? "ไม่ระบุ", 
-                        status = l.Status ?? "ไม่ทราบสถานะ",
-                        updatedAt = l.UpdatedAt
-                    });
-                }
-
-                foreach (var log in recentUnknowns)
-                {
-                    string rfid = "Unknown";
-                    string loc = "จุดไม่ระบุ";
-                    string status = log.ActionType == "SCAN_DISPOSED" ? "จำหน่ายแล้ว" : "Alien"; 
-                    
-                    try 
-                    {
-                        if (!string.IsNullOrEmpty(log.Description))
-                        {
-                            if (log.Description.Contains("Tag:")) {
-                                var parts = log.Description.Split(' ');
-                                foreach (var p in parts) {
-                                    if (p.StartsWith("AlienTag:") || p.StartsWith("DisposedTag:")) 
-                                        rfid = p.Split(':')[1];
-                                    if (p.StartsWith("Point:")) 
-                                        loc = p.Split(':')[1];
-                                }
-                            }
-                            else if (log.Description.Contains(":")) {
-                                var parts = log.Description.Split(':');
-                                if (parts.Length > 1) rfid = parts[1].Trim().Split(' ')[0];
-                            }
-                        }
-                    } 
-                    catch { rfid = "Parse Error"; }
-
-                    result.Add(new 
-                    {
-                        rfid = rfid,
-                        productName = status == "จำหน่ายแล้ว" ? "จำหน่ายแล้ว (Disposed)" : "ไม่พบในระบบ", 
-                        location = loc,
-                        status = status, // Frontend ใช้คำนี้เช็ค
-                        updatedAt = log.CreatedAt 
-                    });
-                }
-
-                return Ok(result.OrderByDescending(x => ((dynamic)x).updatedAt));
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "Server Error", error = ex.Message });
-            }
+            var result = await _service.GetLatestMonitorAsync();
+            if (result.Status == 500) return StatusCode(500, new { message = "Server Error", error = result.Message });
+            return Ok(result.Data);
         }
 
-        // ==========================================
-        // 5. POST: Discard (Single) - ภาษาไทย
-        // ==========================================
+        /// <summary>
+        /// ทำการตัดจำหน่ายผ้าแบบรายชิ้น
+        /// </summary>
+        /// <param name="payload">ข้อมูลการตัดจำหน่ายผ้า</param>
+        /// <returns>ผลลัพธ์การตัดจำหน่าย</returns>
         [HttpPost("Discard")]
         public async Task<IActionResult> DiscardLinen([FromBody] DiscardPayload payload)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
-            try 
-            {
-                string reasonName = "ชำรุด"; 
-                if (payload.DamageReasonId > 0)
-                {
-                    var reason = await _context.DamageReasons.FindAsync(payload.DamageReasonId);
-                    if (reason != null) reasonName = reason.ReasonName; // ควรแก้ใน DB ให้เป็นภาษาไทยด้วย
-                }
-                else if (!string.IsNullOrEmpty(payload.ReasonType))
-                {
-                    // Map เป็นภาษาไทย
-                    reasonName = payload.ReasonType switch
-                    {
-                        "DAMAGE" => "ชำรุด",
-                        "LOST" => "สูญหาย",
-                        "EXPIRED" => "หมดอายุ",
-                        _ => "จำหน่ายออก"
-                    };
-                }
-
-                if (string.IsNullOrEmpty(payload.RfidCode)) 
-                    return BadRequest(new { message = "กรุณาระบุ RFID" });
-
-                var linen = await _context.Linens.FirstOrDefaultAsync(l => l.RfidCode == payload.RfidCode);
-                
-                if (linen == null) 
-                    return NotFound(new { message = $"ไม่พบรหัส RFID: {payload.RfidCode}" });
-
-                if (!linen.IsActive)
-                    return BadRequest(new { message = "รายการนี้ถูกจำหน่ายออกไปแล้ว" });
-
-                string prevLoc = linen.CurrentLocation ?? "-";
-
-                // ✅ Reset Tag
-                linen.IsActive = false; 
-                linen.Status = reasonName;
-                linen.UpdatedAt = ThaiTime(); 
-
-                string finalNote = !string.IsNullOrEmpty(payload.ReasonNote) ? payload.ReasonNote : payload.Note;
-
-                // ✅ Log Flow: ActivityType="DISCARD"
-                CreateLinenLog(linen.LinenId, "DISCARD", $"แจ้งจำหน่าย: {reasonName} ({finalNote})", prevLoc, "จำหน่ายออก");
-                
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                return Ok(new { message = "บันทึกแจ้งชำรุดสำเร็จ" });
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                return StatusCode(500, new { message = "Error: " + ex.Message });
-            }
+            var result = await _service.DiscardLinenAsync(payload);
+            if (result.Status == 400) return BadRequest(new { message = result.Message });
+            if (result.Status == 404) return NotFound(new { message = result.Message });
+            if (result.Status == 500) return StatusCode(500, new { message = result.Message });
+            return Ok(new { message = result.Message });
         }
 
-        // ==========================================
-        // 6. POST: PostLinen (Manual Single Add)
-        // ==========================================
+        /// <summary>
+        /// บันทึกการสร้างข้อมูลผ้าใหม่เข้าระบบ
+        /// </summary>
+        /// <param name="linen">ข้อมูลผ้าเบื้องต้น</param>
+        /// <returns>ข้อมูลผ้าที่สร้างใหม่</returns>
         [HttpPost]
         public async Task<ActionResult<Linen>> PostLinen(Linen linen)
         {
-            var exists = await _context.Linens.AnyAsync(l => l.RfidCode == linen.RfidCode);
-            if (exists) return BadRequest(new { message = $"RFID {linen.RfidCode} มีอยู่แล้ว" });
-
-            linen.RegisteredAt = ThaiTime();
-            linen.UpdatedAt = ThaiTime();
-            linen.IsActive = true;
-            linen.Status = "พร้อมใช้"; 
-            linen.WashCount = 0; 
-            linen.CurrentLocation = "คลังผ้าสะอาด";
-            
-            _context.Linens.Add(linen);
-            await _context.SaveChangesAsync(); 
-
-            CreateLinenLog(linen.LinenId, "Add", "เพิ่มรายชิ้น", "-", "คลังผ้าสะอาด");
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetLinens", new { id = linen.LinenId }, linen);
+            var result = await _service.PostLinenAsync(linen);
+            if (result.Status == 400) return BadRequest(new { message = result.Message });
+            return CreatedAtAction("GetLinens", new { id = result.Item?.LinenId }, result.Item);
         }
 
-        // ==========================================
-        // 7. POST: RegisterBatch (Reuse - ภาษาไทย)
-        // ==========================================
+        /// <summary>
+        /// ลงทะเบียนผ้าปริมาณมาก (เป็นชุด) เข้าสู่ระบบ
+        /// </summary>
+        /// <param name="request">ข้อมูลการลงทะเบียนจำนวนมาก</param>
+        /// <returns>ผลลัพธ์การลงทะเบียนจำนวนรายการสำเร็จและผิดพลาด</returns>
         [HttpPost("RegisterBatch")]
         public async Task<IActionResult> RegisterBatch([FromBody] RegisterBatchDto request)
         {
-            if (request.RfidCodes == null || !request.RfidCodes.Any())
-                return BadRequest("กรุณาสแกน RFID อย่างน้อย 1 รายการ");
-
-            var existingLinens = await _context.Linens
-                .Where(l => request.RfidCodes.Contains(l.RfidCode))
-                .ToListAsync();
-
-            var activeDuplicates = existingLinens.Where(l => l.IsActive).Select(l => l.RfidCode).ToList();
-            if (activeDuplicates.Any())
+            var result = await _service.RegisterBatchAsync(request);
+            if (result.Status == 400) 
             {
-                return BadRequest(new { 
-                    message = $"RFID เหล่านี้มีในระบบอยู่แล้ว: {string.Join(", ", activeDuplicates)}",
-                    duplicates = activeDuplicates 
-                });
+                if (result.Data != null) return BadRequest(new { message = result.Message, duplicates = ((dynamic)result.Data).duplicates });
+                return BadRequest(result.Message);
             }
-
-            var now = ThaiTime();
-            var newLinens = new List<Linen>();
-            var reusedLinens = existingLinens.Where(l => !l.IsActive).ToList();
-
-            // 3. Logic REUSE
-            foreach (var linen in reusedLinens)
-            {
-                string oldStatus = linen.Status; 
-                
-                linen.IsActive = true; 
-                linen.Status = "พร้อมใช้";
-                linen.ProductId = request.ProductId;
-                linen.HospitalId = request.HospitalId;
-                linen.VendorId = request.VendorId;
-                linen.WashCount = 0; 
-                linen.CurrentLocation = "คลังผ้าสะอาด";
-                linen.UpdatedAt = now;
-                linen.RegisteredAt = now; 
-
-                CreateLinenLog(linen.LinenId, "REUSE", $"นำกลับมาใช้ใหม่ (เดิม: {oldStatus})", "จำหน่ายออก", "คลังผ้าสะอาด");
-            }
-
-            // 4. Logic NEW
-            var newRfids = request.RfidCodes.Except(existingLinens.Select(l => l.RfidCode)).ToList();
-            foreach (var rfid in newRfids)
-            {
-                var newItem = new Linen
-                {
-                    RfidCode = rfid,
-                    ProductId = request.ProductId,
-                    HospitalId = request.HospitalId,
-                    VendorId = request.VendorId,
-                    Status = "พร้อมใช้",
-                    IsActive = true,
-                    WashCount = 0,
-                    MaxWashCount = 100, 
-                    CurrentLocation = "คลังผ้าสะอาด",
-                    RegisteredAt = now,
-                    UpdatedAt = now
-                };
-                newLinens.Add(newItem);
-            }
-
-            await _context.Linens.AddRangeAsync(newLinens);
-            await _context.SaveChangesAsync(); 
-
-            foreach (var item in newLinens)
-            {
-                CreateLinenLog(item.LinenId, "Add", "ลงทะเบียนใหม่ (Batch)", "-", "คลังผ้าสะอาด");
-            }
-            await _context.SaveChangesAsync(); 
-
-            return Ok(new { 
-                message = $"ลงทะเบียนสำเร็จ (ใหม่: {newLinens.Count}, นำกลับมาใช้: {reusedLinens.Count})",
-                newCount = newLinens.Count,
-                reuseCount = reusedLinens.Count
-            });
+            return Ok(new { message = result.Message, newCount = ((dynamic)result.Data).newCount, reuseCount = ((dynamic)result.Data).reuseCount });
         }
         
-        // ==========================================
-        // 8. DELETE
-        // ==========================================
+        /// <summary>
+        /// ลบข้อมูลผ้าออกจากระบบตามหมายเลข ID
+        /// </summary>
+        /// <param name="id">รหัส ID ในฐานข้อมูลของผ้า</param>
+        /// <returns>ผลลัพธ์กระบวนการลบ</returns>
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteLinen(int id)
         {
-            var linen = await _context.Linens
-                .Include(l => l.Product)
-                .FirstOrDefaultAsync(l => l.LinenId == id);
-
-            if (linen == null) return NotFound();
-
-            var log = new SystemLog
-            {
-                UserId = 1, 
-                ActionType = "DELETE_LINEN",
-                Description = $"ลบถาวร {linen.RfidCode} : {linen.Product?.ProductName ?? "ไม่ระบุ"}",
-                CreatedAt = ThaiTime()
-            };
-            _context.SystemLogs.Add(log);
-
-            _context.Linens.Remove(linen);
-            await _context.SaveChangesAsync();
-
+            if (!await _service.DeleteLinenAsync(id)) return NotFound();
             return NoContent();
         }
 
-        // ==========================================
-        // 9. POST: DiscardBatch (ภาษาไทย)
-        // ==========================================
+        /// <summary>
+        /// ตัดจำหน่ายผ้าพร้อมกันหลายรายการ
+        /// </summary>
+        /// <param name="request">ข้อมูลรายการผ้าที่ต้องการตัดจำหน่าย</param>
+        /// <returns>ผลลัพธ์การตัดจำหน่าย</returns>
         [HttpPost("DiscardBatch")]
         public async Task<IActionResult> DiscardBatch([FromBody] DiscardBatchDto request)
         {
-            if (request.RfidCodes == null || !request.RfidCodes.Any())
-                return BadRequest("กรุณาระบุรายการ RFID");
-
-            var reasonName = "ชำรุด";
-            if (request.DamageReasonId > 0) {
-                var reason = await _context.DamageReasons.FindAsync(request.DamageReasonId);
-                if (reason != null) reasonName = reason.ReasonName;
-            } else if (!string.IsNullOrEmpty(request.ReasonType)) {
-                 reasonName = request.ReasonType switch {
-                    "DAMAGE" => "ชำรุด", "LOST" => "สูญหาย", "EXPIRED" => "หมดอายุ", _ => "จำหน่ายออก"
-                };
-            }
-
-            var linens = await _context.Linens
-                .Include(l => l.Product)
-                .Where(l => request.RfidCodes.Contains(l.RfidCode))
-                .ToListAsync();
-
-            if (!linens.Any()) return NotFound("ไม่พบรายการ RFID ในระบบ");
-
-            var now = ThaiTime();
-
-            foreach (var linen in linens)
-            {
-                if (!linen.IsActive) continue; 
-
-                string prevLoc = linen.CurrentLocation ?? "-";
-
-                linen.IsActive = false; 
-                linen.Status = reasonName;
-                linen.UpdatedAt = now;
-
-                _context.SystemLogs.Add(new SystemLog 
-                {
-                    UserId = request.ReportedByUserId,
-                    ActionType = "DISCARD_BATCH",
-                    Description = $"แจ้งชำรุด {linen.RfidCode} : {linen.Product?.ProductName} ({reasonName})",
-                    CreatedAt = now
-                });
-
-                CreateLinenLog(linen.LinenId, "DISCARD", $"แจ้งชำรุด: {reasonName} ({request.Note})", prevLoc, "จำหน่ายออก");
-            }
-
-            await _context.SaveChangesAsync();
-            return Ok(new { message = $"บันทึกแจ้งชำรุดเรียบร้อย {linens.Count} รายการ" });
+            var result = await _service.DiscardBatchAsync(request);
+            if (result.Status == 400) return BadRequest(result.Message);
+            if (result.Status == 404) return NotFound(result.Message);
+            return Ok(new { message = result.Message });
         }
 
-        // ==========================================
-        // 10. POST: DeleteBatch
-        // ==========================================
+        /// <summary>
+        /// ลบข้อมูลผ้าหลายรายการพร้อมกันจากรหัส RFID
+        /// </summary>
+        /// <param name="rfidCodes">รหัส RFID ของผ้าทั้งหมดที่ต้องการลบ</param>
+        /// <returns>ผลลัพธ์การลบรายการผ้า</returns>
         [HttpPost("DeleteBatch")]
         public async Task<IActionResult> DeleteBatch([FromBody] List<string> rfidCodes)
         {
-            if (rfidCodes == null || !rfidCodes.Any()) return BadRequest("กรุณาระบุ RFID");
-
-            var linens = await _context.Linens
-                .Include(l => l.Product)
-                .Where(l => rfidCodes.Contains(l.RfidCode))
-                .ToListAsync();
-
-            if (!linens.Any()) return NotFound("ไม่พบรายการ");
-
-            var now = ThaiTime();
-
-            var logs = linens.Select(l => new SystemLog
-            {
-                UserId = 1,
-                ActionType = "DELETE_BATCH",
-                Description = $"ลบถาวร {l.RfidCode} : {l.Product?.ProductName ?? "ไม่ระบุ"}",
-                CreatedAt = now
-            });
-            await _context.SystemLogs.AddRangeAsync(logs);
-
-            _context.Linens.RemoveRange(linens);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = $"ลบข้อมูลถาวรเรียบร้อย {linens.Count} รายการ" });
+            var result = await _service.DeleteBatchAsync(rfidCodes);
+            if (result.Status == 400) return BadRequest(result.Message);
+            if (result.Status == 404) return NotFound(result.Message);
+            return Ok(new { message = result.Message });
         }
 
-        // ==========================================
-        // 11. GET: Candidates
-        // ==========================================
+        /// <summary>
+        /// ดึงรายการผู้ให้บริการสำหรับการเลือกในส่วนของการตัดจำหน่ายผ้า
+        /// </summary>
+        /// <returns>รายการผู้ให้บริการสำหรับการตัดจำหน่าย</returns>
         [HttpGet("Candidates/Discard")]
         public async Task<ActionResult<IEnumerable<object>>> GetDiscardCandidates()
         {
-            var candidates = await _context.Linens
-                .Include(l => l.Product)
-                .Where(l => l.IsActive == true) 
-                .Select(l => new {
-                    l.RfidCode,
-                    ProductName = l.Product.ProductName ?? "ไม่ระบุ",
-                    l.Status
-                })
-                .ToListAsync();
-
-            return Ok(candidates);
+            return Ok(await _service.GetDiscardCandidatesAsync());
         }
 
-        // ==========================================
-        // 📊 12. GET: Dashboard Stats (แก้ Query ให้ตรงภาษาไทย)
-        // ==========================================
+        /// <summary>
+        /// คืนค่าสถิติจากระบบผ้าเพื่อใช้ในการแสดงผลหน้าแดชบอร์ด
+        /// </summary>
+        /// <returns>ข้อมูลสถิติของแผงควบคุม</returns>
         [HttpGet("Dashboard/Stats")]
         public async Task<IActionResult> GetDashboardStats()
         {
-            var now = ThaiTime();
-            var today = now.Date;
+            return Ok(await _service.GetDashboardStatsAsync());
+        }
 
-            var total = await _context.Linens.CountAsync(l => l.IsActive == true);
+        /// <summary>
+        /// ดึงรายการแจ้งเตือนที่เกี่ยวข้องกับการทำงานของผ้า
+        /// </summary>
+        /// <returns>รายการแจ้งเตือน</returns>
+        [HttpGet("Notifications")]
+        public async Task<IActionResult> GetNotifications()
+        {
+            return Ok(await _service.GetNotificationsAsync());
+        }
 
-            var newToday = await _context.Linens
-                .CountAsync(l => l.IsActive == true && l.RegisteredAt.Date == today);
-
-            // แก้คำค้นหาให้ตรงกับที่ Save ลง DB
-            var washing = await _context.Linens.CountAsync(l => l.IsActive == true && (l.Status == "กำลังซัก" || l.Status == "ส่งซัก/ขนส่ง"));
-
-            var available = await _context.Linens.CountAsync(l => l.IsActive == true && l.Status == "พร้อมใช้");
-
-            var inUse = await _context.Linens.CountAsync(l => l.IsActive == true && (l.Status == "ถูกเบิกใช้" || l.Status == "ระหว่างขนส่ง"));
-
-            return Ok(new 
-            {
-                TotalLinens = total,
-                NewLinensToday = newToday,
-                Washing = washing,
-                Available = available,
-                InUse = inUse
-            });
+        /// <summary>
+        /// เพิ่มหมายเหตุลงบนประวัติของผ้า เช่น การแจ้งเปื้อน ชำรุด และอื่นๆ
+        /// </summary>
+        /// <param name="logId">รหัสของการบันทึกประวัติ (LogId)</param>
+        /// <param name="dto">ข้อมูลหมายเหตุใหม่</param>
+        /// <returns>สถานะและคำอธิบายหลังจากการปรับเปลี่ยน</returns>
+        [HttpPut("Log/{logId}/note")]
+        public async Task<IActionResult> AddLogNote(int logId, [FromBody] UpdateLogNoteDto dto)
+        {
+            var result = await _service.AddLogNoteAsync(logId, dto);
+            if (result.Status == 404) return NotFound(new { message = result.Message });
+            return Ok(new { message = result.Message, description = result.Description });
         }
     }
 }

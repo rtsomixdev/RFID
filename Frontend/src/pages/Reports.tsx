@@ -1,22 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box, Paper, Typography, Grid, TextField, Button,
     TableContainer, Table, TableHead, TableBody, TableRow, TableCell,
-    Chip, CircularProgress, MenuItem, Select,
-    useTheme, alpha, Tabs, Tab
+    Chip, CircularProgress, MenuItem, Select, IconButton, Tooltip,
+    useTheme, alpha, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions, TablePagination
 } from '@mui/material';
 import {
     PictureAsPdf, TableView, Search, Summarize,
-    History, Inventory, Refresh
+    History, Inventory, Refresh, AddComment, Comment
 } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import axios from 'axios';
+// ✅ เปลี่ยนกลับมาใช้ axiosClient เพื่อให้อิง BaseURL แบบเดียวกับทั้งโปรเจกต์
+import axiosClient from '../api/axiosClient';
+import Swal from 'sweetalert2';
 import PageHeader from '../components/ui/PageHeader';
 import FormLabel from '../components/ui/FormLabel';
 
-// ✅ 1. Import Dayjs และ Localization
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -24,166 +25,173 @@ import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
 
-// ตั้งค่า Dayjs เป็นภาษาไทยและพุทธศักราช
 dayjs.extend(buddhistEra);
 dayjs.locale('th');
 
-// 🌟 2. Custom Adapter หลอกให้หน้าจอโชว์เป็น พ.ศ.
 class AdapterDayjsBuddhist extends AdapterDayjs {
     formatByString = (date: Dayjs, formatString: string) => {
         return dayjs(date).format(formatString.replace(/YYYY/g, 'BBBB'));
     };
 }
 
-// ⚠️ URL Backend
-const BASE_URL = 'http://localhost:5134/api';
-
-// --- Interfaces ---
+/**
+ * โครงสร้างข้อมูลรายการประวัติความเคลื่อนไหว
+ * @interface MovementItem
+ */
 interface MovementItem {
     id: number;
     date: string;
     type: string;
     productName: string;
     categoryName?: string;
-    sizeSpec?: string;    
-    color?: string;       
+    sizeSpec?: string;
+    color?: string;
     unitName?: string;
     flow: string;
     qty: number;
     user: string;
+    description?: string;
 }
 
+/**
+ * โครงสร้างข้อมูลสต็อกสินค้า
+ * @interface StockItem
+ */
 interface StockItem {
-    id: string; 
+    id: string;
     productName: string;
     categoryName?: string;
-    sizeSpec?: string;    
-    color?: string;       
+    sizeSpec?: string;
+    color?: string;
     isDisposable?: boolean;
     location: string;
-    totalQty: number; 
+    totalQty: number;
     unitName: string;
-    countedQty?: number; 
+    countedQty?: number;
 }
 
+/**
+ * โครงสร้างข้อมูลสถานที่ (Ward/Location)
+ * @interface LocationItem
+ */
 interface LocationItem {
     locationId: number;
     locationName: string;
 }
 
-// --- Helper Functions ---
-// ✅ แปลงคำภาษาอังกฤษเป็นไทย และรองรับทุก Case (ตัวเล็ก/ตัวใหญ่)
 const getActivityLabel = (type: string) => {
     const t = type ? type.toUpperCase() : '';
     if (t === 'ADD' || t === 'NEW') return 'เพิ่มเข้าระบบ';
     if (t === 'RESTOCK') return 'รับเข้าคลัง';
     if (t === 'SENDTOWASH' || t === 'WASH' || t === 'ส่งซัก') return 'ส่งซัก';
-    if (t === 'REWASH' || t === 'ส่งซักซ้ำ') return 'ส่งซักซ้ำ'; 
+    if (t === 'REWASH' || t === 'ส่งซักซ้ำ') return 'ส่งซักซ้ำ';
     if (t === 'RECEIVEWASH' || t === 'CLEAN') return 'รับผ้าสะอาด';
-    if (t === 'DISCARD' || t === 'LOST' || t === 'DAMAGED' || t === 'จำหน่ายออก') return 'จำหน่ายออก'; // ✅ ให้แปลเป็น จำหน่ายออก ทั้งหมด
+    if (t === 'DISCARD' || t === 'LOST' || t === 'DAMAGED' || t === 'จำหน่ายออก') return 'จำหน่ายออก';
     if (t === 'MOVE') return 'ย้ายสถานที่';
     if (t === 'CHECK') return 'ตรวจสอบ';
     if (t === 'REUSE') return 'นำกลับมาใช้ใหม่';
     if (t === 'DISPATCH' || t === 'เบิกจ่าย') return 'เบิกจ่าย';
-    return type; 
+    return type;
 };
 
 const getActivityColor = (type: string) => {
     const t = type ? type.toUpperCase() : '';
     if (['ADD', 'NEW', 'RESTOCK', 'REUSE', 'พร้อมใช้'].some(k => t.includes(k))) return 'success';
-    if (['REWASH', 'ส่งซักซ้ำ'].some(k => t.includes(k))) return 'secondary'; 
+    if (['REWASH', 'ส่งซักซ้ำ'].some(k => t.includes(k))) return 'secondary';
     if (['SENDTOWASH', 'WASH', 'RECEIVEWASH', 'MOVE', 'DISPATCH', 'ส่งซัก', 'เบิกจ่าย'].some(k => t.includes(k))) return 'info';
     if (['DISCARD', 'LOST', 'DAMAGED', 'จำหน่าย', 'ชำรุด'].some(k => t.includes(k))) return 'error';
     if (['CHECK', 'ตรวจสอบ'].some(k => t.includes(k))) return 'warning';
     return 'default';
 };
 
+/**
+ * หน้าจอระบบออกรายงาน
+ * 
+ * @returns {JSX.Element} คอมโพเนนต์หน้าจอออกรายงาน (Reports Center)
+ */
 const Reports: React.FC = () => {
     const theme = useTheme();
-    
-    // ✅ 3. States 
+
     const [startDate, setStartDate] = useState<Dayjs | null>(dayjs().startOf('month'));
     const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
-    
+
     const [selectedType, setSelectedType] = useState('All');
-    const [selectedLocation, setSelectedLocation] = useState('All'); 
+    const [selectedLocation, setSelectedLocation] = useState('All');
 
     const [reportData, setReportData] = useState<MovementItem[]>([]);
     const [stockData, setStockData] = useState<StockItem[]>([]);
-    
-    // 🔥 State สำหรับเก็บ Master Data สถานที่ทั้งหมด (วอร์ด/แผนก)
+
     const [locations, setLocations] = useState<LocationItem[]>([]);
-    
-    const [currentTab, setCurrentTab] = useState(0); 
+
+    const [currentTab, setCurrentTab] = useState(0);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Filter Options
+    const [openNoteDialog, setOpenNoteDialog] = useState(false);
+    const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
+    const [noteText, setNoteText] = useState('');
+
+    const [page1, setPage1] = useState(0);
+    const [rowsPerPage1, setRowsPerPage1] = useState(10);
+    const handleChangePage1 = (event: unknown, newPage: number) => setPage1(newPage);
+    const handleChangeRowsPerPage1 = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setRowsPerPage1(+event.target.value);
+        setPage1(0);
+    };
+
+    const [page2, setPage2] = useState(0);
+    const [rowsPerPage2, setRowsPerPage2] = useState(10);
+    const handleChangePage2 = (event: unknown, newPage: number) => setPage2(newPage);
+    const handleChangeRowsPerPage2 = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setRowsPerPage2(+event.target.value);
+        setPage2(0);
+    };
+
     const activityTypes = [
         { value: 'All', label: 'ทั้งหมด (All Activities)' },
         { value: 'Add', label: 'เพิ่มเข้าระบบ (Add New)' },
         { value: 'SendToWash', label: 'ส่งซัก (Send to Wash)' },
-        { value: 'ReWash', label: 'ส่งซักซ้ำ (Re-wash)' }, 
+        { value: 'ReWash', label: 'ส่งซักซ้ำ (Re-wash)' },
         { value: 'Restock', label: 'รับเข้าคลัง (Restock)' },
-        // ✅ เปลี่ยน value กลับเป็น DISCARD ให้เหมือน DB จะได้ Query เจอ
-        { value: 'DISCARD', label: 'ตัดจำหน่าย (Discard)' }, 
+        { value: 'DISCARD', label: 'ตัดจำหน่าย (Discard)' },
         { value: 'Move', label: 'ย้ายตำแหน่ง (Move)' },
         { value: 'Reuse', label: 'นำกลับมาใช้ใหม่ (Reuse)' },
         { value: 'Dispatch', label: 'เบิกจ่าย (Dispatch)' }
     ];
 
     useEffect(() => {
-        fetchLocations(); 
+        fetchLocations();
         if (currentTab === 0) handleFetchReport();
         else handleFetchStock();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentTab]); 
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentTab]);
 
-    // 🔥 API ดึงข้อมูลรายชื่อ วอร์ด/สถานที่ จากฐานข้อมูลจริงๆ
     const fetchLocations = async () => {
         try {
-            const res = await axios.get(`${BASE_URL}/Ward`); 
+            const res = await axiosClient.get('/Ward');
             const data = res.data || [];
-            
             const formattedLocations = data.map((item: any, index: number) => ({
                 locationId: item.wardId || item.id || index,
                 locationName: item.wardName || item.name || ''
             }));
-            
             setLocations(formattedLocations);
         } catch (err) {
-            console.error("Failed to load Wards, trying Location endpoint...", err);
-            try {
-                const res2 = await axios.get(`${BASE_URL}/Location`);
-                const data2 = res2.data || [];
-                const formattedFallback = data2.map((item: any, index: number) => ({
-                    locationId: item.locationId || item.id || index,
-                    locationName: item.locationName || item.name || ''
-                }));
-                setLocations(formattedFallback);
-            } catch (fallbackErr) {
-                 console.error("Fallback failed.");
-            }
+            console.error("Failed to load Wards", err);
         }
     };
 
-    // --- API Handlers ---
     const handleFetchReport = async () => {
         setLoading(true);
         setError(null);
         try {
-            // ✅ เปลี่ยนการส่ง Type ให้ Backend เข้าใจง่ายขึ้น
-            // ถ้าเลือก DISCARD เราจะส่งไปค้นหาตรงๆ หรือดึงมาทั้งหมดแล้วมา Filter หน้าบ้านก็ได้
-            // เพื่อความชัวร์ 100% ผมจะให้มันดึงมาหมด แล้วใช้ Frontend Filter คำว่า DISCARD เผื่อ Backend เขียนไม่รองรับครับ
-            const reqReport = axios.get(`${BASE_URL}/Report/Movement`, {
-                params: { 
-                    start: startDate?.format('YYYY-MM-DD'), 
-                    end: endDate?.format('YYYY-MM-DD'), 
-                    // ส่ง All ไปก่อน เพื่อความชัวร์ว่า Backend ไม่แอบตัดข้อมูลทิ้ง
-                    type: 'All' 
+            const reqReport = axiosClient.get('/Report/Movement', {
+                params: {
+                    start: startDate?.format('YYYY-MM-DD'),
+                    end: endDate?.format('YYYY-MM-DD'),
+                    type: 'All'
                 }
             });
-            const reqProducts = axios.get(`${BASE_URL}/Product`);
+            const reqProducts = axiosClient.get('/Product');
 
             const [resReport, resProducts] = await Promise.all([reqReport, reqProducts]);
 
@@ -204,19 +212,18 @@ const Reports: React.FC = () => {
                     categoryName: pInfo.categoryName || '-',
                     sizeSpec: pInfo.sizeSpec || '-',
                     color: pInfo.color || '-',
-                    unitName: item.unitName || pInfo.unitName || 'ชิ้น' 
+                    unitName: item.unitName || pInfo.unitName || 'ชิ้น',
+                    // ดึงข้อมูลหมายเหตุจาก API มาแสดงผลด้วย
+                    description: item.description || ''
                 };
             });
 
-            // ✅ Filter หน้าบ้านแทน เพื่อให้ครอบคลุมและไม่ติดปัญหา Backend Case-sensitive
             if (selectedType !== 'All') {
                 enrichedData = enrichedData.filter((item: any) => {
                     const itemType = (item.type || '').toUpperCase();
-                    // ถ้าเลือก DISCARD ให้ครอบคลุมทุกคำที่เกี่ยวกับการจำหน่าย
                     if (selectedType === 'DISCARD') {
                         return itemType === 'DISCARD' || itemType === 'LOST' || itemType === 'DAMAGED' || itemType === 'จำหน่ายออก' || itemType === 'ชำรุด';
                     }
-                    // ถ้าเลือกแบบอื่นก็เทียบปกติ (เผื่อเป็นตัวเล็ก/ใหญ่)
                     return itemType.includes(selectedType.toUpperCase());
                 });
             }
@@ -231,11 +238,34 @@ const Reports: React.FC = () => {
         }
     };
 
+    const handleOpenNote = (logId: number, currentNote?: string) => {
+        setSelectedLogId(logId);
+        setNoteText(currentNote || '');
+        setOpenNoteDialog(true);
+    };
+
+    // ฟังก์ชันส่งคำขอไปยัง API เพื่อบันทึกหมายเหตุ
+    const handleSaveNote = async () => {
+        if (!selectedLogId) return;
+        try {
+            // เรียกใช้งาน axiosClient และระบุเส้นทางให้ตรงกับที่ Backend กำหนดไว้
+            await axiosClient.put(`/Linen/Log/${selectedLogId}/note`, { note: noteText });
+            Swal.fire({ icon: 'success', title: 'บันทึกหมายเหตุเรียบร้อย', timer: 1500, showConfirmButton: false });
+            setOpenNoteDialog(false);
+
+            // โหลดข้อมูลรายงานใหม่เพื่อแสดงผลล่าสุดบนหน้าจอทันที
+            handleFetchReport();
+        } catch (err) {
+            console.error("Save Note Error:", err);
+            Swal.fire('Error', 'ไม่สามารถบันทึกได้ กรุณาลองใหม่', 'error');
+        }
+    };
+
     const handleFetchStock = async () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await axios.get(`${BASE_URL}/Linen`);
+            const res = await axiosClient.get('/Linen');
             const allLinens: any[] = res.data || [];
 
             const groupedStock: { [key: string]: StockItem } = {};
@@ -249,21 +279,20 @@ const Reports: React.FC = () => {
                 const isDisposable = p.isDisposable || false;
                 const location = item.currentLocation || 'ไม่ระบุตำแหน่ง';
                 const unitName = p.unitName || 'ชิ้น';
-                
+
                 const key = `${productName}_${sizeSpec}_${color}_${location}`;
 
                 if (!groupedStock[key]) {
-                    groupedStock[key] = { 
-                        id: key, productName, categoryName, sizeSpec, color, isDisposable, 
-                        location, totalQty: 0, unitName, countedQty: undefined 
+                    groupedStock[key] = {
+                        id: key, productName, categoryName, sizeSpec, color, isDisposable,
+                        location, totalQty: 0, unitName, countedQty: undefined
                     };
                 }
                 groupedStock[key].totalQty += 1;
             });
 
             const initialStock = Object.values(groupedStock).map(item => ({
-                ...item,
-                countedQty: undefined 
+                ...item, countedQty: undefined
             }));
 
             setStockData(initialStock);
@@ -279,26 +308,26 @@ const Reports: React.FC = () => {
 
     const handleCountChange = (id: string, val: string) => {
         const numVal = val === '' ? undefined : parseInt(val);
-        setStockData(prev => prev.map(item => 
+        setStockData(prev => prev.map(item =>
             item.id === id ? { ...item, countedQty: numVal } : item
         ));
     };
 
-    // 🔥 Filter ข้อมูล: ถ้าเป็น Report เช็คว่าชื่อสถานที่อยู่ในเส้นทาง (Flow) ไหม, ถ้าเป็นสต็อก เช็คชื่อสถานที่ตรงๆ
-    const filteredReportData = selectedLocation === 'All' 
-        ? reportData 
+    const filteredReportData = selectedLocation === 'All'
+        ? reportData
         : reportData.filter(item => item.flow.includes(selectedLocation));
 
     const filteredStockData = selectedLocation === 'All'
         ? stockData
         : stockData.filter(item => item.location === selectedLocation);
 
-
-    // --- Export Handlers ---
+    // ==========================================
+    // ส่วนจัดการการส่งออกข้อมูล (Export Logic)
+    // ==========================================
     const handleExportExcel = () => {
         if (currentTab === 0) {
             if (filteredReportData.length === 0) return alert("ไม่มีข้อมูล");
-            
+
             const data = filteredReportData.map(item => ({
                 "วัน/เวลา": new Date(item.date).toLocaleString('th-TH'),
                 "ประเภท": getActivityLabel(item.type),
@@ -309,15 +338,16 @@ const Reports: React.FC = () => {
                 "เส้นทาง (Flow)": item.flow.replace('->', '➜'),
                 "จำนวน": item.qty,
                 "หน่วยนับ": item.unitName || 'ชิ้น',
-                "ผู้ทำรายการ": item.user
+                "ผู้ทำรายการ": item.user,
+                "หมายเหตุ": item.description || '-' // เพิ่มหมายเหตุในไฟล์ Excel
             }));
-            
+
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(data);
 
             ws['!cols'] = [
-                { wch: 20 }, { wch: 18 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, 
-                { wch: 12 }, { wch: 25 }, { wch: 10 }, { wch: 10 }, { wch: 15 }  
+                { wch: 20 }, { wch: 18 }, { wch: 15 }, { wch: 30 }, { wch: 12 },
+                { wch: 12 }, { wch: 25 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 30 }
             ];
 
             XLSX.utils.book_append_sheet(wb, ws, "Movement_Logs");
@@ -337,15 +367,15 @@ const Reports: React.FC = () => {
                 "ผลต่าง (Diff)": item.countedQty !== undefined ? (item.countedQty - item.totalQty) : "",
                 "สถานะ": getStockStatus(item.totalQty, item.countedQty).label
             }));
-            
+
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(data);
-            
+
             ws['!cols'] = [
-                { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, 
+                { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 12 },
                 { wch: 18 }, { wch: 10 }, { wch: 18 }, { wch: 12 }, { wch: 15 }
             ];
-            
+
             XLSX.utils.book_append_sheet(wb, ws, "Stock_Balance");
             XLSX.writeFile(wb, `Stock_Audit_${new Date().toISOString().split('T')[0]}.xlsx`);
         }
@@ -355,17 +385,17 @@ const Reports: React.FC = () => {
         try {
             const response = await fetch('/fonts/Sarabun-Regular.ttf');
             if (!response.ok) throw new Error('ไม่พบไฟล์ฟอนต์ Sarabun-Regular.ttf');
-            
+
             const blob = await response.blob();
             const reader = new FileReader();
-            
+
             return new Promise<void>((resolve, reject) => {
                 reader.onloadend = () => {
                     if (reader.result) {
                         const base64data = (reader.result as string).split(',')[1];
                         doc.addFileToVFS('Sarabun.ttf', base64data);
                         doc.addFont('Sarabun.ttf', 'Sarabun', 'normal');
-                        doc.setFont('Sarabun'); 
+                        doc.setFont('Sarabun');
                         resolve();
                     }
                 };
@@ -379,17 +409,17 @@ const Reports: React.FC = () => {
     };
 
     const handleExportPDF = async () => {
-        const doc = new jsPDF('landscape'); 
-        
+        const doc = new jsPDF('landscape');
+
         await addThaiFont(doc);
         doc.setFontSize(18);
-        
+
         if (currentTab === 0) {
             if (filteredReportData.length === 0) return alert("ไม่มีข้อมูล");
-            
+
             doc.text("รายงานสรุปความเคลื่อนไหว (Movement Logs)", 14, 20);
             doc.setFontSize(10);
-            
+
             const startStr = startDate ? startDate.format('DD/MM/BBBB') : '';
             const endStr = endDate ? endDate.format('DD/MM/BBBB') : '';
             doc.text(`ช่วงเวลา: ${startStr} ถึง ${endStr}`, 14, 28);
@@ -397,28 +427,27 @@ const Reports: React.FC = () => {
 
             autoTable(doc, {
                 startY: 40,
-                head: [['เวลา', 'ประเภท', 'หมวดหมู่', 'สินค้า', 'ขนาด', 'สี', 'เส้นทาง', 'จำนวน', 'ผู้ทำรายการ']],
+                head: [['เวลา', 'ประเภท', 'หมวดหมู่', 'สินค้า', 'ขนาด/สี', 'เส้นทาง', 'จำนวน', 'หมายเหตุ']],
                 body: filteredReportData.map(item => [
                     new Date(item.date).toLocaleString('th-TH'),
                     getActivityLabel(item.type),
                     item.categoryName,
                     item.productName,
-                    item.sizeSpec,
-                    item.color,
-                    item.flow.replace('->', '➜'), 
+                    `${item.sizeSpec} / ${item.color}`,
+                    item.flow.replace('->', '➜'),
                     `${item.qty} ${item.unitName || 'ชิ้น'}`,
-                    item.user
+                    item.description || '-' // ดึงหมายเหตุมาแสดงใน PDF
                 ]),
                 theme: 'grid',
-                styles: { font: 'Sarabun', fontSize: 9, fontStyle: 'normal' },
+                styles: { font: 'Sarabun', fontSize: 8, fontStyle: 'normal' },
                 headStyles: { fillColor: [41, 128, 185], font: 'Sarabun', fontStyle: 'normal' },
-                bodyStyles: { font: 'Sarabun', fontStyle: 'normal' } 
+                bodyStyles: { font: 'Sarabun', fontStyle: 'normal' }
             });
             doc.save(`Movement_${startDate?.format('YYYY-MM-DD')}.pdf`);
 
         } else {
             if (filteredStockData.length === 0) return alert("ไม่มีข้อมูล");
-            
+
             doc.text("รายงานยอดคงเหลือและตรวจสอบสต็อก (Stock Audit)", 14, 20);
             doc.setFontSize(10);
             doc.text(`ข้อมูล ณ วันที่: ${new Date().toLocaleDateString('th-TH')}   |   สถานที่: ${selectedLocation === 'All' ? 'ทั้งหมด' : selectedLocation}`, 14, 28);
@@ -439,8 +468,8 @@ const Reports: React.FC = () => {
                 ]),
                 theme: 'grid',
                 styles: { font: 'Sarabun', fontSize: 9, fontStyle: 'normal' },
-                headStyles: { fillColor: [46, 125, 50], font: 'Sarabun', fontStyle: 'normal' }, 
-                bodyStyles: { font: 'Sarabun', fontStyle: 'normal' } 
+                headStyles: { fillColor: [46, 125, 50], font: 'Sarabun', fontStyle: 'normal' },
+                bodyStyles: { font: 'Sarabun', fontStyle: 'normal' }
             });
             doc.save(`Stock_Audit_${new Date().toISOString().split('T')[0]}.pdf`);
         }
@@ -471,6 +500,7 @@ const Reports: React.FC = () => {
                     </Tabs>
                 </Paper>
 
+                {/* ======================= แท็บ 0: ประวัติความเคลื่อนไหว (Movement Logs) ======================= */}
                 {currentTab === 0 && (
                     <>
                         <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
@@ -502,7 +532,6 @@ const Reports: React.FC = () => {
                                         </Select>
                                     </FormLabel>
                                 </Grid>
-                                {/* 🔥 ใช้รายชื่อวอร์ด/สถานที่ จาก Master Data ของระบบมาโชว์ */}
                                 <Grid item xs={12} md={2.5}>
                                     <FormLabel label="สถานที่ (Location)">
                                         <Select fullWidth size="small" value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} displayEmpty>
@@ -523,30 +552,29 @@ const Reports: React.FC = () => {
                             </Box>
                         </Paper>
 
-                        <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 3, maxHeight: 600 }}>
-                            <Table stickyHeader size="small">
+                        <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 3 }}>
+                            <Table size="small">
                                 <TableHead>
                                     <TableRow>
                                         <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>วัน/เวลา</TableCell>
                                         <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>ประเภท</TableCell>
                                         <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>สินค้า</TableCell>
-                                        <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>รายละเอียด (สี/ขนาด)</TableCell>
+                                        <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>รายละเอียด</TableCell>
                                         <TableCell sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>เส้นทาง (Flow)</TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>จำนวน</TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>โดย</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 'normal', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>หมายเหตุ</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {loading ? (
-                                        <TableRow><TableCell colSpan={7} align="center" sx={{ py: 8 }}><CircularProgress /><Typography variant="body2" sx={{ mt: 2 }}>กำลังโหลด...</Typography></TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={7} align="center" sx={{ py: 8 }}><CircularProgress /></TableCell></TableRow>
                                     ) : filteredReportData.length === 0 ? (
                                         <TableRow><TableCell colSpan={7} align="center" sx={{ py: 8, color: 'text.disabled' }}>ไม่พบข้อมูล</TableCell></TableRow>
                                     ) : (
-                                        filteredReportData.map((row, idx) => (
+                                        filteredReportData.slice(page1 * rowsPerPage1, page1 * rowsPerPage1 + rowsPerPage1).map((row, idx) => (
                                             <TableRow key={idx} hover>
                                                 <TableCell>{new Date(row.date).toLocaleString('th-TH')}</TableCell>
                                                 <TableCell>
-                                                    {/* ✅ เรียกใช้ getActivityLabel ตรงนี้ เพื่อแปลคำว่า DISCARD เป็น จำหน่ายออก */}
                                                     <Chip label={getActivityLabel(row.type)} size="small" color={getActivityColor(row.type) as any} variant="filled" sx={{ fontWeight: 'normal', minWidth: 90 }} />
                                                 </TableCell>
                                                 <TableCell sx={{ fontWeight: 'normal', color: 'text.primary' }}>
@@ -565,7 +593,25 @@ const Reports: React.FC = () => {
                                                     {row.qty} {row.unitName || 'ชิ้น'}
                                                 </TableCell>
                                                 <TableCell align="center">
-                                                    <Chip label={row.user} size="small" variant="outlined" sx={{ fontSize: '0.75rem' }} />
+                                                    {row.description ? (
+                                                        <Tooltip title={row.description}>
+                                                            <Chip
+                                                                icon={<Comment fontSize="small" />}
+                                                                label="มีหมายเหตุ"
+                                                                size="small"
+                                                                color="warning"
+                                                                variant="outlined"
+                                                                onClick={() => handleOpenNote(row.id, row.description)}
+                                                                sx={{ cursor: 'pointer' }}
+                                                            />
+                                                        </Tooltip>
+                                                    ) : (
+                                                        <Tooltip title="เพิ่มหมายเหตุ (เช่น แจ้งเปื้อน/ชำรุด)">
+                                                            <IconButton size="small" onClick={() => handleOpenNote(row.id, '')} color="primary" sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
+                                                                <AddComment fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    )}
                                                 </TableCell>
                                             </TableRow>
                                         ))
@@ -573,14 +619,23 @@ const Reports: React.FC = () => {
                                 </TableBody>
                             </Table>
                         </TableContainer>
+                        <TablePagination
+                            rowsPerPageOptions={[5, 10, 25]}
+                            component="div"
+                            count={filteredReportData.length}
+                            rowsPerPage={rowsPerPage1}
+                            page={page1}
+                            onPageChange={handleChangePage1}
+                            onRowsPerPageChange={handleChangeRowsPerPage1}
+                        />
                     </>
                 )}
 
+                {/* ======================= แท็บ 1: ตรวจสอบสต็อก (Stock) ======================= */}
                 {currentTab === 1 && (
                     <>
                         <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 2 }}>
                             <FormLabel label="กรองตามสถานที่ (Location)" />
-                            {/* 🔥 ใช้รายชื่อวอร์ด/สถานที่ จาก Master Data ของระบบมาโชว์ */}
                             <Select size="small" value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} displayEmpty sx={{ width: 300 }}>
                                 <MenuItem value="All">แสดงทั้งหมด (All Locations)</MenuItem>
                                 {locations.map((loc) => (
@@ -592,7 +647,7 @@ const Reports: React.FC = () => {
                             <Button variant="outlined" color="error" startIcon={<PictureAsPdf />} onClick={handleExportPDF}>Export PDF</Button>
                             <Button variant="contained" color="success" startIcon={<TableView />} onClick={handleExportExcel}>Export Stock Sheet</Button>
                         </Paper>
-                        
+
                         <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 3 }}>
                             <Table size="small">
                                 <TableHead>
@@ -612,7 +667,7 @@ const Reports: React.FC = () => {
                                     ) : filteredStockData.length === 0 ? (
                                         <TableRow><TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.disabled' }}>ไม่พบข้อมูลสต็อก</TableCell></TableRow>
                                     ) : (
-                                        filteredStockData.map((item) => {
+                                        filteredStockData.slice(page2 * rowsPerPage2, page2 * rowsPerPage2 + rowsPerPage2).map((item) => {
                                             const status = getStockStatus(item.totalQty, item.countedQty);
                                             return (
                                                 <TableRow key={item.id} hover>
@@ -622,7 +677,7 @@ const Reports: React.FC = () => {
                                                         <Typography variant="caption" display="block" color="text.secondary">{item.categoryName}</Typography>
                                                     </TableCell>
                                                     <TableCell sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>
-                                                        สี: {item.color} <br/> ขนาด: {item.sizeSpec}
+                                                        สี: {item.color} <br /> ขนาด: {item.sizeSpec}
                                                     </TableCell>
                                                     <TableCell>
                                                         <Chip icon={<Inventory sx={{ fontSize: 16 }} />} label={item.location} size="small" variant="outlined" />
@@ -657,8 +712,42 @@ const Reports: React.FC = () => {
                                 </TableBody>
                             </Table>
                         </TableContainer>
+                        <TablePagination
+                            rowsPerPageOptions={[5, 10, 25]}
+                            component="div"
+                            count={filteredStockData.length}
+                            rowsPerPage={rowsPerPage2}
+                            page={page2}
+                            onPageChange={handleChangePage2}
+                            onRowsPerPageChange={handleChangeRowsPerPage2}
+                        />
                     </>
                 )}
+
+                {/* หน้าต่าง (Dialog) สำหรับกรอกหมายเหตุและแจ้งชำรุด */}
+                <Dialog open={openNoteDialog} onClose={() => setOpenNoteDialog(false)} fullWidth maxWidth="sm">
+                    <DialogTitle sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <AddComment color="primary" /> เพิ่ม/แก้ไขหมายเหตุ (แจ้งชำรุด)
+                    </DialogTitle>
+                    <DialogContent dividers>
+                        <TextField
+                            autoFocus
+                            margin="dense"
+                            label="รายละเอียด (เช่น เปื้อนหมึกซักไม่ออก, ขาดมุมขวา)"
+                            fullWidth
+                            multiline
+                            rows={3}
+                            variant="outlined"
+                            value={noteText}
+                            onChange={(e) => setNoteText(e.target.value)}
+                        />
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2 }}>
+                        <Button onClick={() => setOpenNoteDialog(false)} color="inherit">ยกเลิก</Button>
+                        <Button onClick={handleSaveNote} variant="contained" color="warning">บันทึกข้อมูล</Button>
+                    </DialogActions>
+                </Dialog>
+
             </Box>
         </LocalizationProvider>
     );

@@ -4,97 +4,85 @@ using Backend.Models;
 
 namespace Backend.Controllers
 {
+    /// <summary>
+    /// ควบคุมการจัดการข้อมูลโรงพยาบาล
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class HospitalController : ControllerBase
     {
-        private readonly LinenDbContext _context;
-        public HospitalController(LinenDbContext context) => _context = context;
+        private readonly Services.IHospitalService _service;
 
-        // GET: api/Hospital
+        /// <summary>
+        /// กำหนดค่าเริ่มต้นให้กับ HospitalController
+        /// </summary>
+        /// <param name="service">บริการสำหรับการจัดการข้อมูลโรงพยาบาล</param>
+        public HospitalController(Services.IHospitalService service) => _service = service;
+
+        /// <summary>
+        /// ดึงข้อมูลโรงพยาบาลทั้งหมด
+        /// </summary>
+        /// <returns>รายการโรงพยาบาลทั้งหมด</returns>
         [HttpGet] 
         public async Task<ActionResult<IEnumerable<Hospital>>> Get() 
         {
-            return await _context.Hospitals.ToListAsync();
+            return Ok(await _service.GetAsync());
         }
 
-        // GET: api/Hospital/5
+        /// <summary>
+        /// ดึงข้อมูลโรงพยาบาลตามรหัสที่ระบุ
+        /// </summary>
+        /// <param name="id">รหัสโรงพยาบาล</param>
+        /// <returns>ข้อมูลโรงพยาบาลที่พบ</returns>
         [HttpGet("{id}")] 
         public async Task<ActionResult<Hospital>> Get(int id) 
         { 
-            var item = await _context.Hospitals.FindAsync(id); 
-            return item == null ? NotFound() : item; 
+            var item = await _service.GetAsync(id); 
+            return item == null ? NotFound() : Ok(item); 
         }
 
-        // POST: api/Hospital
+        /// <summary>
+        /// สร้างข้อมูลโรงพยาบาลใหม่
+        /// </summary>
+        /// <param name="item">ข้อมูลโรงพยาบาลที่ต้องการสร้าง</param>
+        /// <returns>ข้อมูลโรงพยาบาลที่ถูกสร้างเรียบร้อยแล้ว</returns>
         [HttpPost] 
         public async Task<ActionResult<Hospital>> Post(Hospital item) 
         { 
-            // เติมวันที่สร้างอัตโนมัติ (ถ้ามี field นี้)
-            // item.CreatedAt = DateTime.Now; 
-            
-            _context.Hospitals.Add(item); 
-            await _context.SaveChangesAsync(); 
-            return CreatedAtAction(nameof(Get), new { id = item.HospitalId }, item); 
+            var createdItem = await _service.PostAsync(item);
+            return CreatedAtAction(nameof(Get), new { id = createdItem.HospitalId }, createdItem); 
         }
 
-        // PUT: api/Hospital/5
-        // ✅ แก้ไขใหม่: ดึงของเก่ามาอัปเดต (ปลอดภัยกว่า)
+        /// <summary>
+        /// อัปเดตข้อมูลโรงพยาบาลตามรหัสที่ระบุ
+        /// </summary>
+        /// <param name="id">รหัสโรงพยาบาลที่ต้องการอัปเดต</param>
+        /// <param name="item">ข้อมูลโรงพยาบาลใหม่</param>
+        /// <returns>ผลลัพธ์การอัปเดตข้อมูล</returns>
         [HttpPut("{id}")] 
         public async Task<IActionResult> Put(int id, Hospital item) 
         { 
-            if (id != item.HospitalId) return BadRequest("ID ไม่ตรงกัน"); 
+            var result = await _service.PutAsync(id, item);
 
-            // 1. หาข้อมูลเก่า
-            var existingHospital = await _context.Hospitals.FindAsync(id);
-            if (existingHospital == null) return NotFound("ไม่พบข้อมูลโรงพยาบาล");
+            if (result.Status == 400) return BadRequest(result.Message);
+            if (result.Status == 404) return result.Message != null ? NotFound(result.Message) : NotFound();
 
-            // 2. อัปเดตเฉพาะค่าที่ส่งมา
-            existingHospital.HospitalName = item.HospitalName;
-            existingHospital.Address = item.Address;
-            existingHospital.ContactInfo = item.ContactInfo;
-            
-            // 3. บันทึก
-            try 
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Hospitals.Any(e => e.HospitalId == id)) return NotFound();
-                else throw;
-            }
-
-            return Ok(existingHospital); 
+            return Ok(result.Item); 
         }
 
-        // DELETE: api/Hospital/5
-        // ✅ แก้ไขใหม่: เช็ค Foreign Key ครบทุกตาราง
+        /// <summary>
+        /// ลบข้อมูลโรงพยาบาลตามรหัสที่ระบุ พร้อมตรวจสอบเงื่อนไขความสัมพันธ์ของข้อมูล
+        /// </summary>
+        /// <param name="id">รหัสโรงพยาบาลที่ต้องการลบ</param>
+        /// <returns>ผลลัพธ์การลบข้อมูล</returns>
         [HttpDelete("{id}")] 
         public async Task<IActionResult> Delete(int id) 
         { 
-            // 1. เช็คว่ามี Wards (วอร์ด/แผนก) ผูกอยู่ไหม?
-            var hasWards = await _context.Wards.AnyAsync(w => w.HospitalId == id);
-            if (hasWards) 
-                return BadRequest(new { message = "ลบไม่ได้: มีวอร์ด/แผนก สังกัดโรงพยาบาลนี้อยู่" });
+            var result = await _service.DeleteAsync(id);
 
-            // 2. เช็คว่ามี Users (บุคลากร) ผูกอยู่ไหม?
-            var hasUsers = await _context.Users.AnyAsync(u => u.HospitalId == id);
-            if (hasUsers) 
-                return BadRequest(new { message = "ลบไม่ได้: มีบุคลากรสังกัดโรงพยาบาลนี้อยู่" });
+            if (result.Status == 400) return BadRequest(new { message = result.Message });
+            if (result.Status == 404) return NotFound();
 
-            // 3. เช็คว่ามี Linens (ผ้า) ผูกอยู่ไหม?
-            var hasLinens = await _context.Linens.AnyAsync(l => l.HospitalId == id);
-            if (hasLinens) 
-                return BadRequest(new { message = "ลบไม่ได้: มีรายการผ้าของโรงพยาบาลนี้อยู่ในระบบ" });
-
-            // 4. ถ้าไม่มีใครใช้เลย ค่อยลบ
-            var item = await _context.Hospitals.FindAsync(id); 
-            if (item == null) return NotFound(); 
-
-            _context.Hospitals.Remove(item); 
-            await _context.SaveChangesAsync(); 
-            
             return NoContent(); 
         }
     }

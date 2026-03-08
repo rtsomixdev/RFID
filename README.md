@@ -377,3 +377,380 @@ API Controllers ทั้งหมดถูกพัฒนาเพื่อร�
 > - **Username Default**: `admin`
 > - **Password Default**: ขึ้นอยู่กับการ Hash หรือกฎที่ตั้งค่า
 > - เมื่อเข้าสู่ระบบเสร็จสิ้น ไปที่หน้าตัังค่าเครื่องอ่าน (Reader Configuration) และกรอก IP หรือ Topic MQTT ของตัวอ่านจริงเพื่อให้การดักจับไหลลื่นและพร้อมทำงานทันที!
+
+```
+RFID
+├─ Backend
+│  ├─ appsettings.Development.json
+│  ├─ appsettings.json
+│  ├─ Backend.csproj
+│  ├─ Backend.http
+│  ├─ bin
+│  │  └─ Debug
+│  │     └─ net9.0
+│  │        ├─ appsettings.Development.json
+│  │        ├─ appsettings.json
+│  │        ├─ Backend.deps.json
+│  │        ├─ Backend.dll
+│  │        ├─ Backend.exe
+│  │        ├─ Backend.pdb
+│  │        ├─ Backend.runtimeconfig.json
+│  │        ├─ Backend.staticwebassets.endpoints.json
+│  │        ├─ cs
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ de
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ es
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ fr
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ Humanizer.dll
+│  │        ├─ it
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ ja
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ ko
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ Microsoft.AspNetCore.OpenApi.dll
+│  │        ├─ Microsoft.Bcl.AsyncInterfaces.dll
+│  │        ├─ Microsoft.Build.Locator.dll
+│  │        ├─ Microsoft.CodeAnalysis.CSharp.dll
+│  │        ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.dll
+│  │        ├─ Microsoft.CodeAnalysis.dll
+│  │        ├─ Microsoft.CodeAnalysis.Workspaces.dll
+│  │        ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll
+│  │        ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.dll
+│  │        ├─ Microsoft.EntityFrameworkCore.Abstractions.dll
+│  │        ├─ Microsoft.EntityFrameworkCore.Design.dll
+│  │        ├─ Microsoft.EntityFrameworkCore.dll
+│  │        ├─ Microsoft.EntityFrameworkCore.Relational.dll
+│  │        ├─ Microsoft.Extensions.DependencyModel.dll
+│  │        ├─ Microsoft.OpenApi.dll
+│  │        ├─ Mono.TextTemplating.dll
+│  │        ├─ MQTTnet.dll
+│  │        ├─ MQTTnet.Extensions.ManagedClient.dll
+│  │        ├─ Npgsql.dll
+│  │        ├─ Npgsql.EntityFrameworkCore.PostgreSQL.dll
+│  │        ├─ pl
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ pt-BR
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ ru
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ Swashbuckle.AspNetCore.Swagger.dll
+│  │        ├─ Swashbuckle.AspNetCore.SwaggerGen.dll
+│  │        ├─ Swashbuckle.AspNetCore.SwaggerUI.dll
+│  │        ├─ System.CodeDom.dll
+│  │        ├─ System.Composition.AttributedModel.dll
+│  │        ├─ System.Composition.Convention.dll
+│  │        ├─ System.Composition.Hosting.dll
+│  │        ├─ System.Composition.Runtime.dll
+│  │        ├─ System.Composition.TypedParts.dll
+│  │        ├─ tr
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        ├─ zh-Hans
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.resources.dll
+│  │        │  ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │        │  └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  │        └─ zh-Hant
+│  │           ├─ Microsoft.CodeAnalysis.CSharp.resources.dll
+│  │           ├─ Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll
+│  │           ├─ Microsoft.CodeAnalysis.resources.dll
+│  │           ├─ Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+│  │           └─ Microsoft.CodeAnalysis.Workspaces.resources.dll
+│  ├─ Controllers
+│  │  ├─ AuthController.cs
+│  │  ├─ CategoryController.cs
+│  │  ├─ DamageReasonController.cs
+│  │  ├─ DashboardController.cs
+│  │  ├─ HospitalController.cs
+│  │  ├─ LaundryController.cs
+│  │  ├─ LinenController.cs
+│  │  ├─ LinenLogController.cs
+│  │  ├─ NotificationController.cs
+│  │  ├─ ProductController.cs
+│  │  ├─ ReaderController.cs
+│  │  ├─ ReportController.cs
+│  │  ├─ RequestController.cs
+│  │  ├─ RequestItemController.cs
+│  │  ├─ RequestStatusController.cs
+│  │  ├─ RoleController.cs
+│  │  ├─ RoomController.cs
+│  │  ├─ SettingController.cs
+│  │  ├─ SpecialTagController.cs
+│  │  ├─ TitleController.cs
+│  │  ├─ TransportController.cs
+│  │  ├─ UserController.cs
+│  │  ├─ VendorController.cs
+│  │  └─ WardController.cs
+│  ├─ Dockerfile
+│  ├─ Hubs
+│  │  └─ NotificationHub.cs
+│  ├─ Migrations
+│  │  ├─ 20260215155812_InitialCreate.cs
+│  │  ├─ 20260215155812_InitialCreate.Designer.cs
+│  │  ├─ 20260219104243_AddColorAndDisposableToProduct.cs
+│  │  ├─ 20260219104243_AddColorAndDisposableToProduct.Designer.cs
+│  │  └─ LinenDbContextModelSnapshot.cs
+│  ├─ Models
+│  │  ├─ Category.cs
+│  │  ├─ DamageReason.cs
+│  │  ├─ Hospital.cs
+│  │  ├─ Linen.cs
+│  │  ├─ LinenDbContext.cs
+│  │  ├─ LinenLog.cs
+│  │  ├─ Notification.cs
+│  │  ├─ Permission.cs
+│  │  ├─ Product.cs
+│  │  ├─ Reader.cs
+│  │  ├─ Request.cs
+│  │  ├─ RequestItem.cs
+│  │  ├─ RequestStatus.cs
+│  │  ├─ Role.cs
+│  │  ├─ RolePermission.cs
+│  │  ├─ Room.cs
+│  │  ├─ Setting.cs
+│  │  ├─ SpecialTag.cs
+│  │  ├─ SystemLog.cs
+│  │  ├─ Title.cs
+│  │  ├─ User.cs
+│  │  ├─ Vendor.cs
+│  │  └─ Ward.cs
+│  ├─ obj
+│  │  ├─ Backend.csproj.EntityFrameworkCore.targets
+│  │  ├─ Backend.csproj.nuget.dgspec.json
+│  │  ├─ Backend.csproj.nuget.g.props
+│  │  ├─ Backend.csproj.nuget.g.targets
+│  │  ├─ Debug
+│  │  │  └─ net9.0
+│  │  │     ├─ .NETCoreApp,Version=v9.0.AssemblyAttributes.cs
+│  │  │     ├─ apphost.exe
+│  │  │     ├─ Backend.AssemblyInfo.cs
+│  │  │     ├─ Backend.AssemblyInfoInputs.cache
+│  │  │     ├─ Backend.assets.cache
+│  │  │     ├─ Backend.csproj.AssemblyReference.cache
+│  │  │     ├─ Backend.csproj.CoreCompileInputs.cache
+│  │  │     ├─ Backend.csproj.FileListAbsolute.txt
+│  │  │     ├─ Backend.csproj.Up2Date
+│  │  │     ├─ Backend.dll
+│  │  │     ├─ Backend.GeneratedMSBuildEditorConfig.editorconfig
+│  │  │     ├─ Backend.genruntimeconfig.cache
+│  │  │     ├─ Backend.GlobalUsings.g.cs
+│  │  │     ├─ Backend.MvcApplicationPartsAssemblyInfo.cache
+│  │  │     ├─ Backend.MvcApplicationPartsAssemblyInfo.cs
+│  │  │     ├─ Backend.pdb
+│  │  │     ├─ Backend.sourcelink.json
+│  │  │     ├─ ref
+│  │  │     │  └─ Backend.dll
+│  │  │     ├─ refint
+│  │  │     │  └─ Backend.dll
+│  │  │     ├─ rjsmcshtml.dswa.cache.json
+│  │  │     ├─ rjsmrazor.dswa.cache.json
+│  │  │     ├─ rpswa.dswa.cache.json
+│  │  │     ├─ staticwebassets
+│  │  │     ├─ staticwebassets.build.endpoints.json
+│  │  │     ├─ staticwebassets.build.json
+│  │  │     └─ staticwebassets.build.json.cache
+│  │  ├─ project.assets.json
+│  │  └─ project.nuget.cache
+│  ├─ Program.cs
+│  ├─ Properties
+│  │  └─ launchSettings.json
+│  └─ Services
+│     ├─ AuthService.cs
+│     ├─ CategoryService.cs
+│     ├─ DamageReasonService.cs
+│     ├─ DashboardService.cs
+│     ├─ EmailService.cs
+│     ├─ HospitalService.cs
+│     ├─ IAuthService.cs
+│     ├─ ICategoryService.cs
+│     ├─ IDamageReasonService.cs
+│     ├─ IDashboardService.cs
+│     ├─ IHospitalService.cs
+│     ├─ ILaundryService.cs
+│     ├─ ILinenLogService.cs
+│     ├─ ILinenService.cs
+│     ├─ INotificationService.cs
+│     ├─ IProductService.cs
+│     ├─ IReaderService.cs
+│     ├─ IReportService.cs
+│     ├─ IRequestItemService.cs
+│     ├─ IRequestService.cs
+│     ├─ IRequestStatusService.cs
+│     ├─ IRoleService.cs
+│     ├─ IRoomService.cs
+│     ├─ ISettingService.cs
+│     ├─ ISpecialTagService.cs
+│     ├─ ITitleService.cs
+│     ├─ ITransportService.cs
+│     ├─ IUserService.cs
+│     ├─ IVendorService.cs
+│     ├─ IWardService.cs
+│     ├─ LaundryService.cs
+│     ├─ LinenLogService.cs
+│     ├─ LinenService.cs
+│     ├─ MqttListenerService.cs
+│     ├─ MqttPublisherService.cs
+│     ├─ NotificationService.cs
+│     ├─ ProductService.cs
+│     ├─ ReaderService.cs
+│     ├─ ReportService.cs
+│     ├─ RequestItemService.cs
+│     ├─ RequestService.cs
+│     ├─ RequestStatusService.cs
+│     ├─ RoleService.cs
+│     ├─ RoomService.cs
+│     ├─ SettingService.cs
+│     ├─ SpecialTagService.cs
+│     ├─ TitleService.cs
+│     ├─ TransportService.cs
+│     ├─ UserService.cs
+│     ├─ VendorService.cs
+│     └─ WardService.cs
+├─ docker-compose.yml
+├─ Frontend
+│  ├─ build_log.txt
+│  ├─ Dockerfile
+│  ├─ eslint.config.js
+│  ├─ index.html
+│  ├─ package-lock.json
+│  ├─ package.json
+│  ├─ public
+│  │  ├─ fonts
+│  │  │  └─ Sarabun-Regular.ttf
+│  │  └─ vite.svg
+│  ├─ README.md
+│  ├─ src
+│  │  ├─ api
+│  │  │  └─ axiosClient.ts
+│  │  ├─ App.css
+│  │  ├─ App.tsx
+│  │  ├─ assets
+│  │  │  ├─ icon.png
+│  │  │  └─ rmutt.png
+│  │  ├─ components
+│  │  │  ├─ common
+│  │  │  │  └─ ModernTable.tsx
+│  │  │  ├─ Navbar.tsx
+│  │  │  ├─ ProtectedRoute.tsx
+│  │  │  ├─ ReaderWakeButton.tsx
+│  │  │  ├─ Sidebar.tsx
+│  │  │  └─ ui
+│  │  │     ├─ FormLabel.tsx
+│  │  │     └─ PageHeader.tsx
+│  │  ├─ index.css
+│  │  ├─ layouts
+│  │  │  └─ MainLayout.tsx
+│  │  ├─ main.tsx
+│  │  ├─ pages
+│  │  │  ├─ Dashboard.tsx
+│  │  │  ├─ Discard.tsx
+│  │  │  ├─ ForgotPassword.tsx
+│  │  │  ├─ Home.tsx
+│  │  │  ├─ Hospital.tsx
+│  │  │  ├─ Laundry.tsx
+│  │  │  ├─ Linen.tsx
+│  │  │  ├─ Login.tsx
+│  │  │  ├─ Notifications.tsx
+│  │  │  ├─ Reports.tsx
+│  │  │  ├─ Requests.tsx
+│  │  │  ├─ RfidConnect.tsx
+│  │  │  ├─ SearchLinen.tsx
+│  │  │  ├─ Settings.tsx
+│  │  │  ├─ Transport.tsx
+│  │  │  ├─ Users.tsx
+│  │  │  └─ Vendor.tsx
+│  │  ├─ theme
+│  │  │  └─ theme.ts
+│  │  └─ utils
+│  │     └─ notificationUtil.ts
+│  ├─ tsconfig.app.json
+│  ├─ tsconfig.json
+│  ├─ tsconfig.node.json
+│  └─ vite.config.ts
+├─ mosquitto
+│  ├─ config
+│  │  └─ mosquitto.conf
+│  ├─ data
+│  │  └─ mosquitto.db
+│  └─ log
+│     └─ mosquitto.log
+├─ pgadmin-data
+│  ├─ azurecredentialcache
+│  ├─ pgadmin4.db
+│  ├─ sessions
+│  │  ├─ 0c15f7c6-5cf1-485f-8056-6fd69bc8cc77
+│  │  ├─ 1053a657-5586-4976-84c3-3e8293c550a4
+│  │  ├─ 136f9756-a908-47d1-ab62-e2943d2f61b3
+│  │  ├─ 1e748f11-c2bd-47e8-b688-d5225110ecc7
+│  │  ├─ 25994659-84ea-414e-bf6c-bf3ebb280cc3
+│  │  ├─ 26519a34-9cdc-4e79-a78a-4ae5ed3684f7
+│  │  ├─ 2ac4b597-a0cb-4770-894e-480447e3dd21
+│  │  ├─ 2e498b2e-2e2f-4396-9bcc-01c802f6f239
+│  │  ├─ 4e733554-2fb3-4a61-85c6-e68404385ede
+│  │  ├─ 4ea53c98-9b77-42fe-9931-63553b61fca6
+│  │  ├─ 62fb05a0-6199-4fca-97c8-15b2e38838a3
+│  │  ├─ 727b7fe8-fe9a-4f30-b9bc-45b393c3cfc1
+│  │  ├─ 7994d86e-507b-4477-8121-82edf6699647
+│  │  ├─ 82958fa1-9f9b-4680-a0b9-de41f96cd5e0
+│  │  ├─ b02fd37a-7da4-43c3-879c-e4619e7fdf72
+│  │  ├─ b0d1408c-d942-4879-93f2-6e1af135eff2
+│  │  ├─ b16a9f24-141e-454d-9fad-50a6516635b1
+│  │  ├─ b769b620-143d-486d-8e64-22e348ab811b
+│  │  ├─ d5e385bc-9ed9-4fcd-9b82-955f102322b3
+│  │  ├─ e6e722a7-f86e-4418-8347-bcb4b07a6478
+│  │  ├─ ea59df73-9198-4062-ae93-a1c567c4e82e
+│  │  └─ f8801a48-f13e-4046-ab5b-7a4f7b3e4d2c
+│  └─ storage
+│     └─ admin_linen.com
+├─ README.md
+└─ RFID.sln
+
+```

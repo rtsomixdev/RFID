@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Paper, Typography, Card, CardContent,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Chip, CircularProgress, Button, Stack, useTheme, alpha
+    Chip, CircularProgress, Button, Stack, useTheme, alpha, TablePagination
 } from '@mui/material';
 import {
     LocalLaundryService, History, Refresh, Room
@@ -10,6 +10,10 @@ import {
 import axiosClient from '../api/axiosClient';
 import PageHeader from '../components/ui/PageHeader';
 
+/**
+ * โครงสร้างข้อมูลรายการผ้าที่กำลังซัก
+ * @interface WashingItem
+ */
 interface WashingItem {
     rfid: string;
     productName: string;
@@ -18,20 +22,33 @@ interface WashingItem {
     updatedAt: string;
 }
 
+/**
+ * หน้าจอติดตามสถานะซักรีดแบบเรียลไทม์
+ * 
+ * @returns {JSX.Element} คอมโพเนนต์หน้าจอซักรีด (Laundry)
+ */
 const Laundry: React.FC = () => {
     const theme = useTheme();
 
-    // ✅ การเช็คสิทธิ์แบบละเอียด
+    // ตรวจสอบสิทธิ์การเข้าถึงข้อมูลและการกระทำต่างๆ แบบละเอียด
     const userStr = localStorage.getItem('currentUser');
     const currentUser = userStr ? JSON.parse(userStr) : null;
     const permissions = currentUser?.permissions || currentUser?.Permissions || [];
     const roleId = currentUser?.roleId || currentUser?.RoleId || 0;
-    
-    // เช็คว่ามีสิทธิ์จัดการกระบวนการซักรีดหรือไม่
+
+    // ตรวจสอบว่าผู้ใช้งานมีสิทธิ์ในการจัดการกระบวนการซักรีดหรือไม่
     const canManage = roleId === 1 || permissions.includes('MANAGE_LAUNDRY');
-    
+
     const [washingList, setWashingList] = useState<WashingItem[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const handleChangePage = (event: unknown, newPage: number) => setPage(newPage);
+    const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setRowsPerPage(+event.target.value);
+        setPage(0);
+    };
 
     useEffect(() => {
         fetchWashingList();
@@ -46,8 +63,8 @@ const Laundry: React.FC = () => {
             const res = await axiosClient.get('/Linen/Monitor/Latest');
             const data = res.data || [];
 
-            const filtered = data.filter((item: any) => 
-                item.status === 'กำลังซัก' || 
+            const filtered = data.filter((item: any) =>
+                item.status === 'กำลังซัก' ||
                 item.status === 'ส่งซัก' ||
                 item.status === 'Washing' ||
                 item.location === 'โรงซัก' ||
@@ -64,8 +81,8 @@ const Laundry: React.FC = () => {
 
             setWashingList(mappedData);
             setLoading(false);
-        } catch (err) { 
-            console.error("Fetch Washing Error: ", err); 
+        } catch (err) {
+            console.error("Fetch Washing Error: ", err);
             setLoading(false);
         }
     };
@@ -92,15 +109,15 @@ const Laundry: React.FC = () => {
             <Box sx={{ flexGrow: 1, p: 3, pt: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <Card elevation={0} sx={{ flex: 1, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, display: 'flex', flexDirection: 'column' }}>
                     <CardContent sx={{ p: 0, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                        
+
                         <Box sx={{ p: 2, px: 3, bgcolor: alpha(theme.palette.info.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <Stack direction="row" alignItems="center" gap={1.5}>
                                 <History color="info" />
                                 <Typography variant="h6" fontWeight="bold" color="info.main">รายการผ้ากำลังซัก (Washing List)</Typography>
                                 <Chip label={`${washingList.length} รายการ`} size="small" color="info" sx={{ fontWeight: 'bold', ml: 1 }} />
                             </Stack>
-                            
-                            {/* ซ่อนปุ่มอัปเดต/จัดการ ถ้ายูสเซอร์ไม่มีสิทธิ์ Manage (ให้ข้อมูลอัปเดตอัตโนมัติก็พอ) */}
+
+                            {/* ซ่อนปุ่มอัปเดตข้อมูลหากผู้ใช้ไม่มีสิทธิจัดการ โดยให้ระบบอัปเดตเองอัตโนมัติ */}
                             {canManage && (
                                 <Button startIcon={<Refresh />} size="small" variant="outlined" color="info" onClick={() => { setLoading(true); fetchWashingList(); }}>
                                     อัปเดตข้อมูล
@@ -108,8 +125,8 @@ const Laundry: React.FC = () => {
                             )}
                         </Box>
 
-                        <TableContainer sx={{ flexGrow: 1, overflowY: 'auto' }}>
-                            <Table stickyHeader size="medium">
+                        <TableContainer>
+                            <Table size="medium">
                                 <TableHead>
                                     <TableRow>
                                         <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc', width: '20%' }}>RFID Code</TableCell>
@@ -125,7 +142,7 @@ const Laundry: React.FC = () => {
                                     ) : washingList.length === 0 ? (
                                         <TableRow><TableCell colSpan={5} align="center" sx={{ py: 10, color: 'text.secondary' }}>ไม่พบรายการผ้าที่กำลังดำเนินการซัก</TableCell></TableRow>
                                     ) : (
-                                        washingList.map((item, index) => (
+                                        washingList.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((item, index) => (
                                             <TableRow key={`${item.rfid}-${index}`} hover sx={{ '& td': { py: 1.5 } }}>
                                                 <TableCell sx={{ fontFamily: 'monospace', fontWeight: 'bold', color: 'primary.main' }}>
                                                     {item.rfid}
@@ -150,6 +167,15 @@ const Laundry: React.FC = () => {
                                 </TableBody>
                             </Table>
                         </TableContainer>
+                        <TablePagination
+                            rowsPerPageOptions={[5, 10, 25]}
+                            component="div"
+                            count={washingList.length}
+                            rowsPerPage={rowsPerPage}
+                            page={page}
+                            onPageChange={handleChangePage}
+                            onRowsPerPageChange={handleChangeRowsPerPage}
+                        />
                     </CardContent>
                 </Card>
             </Box>

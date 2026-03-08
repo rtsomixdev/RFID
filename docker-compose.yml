@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 1. Database (รันใน Docker เหมือนเดิม)
+  # 1. Database
   db:
     image: postgres:15-alpine
     container_name: linen_postgres_db
@@ -10,14 +10,14 @@ services:
       - POSTGRES_PASSWORD=123456
       - POSTGRES_DB=linen_db
     ports:
-      - "5432:5432" # เปิด Port ให้ .NET บน Windows วิ่งเข้ามาได้
+      - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     restart: always
     networks:
       - linen_network
 
-  # 2. pgAdmin (รันใน Docker เหมือนเดิม)
+  # 2. pgAdmin
   pgadmin:
     image: dpage/pgadmin4
     container_name: linen_pgadmin
@@ -34,13 +34,13 @@ services:
     networks:
       - linen_network
 
-  # 3. MQTT Broker (Mosquitto) - ✅ เพิ่มใหม่
+  # 3. MQTT Broker (Mosquitto)
   mosquitto:
     image: eclipse-mosquitto
     container_name: linen_mosquitto
     ports:
-      - "1883:1883" # Port สำหรับ Hardware (ESP32) และ Backend
-      - "9001:9001" # Port สำหรับ WebSocket
+      - "1883:1883"
+      - "9001:9001"
     volumes:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
@@ -49,16 +49,53 @@ services:
     networks:
       - linen_network
 
-  # 4. Cloudflare Tunnel (แก้ให้วิ่งหา Windows ของคุณ)
+  # 🚀 4. Backend (.NET API)
+  backend:
+    build: 
+      context: ./backend # ⚠️ แก้ตรงนี้ให้ตรงกับชื่อโฟลเดอร์ Backend ของคุณ
+    container_name: linen_backend
+    ports:
+      - "8080:8080" # เผื่ออยากยิง API ตรงๆ จากในเครื่อง
+    environment:
+      # ⚠️ ต้องเปลี่ยน Connection String ใน .NET ให้ชี้มาที่ "Host=db;" นะครับ
+      - ASPNETCORE_URLS=http://0.0.0.0:8080
+      - ConnectionStrings__DefaultConnection=Host=db;Database=linen_db;Username=admin;Password=123456
+      - ASPNETCORE_ENVIRONMENT=Development
+      - MqttConfig__Server=mosquitto
+    depends_on:
+      - db
+      - mosquitto
+    restart: always
+    networks:
+      - linen_network
+
+  # 🚀 5. Frontend (React/Vite)
+  frontend:
+    build: 
+      context: ./frontend # ⚠️ แก้ตรงนี้ให้ตรงกับชื่อโฟลเดอร์ Frontend ของคุณ
+    container_name: linen_frontend
+    ports:
+      - "3000:80" # เข้าผ่าน localhost:3000 ได้เลย
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - linen_network
+
+  # ☁️ 6. Cloudflare Tunnel (ตัวจริงเสียงจริง สำหรับโดเมน rfidtracking.space)
   tunnel:
     image: cloudflare/cloudflared:latest
     container_name: linen_tunnel
     restart: always
-    # 👇 ชี้ไปที่ host.docker.internal (คือเครื่อง Windows ของคุณที่รัน npm run dev)
-    # Port 5173 คือ Port ที่ Vite รันบนเครื่องคุณ
-    command: tunnel --url http://host.docker.internal:5173
-    extra_hosts:
-      - "host.docker.internal:host-gateway" # บรรทัดนี้สำคัญ! ช่วยให้ Docker คุยกับ Windows รู้เรื่อง
+    environment:
+      - TUNNEL_TOKEN=eyJhIjoiMjEzZDg1M2FkMGVmMGE3ZDZhNDkxOGE2NjBlYjkwMjAiLCJ0IjoiNDNkZWY5MDUtZTdmZS00NzY3LTk3YmItY2YxYWM0YTNlMjZjIiwicyI6Ik5tWTBaamRqWVdZdFpEWmpZeTAwWXpVMExXRTBOemd0TVRSaU1EWm1OalJpTkdFMiJ9
+      - TUNNEL_TRANSPORT_PROTOCOL=quic
+    # ✅ แก้คำสั่งตรงนี้ เอาชื่อออก ป้องกัน Tunnel สับสน และให้อ่านจาก Token แทน
+    command: tunnel --no-autoupdate run
+    # ✅ เพิ่ม depends_on ให้ Tunnel ตื่นทีหลังสุด จะได้รู้จัก IP ของระบบทั้งหมด
+    depends_on:
+      - frontend
+      - backend
     networks:
       - linen_network
 

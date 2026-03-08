@@ -4,6 +4,11 @@ import { Box, Typography, Paper, List, ListItem, ListItemAvatar, Avatar, ListIte
 import { CheckCircle, Warning, Info, NotificationsActive, DeleteOutline, MarkEmailRead } from '@mui/icons-material';
 import PageHeader from '../components/ui/PageHeader';
 
+/**
+ * หน้าจอแสดงรายการแจ้งเตือนทั้งหมด
+ * 
+ * @returns {JSX.Element} คอมโพเนนต์หน้าจอแจ้งเตือน (Notifications)
+ */
 const NotificationsPage = () => {
     const theme = useTheme();
     const [notifications, setNotifications] = useState<any[]>([]);
@@ -25,8 +30,9 @@ const NotificationsPage = () => {
         return <Info color="info" />;
     };
 
+    // ฟังก์ชันจำลองสำหรับการล้างการแจ้งเตือนทั้งหมด
     const handleMarkAllRead = () => {
-        // Mock function to mark all as read
+        // อัปเดตสถานะการอ่านให้เป็นอ่านแล้วสำหรับทุกรายการ
         const updated = notifications.map(n => ({ ...n, isRead: true }));
         setNotifications(updated);
     };

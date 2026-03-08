@@ -13,18 +13,24 @@ import { sendNotification } from '../utils/notificationUtil';
 import PageHeader from '../components/ui/PageHeader';
 import FormLabel from '../components/ui/FormLabel';
 
-const API_URL = 'http://localhost:5134/api/Vendor';
+// กำหนด URL ของ Production API
+const API_URL = 'https://api.rfidtracking.space/api/Vendor';
 
+/**
+ * หน้าจอจัดการข้อมูลบริษัทคู่ค้า (Vendor Management)
+ * 
+ * @returns {JSX.Element} คอมโพเนนต์หน้าจอตั้งค่าผู้จำหน่าย
+ */
 const Vendor: React.FC = () => {
   const theme = useTheme();
 
-  // ✅ การเช็คสิทธิ์แบบละเอียด
+  // ตรวจสอบข้อมูลสิทธิ์การเข้าใช้งานอย่างละเอียด
   const userStr = localStorage.getItem('currentUser');
   const currentUser = userStr ? JSON.parse(userStr) : null;
   const permissions = currentUser?.permissions || currentUser?.Permissions || [];
   const roleId = currentUser?.roleId || currentUser?.RoleId || 0;
-  
-  // เช็คว่ามีสิทธิ์เขียน(เพิ่ม), แก้ไข, ลบ หรือไม่
+
+  // ตรวจสอบสิทธิ์การทำงาน: สิทธิ์บันทึก (เพิ่ม), แก้ไข, และลบ
   const canWrite = roleId === 1 || permissions.includes('WRITE_VENDOR');
   const canEdit = roleId === 1 || permissions.includes('EDIT_VENDOR');
   const canDelete = roleId === 1 || permissions.includes('DELETE_VENDOR');
@@ -111,42 +117,42 @@ const Vendor: React.FC = () => {
       />
 
       <Box>
-        {/* ✅ ซ่อนฟอร์มสร้าง/แก้ไข ถ้าไม่มีสิทธิ์ */}
+        {/* ซ่อนฟอร์มสำหรับเพิ่มหรือแก้ไขข้อมูล กรณีที่ไม่มีสิทธิ์การใช้งาน */}
         {(canWrite || (editId && canEdit)) && (
-            <Paper variant="outlined" sx={{ p: 4, mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, bgcolor: editId ? alpha(theme.palette.warning.light, 0.05) : '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+          <Paper variant="outlined" sx={{ p: 4, mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}`, bgcolor: editId ? alpha(theme.palette.warning.light, 0.05) : '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
             <Typography variant="h6" sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1.5, color: editId ? theme.palette.warning.dark : theme.palette.primary.dark }}>
-                <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: editId ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.primary.main, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', color: editId ? theme.palette.warning.main : theme.palette.primary.main }}>
+              <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: editId ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.primary.main, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', color: editId ? theme.palette.warning.main : theme.palette.primary.main }}>
                 {editId ? <Edit fontSize="small" /> : <AddCircle fontSize="small" />}
-                </Box>
-                {editId ? 'แก้ไขข้อมูลบริษัท' : 'เพิ่มบริษัทคู่ค้าใหม่'}
+              </Box>
+              {editId ? 'แก้ไขข้อมูลบริษัท' : 'เพิ่มบริษัทคู่ค้าใหม่'}
             </Typography>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 3 }}>
-                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 5' } }}>
+              <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 5' } }}>
                 <FormLabel label="ชื่อบริษัท / ร้านค้า" required>
-                    <TextField placeholder="ตัวอย่าง: บริษัท ซักอบรีด จำกัด" value={formData.vendorName} onChange={e => setFormData({ ...formData, vendorName: e.target.value })} InputProps={{ startAdornment: <InputAdornment position="start"><Business fontSize="small" color="action" /></InputAdornment> }} fullWidth />
+                  <TextField placeholder="ตัวอย่าง: บริษัท ซักอบรีด จำกัด" value={formData.vendorName} onChange={e => setFormData({ ...formData, vendorName: e.target.value })} InputProps={{ startAdornment: <InputAdornment position="start"><Business fontSize="small" color="action" /></InputAdornment> }} fullWidth />
                 </FormLabel>
-                </Box>
-                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
+              </Box>
+              <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 4' } }}>
                 <FormLabel label="เลขทะเบียน / เบอร์โทร">
-                    <TextField placeholder="ระบุข้อมูลติดต่อ..." value={formData.registrationNumber} onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })} InputProps={{ startAdornment: <InputAdornment position="start"><Badge fontSize="small" color="action" /></InputAdornment> }} fullWidth />
+                  <TextField placeholder="ระบุข้อมูลติดต่อ..." value={formData.registrationNumber} onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })} InputProps={{ startAdornment: <InputAdornment position="start"><Badge fontSize="small" color="action" /></InputAdornment> }} fullWidth />
                 </FormLabel>
-                </Box>
-                <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' }, display: 'flex', gap: 1, pt: 3.2 }}>
+              </Box>
+              <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' }, display: 'flex', gap: 1, pt: 3.2 }}>
                 {editId ? (
-                    <>
+                  <>
                     <Button fullWidth variant="contained" color="warning" startIcon={<Save />} onClick={handleSubmit}>บันทึก</Button>
                     <Button fullWidth variant="outlined" color="inherit" onClick={handleCancel}>ยกเลิก</Button>
-                    </>
+                  </>
                 ) : (
-                    <Button fullWidth variant="contained" startIcon={<AddCircle />} onClick={handleSubmit}>เพิ่มข้อมูล</Button>
+                  <Button fullWidth variant="contained" startIcon={<AddCircle />} onClick={handleSubmit}>เพิ่มข้อมูล</Button>
                 )}
-                </Box>
+              </Box>
             </Box>
-            </Paper>
+          </Paper>
         )}
 
-        {/* Table Section */}
+        {/* ส่วนแสดงตารางข้อมูล */}
         <Box sx={{ p: 4 }}>
           <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Typography variant="h6" fontWeight="700" color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

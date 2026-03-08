@@ -4,117 +4,95 @@ using Backend.Models;
 
 namespace Backend.Controllers
 {
+    /// <summary>
+    /// ควบคุมการจัดการป้ายระบุสิทธิ์พิเศษ (Special Tags)
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class SpecialTagController : ControllerBase
     {
-        private readonly LinenDbContext _context;
+        private readonly Services.ISpecialTagService _service;
 
-        public SpecialTagController(LinenDbContext context)
+        /// <summary>
+        /// กำหนดค่าเริ่มต้นให้กับ SpecialTagController
+        /// </summary>
+        /// <param name="service">บริการสำหรับการจัดการป้ายพิเศษ</param>
+        public SpecialTagController(Services.ISpecialTagService service)
         {
-            _context = context;
+            _service = service;
         }
 
-        // 1. GET ALL
+        /// <summary>
+        /// ดึงรายการป้ายพิเศษทั้งหมดในระบบ
+        /// </summary>
+        /// <returns>ชุดข้อมูลป้ายพิเศษ</returns>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<SpecialTag>>> GetSpecialTags()
         {
-            return await _context.SpecialTags.ToListAsync();
+            return Ok(await _service.GetSpecialTagsAsync());
         }
 
-        // 2. GET BY ID (เพิ่มมาเพื่อให้มาตรฐานครบ)
+        /// <summary>
+        /// ค้นหาข้อมูลป้ายพิเศษตามรหัส RFID
+        /// </summary>
+        /// <param name="id">รหัสป้ายพิเศษ</param>
+        /// <returns>รายละเอียดที่ตรงกับรหัสที่ระบุ</returns>
         [HttpGet("{id}")]
         public async Task<ActionResult<SpecialTag>> GetSpecialTag(string id)
         {
-            var tag = await _context.SpecialTags.FindAsync(id);
+            var tag = await _service.GetSpecialTagAsync(id);
 
             if (tag == null)
             {
                 return NotFound();
             }
 
-            return tag;
+            return Ok(tag);
         }
 
-        // 3. POST (Create + Duplicate Check)
+        /// <summary>
+        /// เพิ่มป้ายพิเศษใหม่เข้าระบบ
+        /// </summary>
+        /// <param name="tag">ข้อมูลป้ายพิเศษใหม่</param>
+        /// <returns>สถานะพร้อมข้อมูลป้ายที่บันทึกสำเร็จ</returns>
         [HttpPost]
         public async Task<ActionResult<SpecialTag>> PostSpecialTag(SpecialTag tag)
         {
-            // ✅ Enterprise Logic: เช็คก่อนว่ามี ID นี้ในระบบหรือยัง
-            if (await _context.SpecialTags.AnyAsync(e => e.TagId == tag.TagId))
-            {
-                return Conflict(new { message = $"Tag ID '{tag.TagId}' นี้มีอยู่ในระบบแล้ว" });
-            }
+            var result = await _service.PostSpecialTagAsync(tag);
+            
+            if (result.Status == 409) return Conflict(new { message = result.Message });
 
-            _context.SpecialTags.Add(tag);
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateException)
-            {
-                if (SpecialTagExists(tag.TagId))
-                {
-                    return Conflict(new { message = "Tag ID already exists." });
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
-            return CreatedAtAction("GetSpecialTag", new { id = tag.TagId }, tag);
+            return CreatedAtAction("GetSpecialTag", new { id = result.Item?.TagId }, result.Item);
         }
 
-        // 4. PUT (Update) - รองรับการแก้ไขจากหน้าเว็บ
+        /// <summary>
+        /// แกัไขข้อมูลป้ายพิเศษเดิม
+        /// </summary>
+        /// <param name="id">รหัสป้ายที่ต้องการเปลี่ยน</param>
+        /// <param name="tag">ข้อมูลที่แก้ไขแล้ว</param>
+        /// <returns>สถานะลัพธ์การแก้ไข</returns>
         [HttpPut("{id}")]
         public async Task<IActionResult> PutSpecialTag(string id, SpecialTag tag)
         {
-            if (id != tag.TagId)
-            {
-                return BadRequest("Tag ID mismatch");
-            }
-
-            _context.Entry(tag).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!SpecialTagExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
+            var result = await _service.PutSpecialTagAsync(id, tag);
+            if (result.Status == 400) return BadRequest(result.Message);
+            if (result.Status == 404) return NotFound();
 
             return NoContent();
         }
 
-        // 5. DELETE (แก้ไขจาก int เป็น string)
+        /// <summary>
+        /// ลบข้อมูลป้ายพิเศษ
+        /// </summary>
+        /// <param name="id">รหัสป้ายพิเศษที่ต้องการลบฝัง</param>
+        /// <returns>สถานะลัพธ์การลบ</returns>
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteSpecialTag(string id)
         {
-            var tag = await _context.SpecialTags.FindAsync(id);
-            if (tag == null)
-            {
-                return NotFound();
-            }
-
-            _context.SpecialTags.Remove(tag);
-            await _context.SaveChangesAsync();
+            var result = await _service.DeleteSpecialTagAsync(id);
+            if (result.Status == 404) return NotFound();
 
             return NoContent();
-        }
-
-        private bool SpecialTagExists(string id)
-        {
-            return _context.SpecialTags.Any(e => e.TagId == id);
         }
     }
 }

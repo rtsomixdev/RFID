@@ -26,7 +26,8 @@ import {
   DialogActions,
   Divider,
   useTheme,
-  alpha
+  alpha,
+  TablePagination
 } from "@mui/material";
 import {
   Save,
@@ -48,25 +49,42 @@ const DEFAULT_GLOBAL_SETTINGS = {
   ENABLE_POPUP_ALERT: "true",
 };
 
+/**
+ * โครงสร้างข้อมูลสำหรับจัดการเงื่อนไขการใช้งานของสินค้า
+ * @interface ProductRule
+ */
 interface ProductRule {
   productId: number;
   productName: string;
   categoryName: string;
   maxWashCount: number | string;
   maxLifespanDays: number | string;
-  rawProduct: any; 
+  rawProduct: any;
 }
 
+/**
+ * หน้าจอการตั้งค่าระบบ (System Configuration)
+ * 
+ * @returns {JSX.Element} คอมโพเนนต์หน้าจอตั้งค่า
+ */
 const Settings = () => {
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
-  const [isFetchingProducts, setIsFetchingProducts] = useState(true); // ✅ เพิ่ม State ไว้จัดการวงล้อโหลดแยกต่างหาก
+  const [isFetchingProducts, setIsFetchingProducts] = useState(true); // สถานะสำหรับแสดงตัวโหลดข้อมูลสินค้าแยกต่างหาก
   const [globalValues, setGlobalValues] = useState(DEFAULT_GLOBAL_SETTINGS);
   const [products, setProducts] = useState<ProductRule[]>([]);
 
-  // State สำหรับ Popup
+  // สถานะสำหรับการจัดการหน้าต่างแจ้งเตือน (Popup)
   const [openDialog, setOpenDialog] = useState(false);
   const [currentRule, setCurrentRule] = useState<ProductRule | null>(null);
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(+event.target.value);
+    setPage(0);
+  };
 
   useEffect(() => {
     fetchGlobalSettings();
@@ -91,7 +109,7 @@ const Settings = () => {
   };
 
   const fetchProducts = async () => {
-    setIsFetchingProducts(true); // ✅ เริ่มโหลด
+    setIsFetchingProducts(true); // เริ่มการดึงข้อมูลสินค้า
     try {
       const res = await axios.get("/Product");
       const productList = res.data.map((p: any) => ({
@@ -100,14 +118,14 @@ const Settings = () => {
         categoryName: p.category?.categoryName || null,
         maxWashCount: p.maxWashCount || 100,
         maxLifespanDays: p.maxLifespanDays || 365,
-        rawProduct: p 
+        rawProduct: p
       }));
       setProducts(productList);
     } catch (err) {
       console.error("Error fetching products:", err);
-      // ไม่ต้อง Alert ก็ได้เดี๋ยว User ตกใจ ให้มันโชว์ในตารางว่าไม่พบข้อมูล
+      // พบข้อผิดพลาดในการดึงข้อมูล ให้แสดงข้อความในตารางแทนการแจ้งเตือนแบบ Popup
     } finally {
-      setIsFetchingProducts(false); // ✅ โหลดเสร็จแล้ว (ไม่ว่าจะสำเร็จหรือ Error ก็ให้หยุดหมุน)
+      setIsFetchingProducts(false); // สิ้นสุดการดึงข้อมูล (ซ่อนตัวโหลดข้อมูล)
     }
   };
 
@@ -115,7 +133,7 @@ const Settings = () => {
     setGlobalValues({ ...globalValues, [key]: val });
   };
 
-  // --- Modal Logic ---
+  // --- ฟังก์ชันจัดการหน้าต่างแจ้งเตือน (Modal Logic) ---
   const handleEditClick = (rule: ProductRule) => {
     setCurrentRule({ ...rule });
     setOpenDialog(true);
@@ -149,7 +167,7 @@ const Settings = () => {
 
     try {
       const payload = {
-        ...currentRule.rawProduct, 
+        ...currentRule.rawProduct,
         maxWashCount: parseInt(String(currentRule.maxWashCount || 0)),
         maxLifespanDays: parseInt(String(currentRule.maxLifespanDays || 0))
       };
@@ -181,7 +199,7 @@ const Settings = () => {
     }
   };
 
-  // --- Save All Logic ---
+  // --- ฟังก์ชันบันทึกข้อมูลทั้งหมด (Save All Logic) ---
   const handleSave = async () => {
     setLoading(true);
 
@@ -339,8 +357,8 @@ const Settings = () => {
             </Box>
             <Divider />
             <Box sx={{ p: 0 }}>
-              <TableContainer component={Paper} elevation={0} sx={{ maxHeight: 600 }}>
-                <Table stickyHeader sx={{ minWidth: 650 }}>
+              <TableContainer component={Paper} elevation={0}>
+                <Table sx={{ minWidth: 650 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>ชื่อสินค้า (Product Name)</TableCell>
@@ -351,7 +369,7 @@ const Settings = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {/* ✅ แก้ไขเงื่อนไขการโหลดตรงนี้ */}
+                    {/* ส่วนของการแสดงผลตามสถานะการโหลดข้อมูล */}
                     {isFetchingProducts ? (
                       <TableRow>
                         <TableCell colSpan={5} align="center" sx={{ py: 5 }}>
@@ -366,7 +384,7 @@ const Settings = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      products.map((row) => (
+                      products.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((row) => (
                         <TableRow key={row.productId} hover>
                           <TableCell sx={{ fontWeight: 500 }}>{row.productName}</TableCell>
                           <TableCell>
@@ -398,12 +416,21 @@ const Settings = () => {
                   </TableBody>
                 </Table>
               </TableContainer>
+              <TablePagination
+                rowsPerPageOptions={[5, 10, 25]}
+                component="div"
+                count={products.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+              />
             </Box>
           </Paper>
         </Box>
       </Box >
 
-      {/* Popup Dialog */}
+      {/* หน้าต่างแจ้งเตือนแก้ไขเกณฑ์สินค้า (Popup Dialog) */}
       < Dialog
         open={openDialog}
         onClose={() => setOpenDialog(false)}

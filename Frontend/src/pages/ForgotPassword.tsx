@@ -6,6 +6,11 @@ import { useNavigate } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
 import FormLabel from '../components/ui/FormLabel';
 
+/**
+ * หน้าจอสำหรับขอและตั้งรหัสผ่านใหม่
+ * 
+ * @returns {JSX.Element} คอมโพเนนต์หน้าจอลืมรหัสผ่าน
+ */
 const ForgotPassword: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -17,7 +22,7 @@ const ForgotPassword: React.FC = () => {
 
   const steps = ['ระบุอีเมล', 'ยืนยัน OTP', 'ตั้งรหัสใหม่'];
 
-  // 1. ขอ OTP
+  // ลำดับที่ 1: ดำเนินการส่งคำขอ OTP ไปยังอีเมล
   const handleRequestOtp = async () => {
     if (!email) return Swal.fire('Error', 'กรุณากรอกอีเมล', 'error');
     setLoading(true);
@@ -32,7 +37,7 @@ const ForgotPassword: React.FC = () => {
     }
   };
 
-  // 2. ยืนยัน OTP
+  // ลำดับที่ 2: ดำเนินการตรวจสอบความถูกต้องของรหัส OTP
   const handleVerifyOtp = async () => {
     if (!otp) return Swal.fire('Error', 'กรุณากรอก OTP', 'error');
     setLoading(true);
@@ -46,7 +51,7 @@ const ForgotPassword: React.FC = () => {
     }
   };
 
-  // 3. เปลี่ยนรหัสผ่าน
+  // ลำดับที่ 3: ดำเนินการเปลี่ยนรหัสผ่านใหม่
   const handleResetPassword = async () => {
     if (!newPassword) return Swal.fire('Error', 'กรุณากรอกรหัสผ่านใหม่', 'error');
     setLoading(true);
@@ -84,7 +89,7 @@ const ForgotPassword: React.FC = () => {
             {steps.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
           </Stepper>
 
-          {/* Step 1: Email */}
+          {/* ขั้นตอนที่ 1: ขั้นตอนการระบุอีเมล */}
           {activeStep === 0 && (
             <Fade in>
               <Box>
@@ -102,7 +107,7 @@ const ForgotPassword: React.FC = () => {
             </Fade>
           )}
 
-          {/* Step 2: OTP */}
+          {/* ขั้นตอนที่ 2: ขั้นตอนการยืนยันรหัส OTP */}
           {activeStep === 1 && (
             <Fade in>
               <Box>
@@ -124,7 +129,7 @@ const ForgotPassword: React.FC = () => {
             </Fade>
           )}
 
-          {/* Step 3: New Password */}
+          {/* ขั้นตอนที่ 3: ขั้นตอนการตั้งรหัสผ่านใหม่ */}
           {activeStep === 2 && (
             <Fade in>
               <Box>

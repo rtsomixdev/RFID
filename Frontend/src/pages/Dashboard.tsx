@@ -13,7 +13,9 @@ import {
 import axiosClient from '../api/axiosClient';
 import PageHeader from '../components/ui/PageHeader';
 
-// --- Theme Colors ---
+/**
+ * ชุดสีสำหรับใช้ในกราฟและสถิติ
+ */
 const CHART_COLORS = {
     purple: '#8b5cf6',
     new: '#0ea5e9',
@@ -25,7 +27,10 @@ const CHART_COLORS = {
 
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#f43f5e'];
 
-// --- Interfaces ---
+/**
+ * โครงสร้างข้อมูลสถิติภาพรวมบน Dashboard
+ * @interface DashboardStats
+ */
 interface DashboardStats {
     totalLinen: number;
     newLinenToday: number;
@@ -36,11 +41,16 @@ interface DashboardStats {
     disposed: number;
 }
 
+/**
+ * หน้าจอติดตามสถานะผ้าและวิเคราะห์ข้อมูลการใช้งาน (Dashboard)
+ * 
+ * @returns {JSX.Element} คอมโพเนนต์หน้าจอแสดงผลสถิติและกราฟ
+ */
 const Dashboard: React.FC = () => {
     const theme = useTheme();
     const [loading, setLoading] = useState(true);
 
-    // --- STATE ---
+    // สถานะข้อมูลสถิติ
     const [stats, setStats] = useState<DashboardStats>({
         totalLinen: 0, newLinenToday: 0, washing: 0, available: 0,
         pendingRequests: 0, damaged: 0, disposed: 0
@@ -52,7 +62,7 @@ const Dashboard: React.FC = () => {
     const [damagedData, setDamagedData] = useState<any[]>([]);
     const [yearlyData, setYearlyData] = useState<any[]>([]);
 
-    // สเตทใหม่ สำหรับเก็บข้อมูล Stock แยกตามสถานที่
+    // สถานะสำหรับเก็บข้อมูลจำนวนผ้าแยกตามสถานที่ (Location Stock)
     const [locationStock, setLocationStock] = useState<Record<string, Record<string, number>>>({});
 
     useEffect(() => {
@@ -115,7 +125,9 @@ const Dashboard: React.FC = () => {
         );
     }
 
-    // --- COMPONENTS ---
+    /**
+     * การ์ดแสดงสถิติย่อย (Stat Card)
+     */
     const StatCard = ({ title, value, icon, color, subtitle }: any) => (
         <Card
             elevation={0}
@@ -161,6 +173,9 @@ const Dashboard: React.FC = () => {
         </Card>
     );
 
+    /**
+     * คอนเทนเนอร์สำหรับห่อหุ้มกราฟวิเคราะห์ข้อมูล
+     */
     const ChartContainer = ({ title, subtitle, icon, children, height = 360 }: any) => (
         <Paper
             elevation={0}
@@ -193,7 +208,9 @@ const Dashboard: React.FC = () => {
         </Paper>
     );
 
-    // ปรับ Tooltip ให้เป็นแบบ Glassmorphism สวยงาม
+    /**
+     * คอมโพเนนต์ Tooltip ปรับแต่งสไตล์ (Glassmorphism)
+     */
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
             return (
@@ -243,9 +260,7 @@ const Dashboard: React.FC = () => {
             />
 
             <Container maxWidth={false} disableGutters>
-                {/* ========================================================= */}
-                {/* SECTION 1: KPI Cards */}
-                {/* ========================================================= */}
+                {/* ส่วนที่ 1: การ์ดแสดงสถิติภาพรวม */}
                 <Box sx={{ mb: 4 }}>
                     <Typography variant="h6" fontWeight="800" sx={{ mb: 2, color: theme.palette.text.primary, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Box component="span" sx={{ width: 5, height: 24, bgcolor: CHART_COLORS.blue, borderRadius: 1 }} />
@@ -274,9 +289,7 @@ const Dashboard: React.FC = () => {
                     </Grid>
                 </Box>
 
-                {/* ========================================================= */}
-                {/* SECTION 2: Charts */}
-                {/* ========================================================= */}
+                {/* ส่วนที่ 2: กราฟวิเคราะห์ข้อมูล */}
                 <Box sx={{ mb: 5 }}>
                     <Typography variant="h6" fontWeight="800" sx={{ mb: 2, color: theme.palette.text.primary, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Box component="span" sx={{ width: 5, height: 24, bgcolor: CHART_COLORS.purple, borderRadius: 1 }} />
@@ -285,13 +298,13 @@ const Dashboard: React.FC = () => {
 
                     <Grid container spacing={3}>
 
-                        {/* --- Bar Chart: 7 Days --- */}
+                        {/* กราฟแท่ง: ข้อมูลย้อนหลัง 7 วัน */}
                         <Grid item xs={12} lg={8}>
                             <ChartContainer title="การเคลื่อนไหวของผ้า (7 วันล่าสุด)" subtitle="เปรียบเทียบยอดเบิกใช้ vs ส่งซัก" icon={<Assessment fontSize="small" />}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={dailyData} margin={{ top: 20, right: 20, left: -20, bottom: 20 }} barGap={8}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.divider, 0.5)} />
-                                        {/* ✅ interval={0} บังคับแสดงทุกวัน, angle={-25} แกน x เอียงนิดนึงให้อ่านง่าย */}
+                                        {/* บังคับแสดงทุกวันและเอียงป้ายกำกับแกน X ให้อ่านง่าย */}
                                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.secondary, fontSize: 11, fontWeight: 500 }} dy={10} interval={0} angle={-15} textAnchor="end" />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
                                         <Tooltip content={<CustomTooltip />} cursor={{ fill: alpha(theme.palette.primary.main, 0.04) }} />
@@ -302,7 +315,7 @@ const Dashboard: React.FC = () => {
                             </ChartContainer>
                         </Grid>
 
-                        {/* --- Pie Chart: Top Categories --- */}
+                        {/* กราฟโดนัท: สัดส่วนประเภทผ้า */}
                         <Grid item xs={12} lg={4}>
                             <ChartContainer title="สัดส่วนประเภทผ้า" subtitle="จำแนกตามชนิดสินค้า Top 5" icon={<DonutLarge fontSize="small" />}>
                                 <Box sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -353,13 +366,13 @@ const Dashboard: React.FC = () => {
                             </ChartContainer>
                         </Grid>
 
-                        {/* --- Bar Chart: Monthly Requests --- */}
+                        {/* กราฟแท่ง: สถิติคำร้องรายเดือน */}
                         <Grid item xs={12} md={6}>
                             <ChartContainer title="สถิติคำร้อง (6 เดือนล่าสุด)" subtitle="ปริมาณการส่งคำร้องเบิกผ้า/เปลี่ยนผ้ารายเดือน" icon={<InsertChartOutlined fontSize="small" />}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={requestData} margin={{ top: 20, right: 20, left: -20, bottom: 20 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.divider, 0.5)} />
-                                        {/* ✅ interval={0} บังคับโชว์ให้ครบ 6 เดือน */}
+                                        {/* บังคับแสดงป้ายเดือนให้ครบ */}
                                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.secondary, fontSize: 11, fontWeight: 500 }} dy={10} interval={0} />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
                                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
@@ -369,7 +382,7 @@ const Dashboard: React.FC = () => {
                             </ChartContainer>
                         </Grid>
 
-                        {/* --- Area Chart: Damaged Trends --- */}
+                        {/* กราฟพื้นที่: แนวโน้มผ้าชำรุด */}
                         <Grid item xs={12} md={6}>
                             <ChartContainer title="แนวโน้มผ้าชำรุด/สูญหาย (6 เดือนล่าสุด)" subtitle="สถิติการตัดจำหน่ายรายเดือน" icon={<Warning sx={{ color: theme.palette.error.main }} fontSize="small" />}>
                                 <ResponsiveContainer width="100%" height="100%">
@@ -381,7 +394,7 @@ const Dashboard: React.FC = () => {
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.divider, 0.5)} />
-                                        {/* ✅ interval={0} บังคับโชว์ให้ครบ 6 เดือน */}
+                                        {/* บังคับแสดงป้ายเดือนให้ครบ */}
                                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.secondary, fontSize: 11, fontWeight: 500 }} dy={10} interval={0} />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
                                         <Tooltip content={<CustomTooltip />} />
@@ -391,7 +404,7 @@ const Dashboard: React.FC = () => {
                             </ChartContainer>
                         </Grid>
 
-                        {/* --- Area Chart: Yearly Volume --- */}
+                        {/* กราฟพื้นที่: ปริมาณธุรกรรมรายปี */}
                         <Grid item xs={12}>
                             <ChartContainer title="ภาพรวมการหมุนเวียน (12 เดือนล่าสุด)" subtitle="ปริมาณธุรกรรมทั้งหมด (Transaction Volume)" icon={<TrendingUp fontSize="small" />} height={300}>
                                 <ResponsiveContainer width="100%" height="100%">
@@ -403,7 +416,7 @@ const Dashboard: React.FC = () => {
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.divider, 0.5)} />
-                                        {/* ✅ interval={0} บังคับโชว์ให้ครบ 12 เดือน */}
+                                        {/* บังคับแสดงป้ายเดือนให้ครบ */}
                                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.secondary, fontSize: 11, fontWeight: 500 }} dy={10} interval={0} />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.secondary, fontSize: 11 }} />
                                         <Tooltip content={<CustomTooltip />} />
@@ -415,9 +428,7 @@ const Dashboard: React.FC = () => {
                     </Grid>
                 </Box>
 
-                {/* ========================================================= */}
-                {/* SECTION 3: Stock by Location */}
-                {/* ========================================================= */}
+                {/* ส่วนที่ 3: สต็อกผ้าแยกตามสถานที่ */}
                 <Box sx={{ mt: 5 }}>
                     <Typography variant="h6" fontWeight="800" sx={{ mb: 3, color: theme.palette.text.primary, display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         <Box component="span" sx={{ width: 5, height: 24, bgcolor: theme.palette.success.main, borderRadius: 1 }} />
