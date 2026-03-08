@@ -67,8 +67,15 @@ namespace Backend.Services
             
             if (existingProduct == null) return (404, "ไม่พบสินค้า", null);
 
+            // อัปเดตข้อมูลเดิมที่มีอยู่แล้ว
             existingProduct.MaxWashCount = item.MaxWashCount;
             existingProduct.MaxLifespanDays = item.MaxLifespanDays;
+            
+            // 🟢 ส่วนที่เพิ่มใหม่: อัปเดตชื่อสินค้าหากมีการส่งค่าเข้ามา
+            if (!string.IsNullOrWhiteSpace(item.ProductName))
+            {
+                existingProduct.ProductName = item.ProductName;
+            }
             
             try 
             {

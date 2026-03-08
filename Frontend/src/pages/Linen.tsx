@@ -4,14 +4,18 @@ import {
   TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Card, CardContent, Select, MenuItem,
   Stack, InputAdornment, Autocomplete, createFilterOptions, Collapse, Alert, Chip, Paper,
-  useTheme, alpha, Divider, Grid, Switch, FormControlLabel, TablePagination
+  useTheme, alpha, Divider, Grid, Switch, FormControlLabel, TablePagination,
+  // 🟢 สิ่งที่เพิ่มเข้ามา: คอมโพเนนต์สำหรับทำหน้าต่าง Dialog แก้ไข
+  Dialog, DialogTitle, DialogContent, DialogActions 
 } from '@mui/material';
 import {
   AppRegistration, Delete, PlaylistAddCheck, QrCodeScanner, RestartAlt,
   LocalLaundryService, Info, Save,
   Category, FiberNew,
   CheckCircle, ErrorOutline, Room,
-  DeleteForever
+  DeleteForever,
+  // 🟢 สิ่งที่เพิ่มเข้ามา: ไอคอนสำหรับปุ่มแก้ไข
+  Edit 
 } from '@mui/icons-material';
 import Swal from 'sweetalert2';
 import axiosClient from '../api/axiosClient';
@@ -102,6 +106,14 @@ const RegisterLinen: React.FC = () => {
     setRowsPerPage(+event.target.value);
     setPage(0);
   };
+
+  // 🟢 สิ่งที่เพิ่มเข้ามา: สถานะสำหรับจัดการหน้าต่างแก้ไขข้อมูลสินค้า
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editProductData, setEditProductData] = useState({
+    productName: '',
+    maxWashCount: 100,
+    maxLifespanDays: 365
+  });
 
   // ขั้นตอนการกำหนดค่าเริ่มต้นและการโหลดข้อมูล (Initialization)
   useEffect(() => {
@@ -234,6 +246,50 @@ const RegisterLinen: React.FC = () => {
     addRfidToList(rfidInput);
     setRfidInput('');
     setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  // 🟢 สิ่งที่เพิ่มเข้ามา: ฟังก์ชันเปิด/ปิด หน้าต่างแก้ไข และฟังก์ชันบันทึกการแก้ไข
+  const handleOpenEditDialog = () => {
+    if (selectedProduct) {
+      setEditProductData({
+        productName: selectedProduct.productName,
+        maxWashCount: selectedProduct.maxWashCount || 100,
+        maxLifespanDays: selectedProduct.maxLifespanDays || 365
+      });
+      setIsEditDialogOpen(true);
+    }
+  };
+
+  const handleCloseEditDialog = () => {
+    setIsEditDialogOpen(false);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!selectedProduct) return;
+    if (!editProductData.productName?.trim()) {
+      return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อสินค้า', 'warning');
+    }
+
+    try {
+      const payload = {
+        productId: selectedProduct.productId,
+        productName: editProductData.productName,
+        maxWashCount: Number(editProductData.maxWashCount),
+        maxLifespanDays: Number(editProductData.maxLifespanDays)
+      };
+
+      const res = await axiosClient.put(`/Product/${selectedProduct.productId}`, payload);
+      
+      Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'แก้ไขข้อมูลสินค้าเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+      
+      setIsEditDialogOpen(false);
+      setSelectedProduct(res.data); // อัปเดตข้อมูลในการ์ดทันที
+      fetchMasterData(); // อัปเดตตารางตัวเลือกทั้งหมดให้เป็นชื่อใหม่
+
+    } catch (err: any) {
+      console.error(err);
+      Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.message || 'ไม่สามารถแก้ไขข้อมูลได้', 'error');
+    }
   };
 
   // ฟังก์ชันจัดการลบข้อมูลสินค้าออกจากระบบ
@@ -505,18 +561,33 @@ const RegisterLinen: React.FC = () => {
                               {selectedProduct.isDisposable && <Chip label="ใช้แล้วทิ้ง" color="warning" size="small" sx={{ ml: 2, fontWeight: 'bold' }} />}
                             </Typography>
 
-                            {canWrite && (
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                color="error"
-                                startIcon={<DeleteForever />}
-                                onClick={handleDeleteProduct}
-                                sx={{ textTransform: 'none' }}
-                              >
-                                ลบสินค้านี้
-                              </Button>
-                            )}
+                            {/* 🟢 สิ่งที่เพิ่มเข้ามา: ปุ่มแก้ไขวางคู่กับปุ่มลบ */}
+                            <Stack direction="row" spacing={1}>
+                              {canWrite && (
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  color="warning"
+                                  startIcon={<Edit />}
+                                  onClick={handleOpenEditDialog}
+                                  sx={{ textTransform: 'none' }}
+                                >
+                                  แก้ไขสินค้านี้
+                                </Button>
+                              )}
+                              {canWrite && (
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  color="error"
+                                  startIcon={<DeleteForever />}
+                                  onClick={handleDeleteProduct}
+                                  sx={{ textTransform: 'none' }}
+                                >
+                                  ลบสินค้านี้
+                                </Button>
+                              )}
+                            </Stack>
                           </Stack>
 
                           <Grid container spacing={4}>
@@ -734,6 +805,57 @@ const RegisterLinen: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* 🟢 สิ่งที่เพิ่มเข้ามา: หน้าต่าง Dialog สำหรับแก้ไขข้อมูลสินค้า */}
+      <Dialog open={isEditDialogOpen} onClose={handleCloseEditDialog} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+          <Stack direction="row" alignItems="center" gap={1}>
+            <Edit /> แก้ไขข้อมูลสินค้า (Product)
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <FormLabel label="ชื่อสินค้า" required>
+              <TextField 
+                fullWidth 
+                value={editProductData.productName} 
+                onChange={(e) => setEditProductData({...editProductData, productName: e.target.value})} 
+              />
+            </FormLabel>
+            
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <FormLabel label="อายุการใช้งาน (รอบซัก)">
+                  <TextField 
+                    fullWidth 
+                    type="number"
+                    value={editProductData.maxWashCount} 
+                    onChange={(e) => setEditProductData({...editProductData, maxWashCount: Number(e.target.value)})} 
+                    InputProps={{ endAdornment: <InputAdornment position="end">รอบ</InputAdornment> }}
+                  />
+                </FormLabel>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormLabel label="อายุการใช้งาน (วัน)">
+                  <TextField 
+                    fullWidth 
+                    type="number"
+                    value={editProductData.maxLifespanDays} 
+                    onChange={(e) => setEditProductData({...editProductData, maxLifespanDays: Number(e.target.value)})} 
+                    InputProps={{ endAdornment: <InputAdornment position="end">วัน</InputAdornment> }}
+                  />
+                </FormLabel>
+              </Grid>
+            </Grid>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={handleCloseEditDialog} color="inherit">ยกเลิก</Button>
+          <Button onClick={handleEditSubmit} variant="contained" color="primary">บันทึกการแก้ไข</Button>
+        </DialogActions>
+      </Dialog>
+      {/* สิ้นสุดส่วนที่เพิ่มเข้ามา */}
+
     </Box>
   );
 };
