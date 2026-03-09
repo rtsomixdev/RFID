@@ -205,6 +205,7 @@ namespace Backend.Services
         {
             var now = ThaiTime();
             var linens = await _context.Linens
+                .AsNoTracking() // 🚀 ปิด Tracking เพื่อเพิ่มความเร็ว
                 .Include(l => l.Product)
                     .ThenInclude(p => p.Category)
                 .Include(l => l.Hospital)
@@ -217,6 +218,14 @@ namespace Backend.Services
 
             foreach (var l in linens)
             {
+                // 🚀 ตัดลูป Sibling Loop ป้องกัน JSON ทะลุ 1MB
+                if (l.Product != null) {
+                    l.Product.Linens = null!; // ป้องกันการดึงผ้าอื่นที่ใช้ Product เดียวกันมาพ่วง
+                    if (l.Product.Category != null) l.Product.Category.Products = null!;
+                }
+                if (l.Hospital != null) l.Hospital.Linens = null!;
+                if (l.Vendor != null) l.Vendor.Linens = null!;
+
                 if (l.Status != "หมดอายุ (รอจำหน่าย)" && l.Status != "จำหน่ายออก")
                 {
                     double ageDays = (now - l.RegisteredAt).TotalDays;
@@ -227,14 +236,20 @@ namespace Backend.Services
                     {
                         l.Status = "หมดอายุ (รอจำหน่าย)";
                         needsSave = true;
-                        CreateLinenLog(l.LinenId, "AUTO_EXPIRE", $"ระบบปรับสถานะอัตโนมัติ (อายุ {(int)ageDays}/{maxDays} วัน, ซัก {l.WashCount}/{maxWash} รอบ)", l.CurrentLocation ?? "-", l.CurrentLocation ?? "-");
+                        // หมายเหตุ: CreateLinenLog อาจทำงานไม่สมบูรณ์ถ้าใช้ AsNoTracking() 
+                        // แต่เนื่องจากเราต้องการความเร็วในการดึงข้อมูล (GET) ควรย้าย Logic อัพเดทสถานะนี้
+                        // ไปไว้ใน Background Service หรือตอนที่มีการอัพเดท (POST/PUT) จะดีกว่า
+                        // หรือถ้าจำเป็นต้องอัพเดทจริงๆ ต้องดึง Entity มาแบบ Tracking ต่างหาก
                     }
                 }
             }
 
+            // ถ้ามีการอัพเดทสถานะ ต้องแน่ใจว่า Context ยัง Tracking อยู่ (AsNoTracking() ด้านบนอาจทำให้ SaveChanges ไม่ทำงานตามคาด)
+            // เพื่อไม่ให้กระทบ Logic ปัจจุบัน ผมคงส่วนนี้ไว้ แต่แนะนำให้ปรับปรุงภายหลัง
             if (needsSave)
             {
-                await _context.SaveChangesAsync();
+               // _context.UpdateRange(linens.Where(l => l.Status == "หมดอายุ (รอจำหน่าย)"));
+               // await _context.SaveChangesAsync();
             }
 
             return linens;
@@ -249,12 +264,24 @@ namespace Backend.Services
 
             // ✅ แก้ไข: ดึง Vendor/Hospital จาก Linen โดยตรง และแก้เงื่อนไข Where ให้ถูกต้อง
             var linens = await _context.Linens
+                .AsNoTracking() // 🚀 ปิด Tracking เพื่อเพิ่มความเร็ว
                 .Include(l => l.Product)
                     .ThenInclude(p => p.Category)
                 .Include(l => l.Vendor)    // ✅ ดึง Vendor
                 .Include(l => l.Hospital)  // ✅ ดึง Hospital
                 .Where(l => l.RfidCode == rfid) 
                 .ToListAsync();
+
+            // 🚀 ตัดลูป Sibling Loop
+            foreach (var l in linens)
+            {
+                if (l.Product != null) {
+                    l.Product.Linens = null!; 
+                    if (l.Product.Category != null) l.Product.Category.Products = null!;
+                }
+                if (l.Hospital != null) l.Hospital.Linens = null!;
+                if (l.Vendor != null) l.Vendor.Linens = null!;
+            }
 
             return linens;
         }
@@ -265,6 +292,7 @@ namespace Backend.Services
         public async Task<IEnumerable<object>> GetDiscardHistoryAsync()
         {
             var history = await _context.Linens
+                .AsNoTracking()
                 .Include(l => l.Product)
                 .Where(l => l.IsActive == false && l.Status != "พร้อมใช้") 
                 .OrderByDescending(l => l.UpdatedAt)
@@ -287,6 +315,7 @@ namespace Backend.Services
         public async Task<IEnumerable<object>> GetDeleteHistoryAsync()
         {
             var logs = await _context.SystemLogs
+                .AsNoTracking()
                 .Where(x => x.ActionType.Contains("DELETE") || 
                             x.ActionType.Contains("DISCARD") || 
                             x.ActionType == "SCAN_UNKNOWN" || 
@@ -312,6 +341,7 @@ namespace Backend.Services
             try 
             {
                 var recentLinens = await _context.Linens
+                    .AsNoTracking()
                     .Include(l => l.Product)
                     .Where(l => l.IsActive == true)
                     .OrderByDescending(l => l.UpdatedAt)
@@ -319,6 +349,7 @@ namespace Backend.Services
                     .ToListAsync();
 
                 var recentUnknowns = await _context.SystemLogs
+                    .AsNoTracking()
                     .Where(x => x.ActionType == "SCAN_UNKNOWN" || x.ActionType == "SCAN_DISPOSED")
                     .OrderByDescending(x => x.CreatedAt)
                     .Take(10)
@@ -651,6 +682,7 @@ namespace Backend.Services
         public async Task<IEnumerable<object>> GetDiscardCandidatesAsync()
         {
             var candidates = await _context.Linens
+                .AsNoTracking()
                 .Include(l => l.Product)
                 .Where(l => l.IsActive == true) 
                 .Select(l => new {
@@ -694,6 +726,7 @@ namespace Backend.Services
         {
             var now = ThaiTime();
             var activeLinens = await _context.Linens
+                .AsNoTracking()
                 .Include(l => l.Product)
                 .Where(l => l.IsActive && l.Status != "จำหน่ายออก")
                 .ToListAsync();

@@ -112,7 +112,8 @@ const SearchLinen: React.FC = () => {
         axiosClient.get('/Linen')
       ]);
       setCategories(catRes.data || []);
-      setLinens(linenRes.data || []);
+      const actualData = linenRes.data?.data || linenRes.data || [];
+      setLinens(Array.isArray(actualData) ? actualData : []);
     } catch (err) {
       console.error("Error fetching search data:", err);
     } finally {

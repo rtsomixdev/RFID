@@ -16,6 +16,7 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 // --- 2. Services Registration ---
 
+// 🚀 [แก้ไขสำเร็จ] ป้องกัน JSON วนลูปไม่รู้จบ (Infinite Loop)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
