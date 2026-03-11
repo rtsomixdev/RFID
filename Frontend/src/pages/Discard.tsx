@@ -42,8 +42,7 @@ interface DiscardMonitorItem {
 
 /**
  * หน้าจอการตัดจำหน่ายผ้า (Discard & Reset Tag)
- * 
- * @returns {JSX.Element} คอมโพเนนต์หน้าจอการตัดจำหน่าย
+ * * @returns {JSX.Element} คอมโพเนนต์หน้าจอการตัดจำหน่าย
  */
 const Discard: React.FC = () => {
     const theme = useTheme();
@@ -64,8 +63,10 @@ const Discard: React.FC = () => {
 
     const [discardedList, setDiscardedList] = useState<DiscardMonitorItem[]>([]);
     const [loadingTable, setLoadingTable] = useState(true);
+    
+    const [isProcessing, setIsProcessing] = useState(false);
 
-    // เก็บประวัติการตัดจำหน่ายใน Session Storage ชั่วคราว เพื่อไม่ให้หายเมื่อรีเฟรชหน้าจอ
+    // เก็บประวัติการตัดจำหน่ายใน Session Storage ชั่วคราว
     const [sessionLogs, setSessionLogs] = useState<DiscardMonitorItem[]>(() => {
         const savedLogs = sessionStorage.getItem('discardSessionLogs');
         return savedLogs ? JSON.parse(savedLogs) : [];
@@ -129,14 +130,31 @@ const Discard: React.FC = () => {
             const res = await axiosClient.get(`/Linen/Search?rfid=${rfid}`);
             if (res.data && res.data.length > 0) {
                 const foundItem = res.data[0];
+
+                // 🛑 ด่านตรวจกำแพงเหล็ก: เช็คครอบจักรวาลทั้งตัวเล็กและตัวใหญ่
+                const isItemActive = foundItem.isActive ?? foundItem.IsActive; 
+                const currentStatus = foundItem.status || foundItem.Status || "ไม่ระบุ";
+
+                // ถ้า isActive เป็น false แสดงว่าพังไปแล้ว 100% ไม่ต้องสนชื่อสถานะ
+                if (isItemActive === false || isItemActive === "false" || isItemActive === 0) {
+                    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 4000 });
+                    Toast.fire({ icon: 'error', title: `RFID: ${rfid} ตัดจำหน่ายไปแล้ว!\n(สถานะปัจจุบัน: ${currentStatus})` });
+                    return; // ❌ ดีดทิ้งทันที ห้ามลงตารางเด็ดขาด
+                }
+
                 const newItem: CandidateItem = {
-                    rfidCode: foundItem.rfidCode,
-                    productName: foundItem.product?.productName || "Unknown Item",
-                    status: foundItem.status || "Unknown"
+                    rfidCode: foundItem.rfidCode || foundItem.RfidCode,
+                    productName: foundItem.product?.productName || foundItem.Product?.ProductName || "Unknown Item",
+                    status: currentStatus
                 };
 
                 setScannedItems(prev => {
-                    if (prev.find(s => s.rfidCode === newItem.rfidCode)) return prev;
+                    if (prev.find(s => s.rfidCode === newItem.rfidCode)) {
+                        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+                        Toast.fire({ icon: 'info', title: `RFID: ${rfid} อยู่ในคิวเตรียมลบแล้ว` });
+                        return prev;
+                    }
+                    
                     const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
                     Toast.fire({ icon: 'success', title: `รับค่า: ${newItem.productName}` });
                     return [newItem, ...prev];
@@ -157,19 +175,16 @@ const Discard: React.FC = () => {
         } catch (err) { console.error(err); }
     };
 
-    // ดึงข้อมูลประวัติความเคลื่อนไหวจากระบบ
     const fetchDiscardedList = async () => {
         try {
             const res = await axiosClient.get('/Report/Movement');
             const data = res.data || [];
 
-            // กรองเงื่อนไขนำเฉพาะข้อมูลประเภท "จำหน่ายออก"
             const filtered = data.filter((item: any) => {
                 const t = (item.type || '').toUpperCase();
                 return t === 'DISCARD' || t === 'LOST' || t === 'DAMAGED' || t === 'จำหน่ายออก';
             });
 
-            // เรียงลำดับข้อมูลจากรายการล่าสุดไปเก่าสุด
             filtered.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
             const mappedData: DiscardMonitorItem[] = filtered.map((item: any) => ({
@@ -182,7 +197,6 @@ const Discard: React.FC = () => {
                 user: item.user || 'Auto System'
             }));
 
-            // แสดงผลเฉพาะ 30 รายการล่าสุด
             setDiscardedList(mappedData.slice(0, 30));
             setLoadingTable(false);
         } catch (err) {
@@ -240,6 +254,7 @@ const Discard: React.FC = () => {
             confirmButtonText: 'ยืนยัน (Reset Tag)'
         }).then(async (result) => {
             if (result.isConfirmed) {
+                setIsProcessing(true);
                 try {
                     const payload = {
                         rfidCodes: scannedItems.map(i => i.rfidCode),
@@ -253,7 +268,6 @@ const Discard: React.FC = () => {
 
                     const reasonName = reasons.find(r => String(r.reasonId || r.id) === selectedReason)?.reasonName || 'ไม่ระบุ';
 
-                    // บันทึกประวัติการส่งตัดจำหน่ายลง Session Storage ชั่วคราว
                     const newLogs: DiscardMonitorItem[] = scannedItems.map((i, index) => ({
                         id: `temp-${Date.now()}-${index}`,
                         date: new Date().toISOString(),
@@ -272,10 +286,17 @@ const Discard: React.FC = () => {
                     );
 
                     clearForm();
-                    // ร้องขอให้ตารางดึงข้อมูลล่าช้าเล็กน้อยเพื่อให้ฐานข้อมูลอัปเดต
                     setTimeout(() => fetchDiscardedList(), 1000);
                 } catch (err: any) {
-                    Swal.fire('Error', err.response?.data?.message || 'เกิดข้อผิดพลาด', 'error');
+                    if (err.response?.status === 404) {
+                        Swal.fire('ไม่พบข้อมูล', err.response?.data?.message || 'ไม่พบ RFID ในระบบ (อาจถูกลบไปแล้ว)', 'error');
+                    } else if (err.response?.status === 400) {
+                        Swal.fire('ทำรายการไม่สำเร็จ', err.response?.data?.message || 'ข้อมูลไม่ถูกต้อง หรือถูกตัดจำหน่ายไปแล้ว', 'warning');
+                    } else {
+                        Swal.fire('Error', err.response?.data?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+                    }
+                } finally {
+                    setIsProcessing(false);
                 }
             }
         });
@@ -293,11 +314,11 @@ const Discard: React.FC = () => {
             confirmButtonColor: theme.palette.error.main
         }).then(async (result) => {
             if (result.isConfirmed) {
+                setIsProcessing(true);
                 try {
                     await axiosClient.post('/Linen/DeleteBatch', scannedItems.map(i => i.rfidCode));
                     Swal.fire('ลบสำเร็จ', 'ลบข้อมูลออกจากระบบถาวรแล้ว', 'success');
 
-                    // บันทึกประวัติการลบข้อมูลถาวร
                     const newLogs: DiscardMonitorItem[] = scannedItems.map((i, index) => ({
                         id: `del-${Date.now()}-${index}`,
                         date: new Date().toISOString(),
@@ -312,7 +333,13 @@ const Discard: React.FC = () => {
                     clearForm();
                     setTimeout(() => fetchDiscardedList(), 1000);
                 } catch (err: any) {
-                    Swal.fire('Error', err.response?.data?.message || 'ลบไม่สำเร็จ', 'error');
+                    if (err.response?.status === 404) {
+                        Swal.fire('ไม่พบข้อมูล', 'บางรายการอาจถูกลบไปแล้ว', 'error');
+                    } else {
+                        Swal.fire('Error', err.response?.data?.message || 'ลบไม่สำเร็จ', 'error');
+                    }
+                } finally {
+                    setIsProcessing(false);
                 }
             }
         });
@@ -329,10 +356,8 @@ const Discard: React.FC = () => {
         setSelectedReason('');
     };
 
-    // รวมประวัติจํานวนจำหน่ายในช่วง Session ปัจจุบันเข้ากับข้อมูลจากฐานข้อมูล
     const displayList = [...sessionLogs];
     discardedList.forEach(item => {
-        // ป้องกันการแสดงผลซ้ำซ้อนซ้อนทับกันระหว่าง Session และ Database
         if (!displayList.find(log => log.productName.includes(item.productName) && log.date === item.date)) {
             displayList.push(item);
         }
@@ -366,6 +391,7 @@ const Discard: React.FC = () => {
                                             InputProps={{ startAdornment: <QrCodeScanner color="action" sx={{ mr: 1 }} /> }}
                                             autoComplete="off"
                                             autoFocus
+                                            disabled={isProcessing} 
                                         />
                                     </FormLabel>
                                 </form>
@@ -379,7 +405,7 @@ const Discard: React.FC = () => {
                                     <Grid container spacing={2} alignItems="flex-end">
                                         <Grid item xs={12} md={4}>
                                             <FormLabel label="สาเหตุ (Reason)" required>
-                                                <Select size="small" fullWidth value={selectedReason} displayEmpty onChange={(e) => setSelectedReason(e.target.value)} sx={{ bgcolor: 'white' }}>
+                                                <Select size="small" fullWidth value={selectedReason} displayEmpty onChange={(e) => setSelectedReason(e.target.value)} sx={{ bgcolor: 'white' }} disabled={isProcessing}>
                                                     <MenuItem value="" disabled>เลือกสาเหตุ</MenuItem>
                                                     {reasons.map((r: any) => (
                                                         <MenuItem key={r.reasonId || r.id} value={String(r.reasonId || r.id)}>{r.reasonName}</MenuItem>
@@ -389,15 +415,15 @@ const Discard: React.FC = () => {
                                         </Grid>
                                         <Grid item xs={12} md={4}>
                                             <FormLabel label="หมายเหตุ (Note)">
-                                                <TextField size="small" fullWidth placeholder="ระบุรายละเอียดเพิ่มเติม..." value={note} onChange={e => setNote(e.target.value)} sx={{ bgcolor: 'white' }} />
+                                                <TextField size="small" fullWidth placeholder="ระบุรายละเอียดเพิ่มเติม..." value={note} onChange={e => setNote(e.target.value)} sx={{ bgcolor: 'white' }} disabled={isProcessing} />
                                             </FormLabel>
                                         </Grid>
                                         <Grid item xs={12} md={4} sx={{ display: 'flex', gap: 1 }}>
-                                            <Button variant="outlined" color="inherit" onClick={clearForm} disabled={scannedItems.length === 0} sx={{ minWidth: 100, height: 40 }}>
+                                            <Button variant="outlined" color="inherit" onClick={clearForm} disabled={scannedItems.length === 0 || isProcessing} sx={{ minWidth: 100, height: 40 }}>
                                                 ล้างค่า
                                             </Button>
-                                            <Button variant="contained" color="warning" startIcon={<LinkOff />} onClick={handleDiscardAndUnbind} disabled={scannedItems.length === 0} fullWidth sx={{ fontWeight: 'bold', height: 40, boxShadow: theme.shadows[2] }}>
-                                                ยืนยันตัดจำหน่าย
+                                            <Button variant="contained" color="warning" startIcon={isProcessing ? <CircularProgress size={20} color="inherit" /> : <LinkOff />} onClick={handleDiscardAndUnbind} disabled={scannedItems.length === 0 || isProcessing} fullWidth sx={{ fontWeight: 'bold', height: 40, boxShadow: theme.shadows[2] }}>
+                                                {isProcessing ? 'กำลังประมวลผล...' : 'ยืนยันตัดจำหน่าย'}
                                             </Button>
                                         </Grid>
                                     </Grid>
@@ -432,7 +458,7 @@ const Discard: React.FC = () => {
                                                     </TableCell>
                                                     <TableCell>{item.status}</TableCell>
                                                     <TableCell align="center">
-                                                        <IconButton size="small" color="error" onClick={() => handleRemoveItem(item.rfidCode)}>
+                                                        <IconButton size="small" color="error" onClick={() => handleRemoveItem(item.rfidCode)} disabled={isProcessing}>
                                                             <Delete fontSize="small" />
                                                         </IconButton>
                                                     </TableCell>
@@ -471,12 +497,12 @@ const Discard: React.FC = () => {
                                 <Grid container spacing={3} alignItems="center">
                                     <Grid item xs={12} md={8}>
                                         <FormLabel label="ระบุ RFID Tag ที่มีปัญหา">
-                                            <TextField fullWidth size="small" placeholder="เช่น E200..." value={manualRfid} onChange={e => setManualRfid(e.target.value)} sx={{ bgcolor: 'white' }} />
+                                            <TextField fullWidth size="small" placeholder="เช่น E200..." value={manualRfid} onChange={e => setManualRfid(e.target.value)} sx={{ bgcolor: 'white' }} disabled={isProcessing} />
                                         </FormLabel>
                                     </Grid>
                                     <Grid item xs={12} md={4} sx={{ display: 'flex', gap: 2, alignItems: 'flex-end', pb: '2px' }}>
-                                        <Button variant="contained" onClick={handleManualCheck} disabled={!manualRfid} sx={{ height: 40 }}>ตรวจสอบ</Button>
-                                        <Button variant="contained" color="error" onClick={handleForceDelete} disabled={scannedItems.length === 0} startIcon={<DeleteForever />} sx={{ height: 40 }}>ลบถาวร</Button>
+                                        <Button variant="contained" onClick={handleManualCheck} disabled={!manualRfid || isProcessing} sx={{ height: 40 }}>ตรวจสอบ</Button>
+                                        <Button variant="contained" color="error" onClick={handleForceDelete} disabled={scannedItems.length === 0 || isProcessing} startIcon={<DeleteForever />} sx={{ height: 40 }}>ลบถาวร</Button>
                                     </Grid>
                                 </Grid>
                             </CardContent>
@@ -485,7 +511,6 @@ const Discard: React.FC = () => {
                 </Box>
             )}
 
-            {/* ตารางแสดงประวัติความเคลื่อนไหวของการตัดจำหน่าย (ธีมสีแดง) */}
             <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.error.light}` }}>
                 <Box sx={{ p: 2, bgcolor: alpha(theme.palette.error.main, 0.05), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Stack direction="row" alignItems="center" gap={1.5}>
@@ -507,7 +532,6 @@ const Discard: React.FC = () => {
                     <Table size="small">
                         <TableHead>
                             <TableRow>
-                                {/* คอลัมน์รูปแบบเดียวกับหน้าต่างรายงานความเคลื่อนไหว */}
                                 <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc' }}>วัน/เวลา</TableCell>
                                 <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc' }}>ประเภท</TableCell>
                                 <TableCell sx={{ fontWeight: '700', bgcolor: '#f8fafc' }}>สินค้า (RFID)</TableCell>
