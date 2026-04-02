@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  # 1. Database
+  db:
+    image: postgres:15-alpine
+    container_name: linen_postgres_db
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=linen_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - linen_network
+
+  # 2. pgAdmin
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: linen_pgadmin
+    user: root
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@linen.com
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "5050:80"
+    volumes:
+      - ./pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - db
+    restart: always
+    networks:
+      - linen_network
+
+  # 3. MQTT Broker (Mosquitto)
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: linen_mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    restart: always
+    networks:
+      - linen_network
+
+  # 4. Backend (.NET API)
+  backend:
+    build: 
+      context: ./backend 
+    container_name: linen_backend
+    ports:
+      - "8080:8080" 
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:8080
+      - ConnectionStrings__DefaultConnection=Host=db;Database=linen_db;Username=admin;Password=${POSTGRES_PASSWORD}
+      - ASPNETCORE_ENVIRONMENT=Development
+      - MqttConfig__Server=mosquitto
+    depends_on:
+      - db
+      - mosquitto
+    restart: always
+    networks:
+      - linen_network
+
+  # 5. Frontend (React/Vite)
+  frontend:
+    build: 
+      context: ./frontend 
+    container_name: linen_frontend
+    ports:
+      - "3000:80" 
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - linen_network
+
+  # 6. Cloudflare Tunnel
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: linen_tunnel
+    restart: always
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+      - TUNNEL_TRANSPORT_PROTOCOL=quic
+    command: tunnel --no-autoupdate run
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - linen_network
+
+volumes:
+  pg_data:
+  pgadmin_data:
+networks:
+  linen_network:
+    driver: bridge

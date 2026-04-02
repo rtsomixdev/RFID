@@ -9,8 +9,8 @@ export default defineConfig({
     allowedHosts: true, 
     proxy: {
       '/api': {
-        // 👇 แก้ตรงนี้: เปลี่ยนจาก http://linen_api:8080 เป็น localhost
-        // ⚠️ สำคัญ: เลข 5134 ต้องตรงกับที่ขึ้นใน Terminal ตอนคุณรัน 'dotnet watch run'
+        //แก้ตรงนี้: เปลี่ยนจาก http://linen_api:8080 เป็น localhost
+        //สำคัญ: เลข 5134 ต้องตรงกับที่ขึ้นใน Terminal ตอนคุณรัน 'dotnet watch run'
         // (ถ้ามันขึ้น port อื่น เช่น 5000, 5200 ให้แก้เลขตรงนี้ตามครับ)
         target: 'http://localhost:5134', 
         changeOrigin: true,
